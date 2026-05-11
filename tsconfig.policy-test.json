@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".omx/test-build",
+    "rootDir": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "sourceMap": true,
+    "declaration": false,
+    "incremental": false,
+    "plugins": []
+  },
+  "include": [
+    "src/lib/policies/**/*.ts",
+    "src/lib/prototype/permissions.ts",
+    "src/lib/prototype/events.ts",
+    "src/lib/domain/**/*.ts",
+    "src/**/*.test.ts"
+  ],
+  "exclude": ["node_modules", ".next", ".omx/test-build", "src/app/**", "src/components/**", "src/features/**", "**/*.tsx"]
+}
+

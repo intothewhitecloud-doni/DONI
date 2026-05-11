@@ -1,0 +1,152 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { Card, SectionTitle } from "../../components/ui/Card";
+import type { VoteChoice } from "../../lib/domain/types";
+import { summarizeVotes } from "../../lib/policies/voting";
+import { can, roleLabel } from "../../lib/prototype/permissions";
+import { activeProposal, latestDecision } from "../../lib/prototype/selectors";
+import { usePrototype } from "../../lib/prototype/PrototypeProvider";
+
+const choiceLabels: Record<VoteChoice, string> = {
+  approve: "승인",
+  reject: "반려",
+  abstain: "기권"
+};
+
+export function ProposalVoteScreen() {
+  const { commands, state } = usePrototype();
+  const proposal = activeProposal(state);
+  const canFinalizeProposal = can(state.session.role, "proposal:finalize");
+  const canVoteProposal = can(state.session.role, "proposal:vote");
+  const [choice, setChoice] = useState<VoteChoice>("approve");
+  const summary = useMemo(() => (proposal ? summarizeVotes(proposal, state.votes) : undefined), [proposal, state.votes]);
+  const currentUserVote = proposal
+    ? state.votes.find((vote) => vote.proposalId === proposal.id && vote.voterId === state.session.currentUserId)
+    : undefined;
+
+  if (!proposal) {
+    return (
+      <div className="space-y-8">
+        <SectionTitle eyebrow="의사결정" title="아직 생성된 안건이 없습니다" description="인사이트 상세에서 안건을 먼저 생성하세요." />
+        <Button onClick={() => commands.navigate("dashboard")}>대시보드로 이동</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <SectionTitle eyebrow="의사결정 > 투표" title={proposal.title} description={proposal.summary} />
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+        <Card className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-4">
+            <VoteStat label="승인" value={summary?.approve ?? 0} tone="success" />
+            <VoteStat label="반려" value={summary?.reject ?? 0} tone="danger" />
+            <VoteStat label="기권" value={summary?.abstain ?? 0} tone="neutral" />
+            <VoteStat label="참여율" value={`${Math.round(summary?.participationPercent ?? 0)}%`} tone="info" />
+          </div>
+          <div className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+            정족수 {proposal.votingRule.quorumPercent}% 이상, 승인율 {proposal.votingRule.approvalPercent}% 이상이면 통과됩니다.
+            동률이면 {roleLabel(proposal.votingRule.tieBreakerRole)}가 조정합니다.
+          </div>
+          <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            현재 내 투표 상태: {currentUserVote ? `${choiceLabels[currentUserVote.choice]} · ${currentUserVote.reason}` : "아직 참여하지 않음"}
+          </div>
+          {canVoteProposal && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(choiceLabels) as VoteChoice[]).map((item) => (
+                  <Button key={item} variant={choice === item ? "primary" : "secondary"} onClick={() => setChoice(item)}>
+                    {choiceLabels[item]}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={() => commands.castVote(proposal.id, choice, "현재 사용자의 검토 의견입니다.")}>투표 반영</Button>
+                {canFinalizeProposal && <Button variant="secondary" onClick={() => commands.finalizeProposal(proposal.id)}>결과 확정</Button>}
+              </div>
+            </>
+          )}
+        </Card>
+        <Card className="space-y-4">
+          <h2 className="text-lg font-bold text-slate-950">참여 구성원</h2>
+          {proposal.eligibleVoterIds.map((userId) => {
+            const user = state.users.find((item) => item.id === userId);
+            const vote = state.votes.find((item) => item.proposalId === proposal.id && item.voterId === userId);
+            return (
+              <div key={userId} className="flex items-center justify-between rounded-md border border-slate-200 p-3">
+                <div>
+                  <p className="font-semibold text-slate-900">{user?.name}</p>
+                  <p className="text-xs text-slate-500">{user?.title}</p>
+                </div>
+                <Badge tone={vote ? "success" : "neutral"}>{vote ? choiceLabels[vote.choice] : "대기"}</Badge>
+              </div>
+            );
+          })}
+          <div className="pt-3">
+            <h3 className="font-bold text-slate-950">검토 의견</h3>
+            <div className="mt-3 space-y-2">
+              {proposal.comments.map((comment) => {
+                const author = state.users.find((user) => user.id === comment.authorId);
+                return (
+                  <div key={comment.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-900">{author?.name ?? "구성원"}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">{comment.message}</p>
+                  </div>
+                );
+              })}
+              {state.votes
+                .filter((vote) => vote.proposalId === proposal.id)
+                .map((vote) => {
+                  const voter = state.users.find((user) => user.id === vote.voterId);
+                  return (
+                    <div key={`${vote.id}-opinion`} className="rounded-md border border-slate-200 p-3">
+                      <p className="text-sm font-semibold text-slate-900">{voter?.name ?? "투표자"} · {choiceLabels[vote.choice]}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{vote.reason}</p>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export function DecisionConfirmScreen() {
+  const { commands, state } = usePrototype();
+  const decision = latestDecision(state);
+  const canCreateVerification = can(state.session.role, "verification:create");
+
+  if (!decision) {
+    return (
+      <div className="space-y-8">
+        <SectionTitle eyebrow="의사결정 > 결과 확정" title="확정된 의사결정이 없습니다" />
+        <Button onClick={() => commands.navigate("proposalVote")}>투표로 이동</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <SectionTitle eyebrow="의사결정 > 결과 확정" title={decision.title} description={decision.summary} />
+      <Card className="space-y-4">
+        <Badge tone="success">최종 확정</Badge>
+        <p className="text-sm text-slate-600">확정 시각 {new Date(decision.finalizedAt).toLocaleString("ko-KR")}</p>
+        {canCreateVerification && <Button onClick={() => commands.generateVerificationRecord(decision.id)}>검증 기록 생성</Button>}
+      </Card>
+    </div>
+  );
+}
+
+function VoteStat({ label, value, tone }: { label: string; value: string | number; tone: "success" | "danger" | "neutral" | "info" }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-4">
+      <Badge tone={tone}>{label}</Badge>
+      <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
+    </div>
+  );
+}

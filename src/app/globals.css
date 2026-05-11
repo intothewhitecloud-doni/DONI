@@ -1,0 +1,63 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: theme('colors.canvas');
+  color: theme('colors.body');
+  font-family: theme('fontFamily.sans');
+  letter-spacing: 0;
+}
+
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: theme('fontFamily.display');
+  color: theme('colors.ink');
+  letter-spacing: -0.04em; /* Approx for Cal Sans */
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.metric-line {
+  background:
+    linear-gradient(180deg, rgba(37, 99, 235, 0.16), rgba(37, 99, 235, 0)),
+    linear-gradient(135deg, transparent 0 8%, #2563eb 8% 10%, transparent 10% 18%, #2563eb 18% 20%, transparent 20% 35%, #2563eb 35% 37%, transparent 37% 48%, #2563eb 48% 50%, transparent 50% 62%, #2563eb 62% 64%, transparent 64% 78%, #2563eb 78% 80%, transparent 80%);
+}
