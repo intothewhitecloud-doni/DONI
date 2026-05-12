@@ -820,6 +820,7 @@ test("managed object view exposes category detail and typed graph links", () => 
   assert.equal(view.detail.instances.some((instance) => instance.id === "entity-supplier-a"), true);
   assert.equal(view.detail.events.some((event) => event.id === "event-outbound"), true);
   assert.equal(view.detail.metrics.some(({ definition }) => definition.id === "metric-delay-time"), true);
+  assert.equal(view.detail.defaultGraphItemId, "edge-relation-supplier-product");
   assert.deepEqual(
     view.detail.graphLegend.map((item) => item.edgeType),
     ["managed_object_structural", "managed_object_workflow", "workflow_sequence", "workflow_metric", "metric_insight"]

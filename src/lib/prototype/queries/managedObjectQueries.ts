@@ -290,7 +290,7 @@ function buildManagedObjectDetail(state: PrototypeState, categoryId?: string): M
     graphNodes: graphModel.nodes,
     graphEdges: graphModel.edges,
     graphLegend: managedObjectGraphLegend,
-    defaultGraphItemId: graphModel.edges[0]?.id ?? graphModel.nodes[0]?.id
+    defaultGraphItemId: resolveDefaultGraphItemId(graphModel)
   };
 }
 
@@ -604,6 +604,23 @@ function buildGraphModel({
     nodes,
     edges: uniqueEdges(edges).filter((edge) => nodeIds.has(edge.fromId) && nodeIds.has(edge.toId))
   };
+}
+
+function resolveDefaultGraphItemId(graphModel: { edges: ManagedObjectGraphEdge[]; nodes: ManagedObjectGraphNode[] }): string | undefined {
+  const nodeById = new Map(graphModel.nodes.map((node) => [node.id, node]));
+  const influenceEdge = graphModel.edges.find((edge) => {
+    const from = nodeById.get(edge.fromId);
+    const to = nodeById.get(edge.toId);
+    return edge.edgeType === "managed_object_structural" && from?.type === "managed_object" && to?.type === "managed_object";
+  });
+
+  return (
+    influenceEdge?.id ??
+    graphModel.edges.find((edge) => edge.edgeType === "managed_object_structural")?.id ??
+    graphModel.edges[0]?.id ??
+    graphModel.nodes.find((node) => node.type === "managed_object")?.id ??
+    graphModel.nodes[0]?.id
+  );
 }
 
 function relationEdgeType(relation: Relation): ManagedObjectGraphEdgeType {
