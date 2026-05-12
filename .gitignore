@@ -29,6 +29,9 @@ pnpm-debug.log*
 # OMX runtime/local artifacts
 .omx/
 
+# mcp server
+.playwright-mcp/
+
 # OS/editor files
 .DS_Store
 Thumbs.db
