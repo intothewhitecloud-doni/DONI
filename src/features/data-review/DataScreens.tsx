@@ -677,7 +677,7 @@ export function ManagedObjectsScreen() {
               <div className="grid gap-3 md:grid-cols-4">
                 <DetailStat label="하위 대상" value={`${view.detail.instances.length}개`} />
                 <DetailStat label="업무 흐름" value={`${view.detail.events.length}단계`} />
-                <DetailStat label="edge" value={`${view.detail.graphEdges.length}개`} />
+                <DetailStat label="연결" value={`${view.detail.graphEdges.length}개`} />
                 <DetailStat label="지표" value={`${view.detail.metrics.length}개`} />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -696,7 +696,7 @@ export function ManagedObjectsScreen() {
               <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="font-bold text-slate-950">Knowledge Graph</h3>
-                  <Badge tone="neutral">정적 시각화</Badge>
+                  <Badge tone="neutral">탐색형 그래프</Badge>
                 </div>
                 <div className="mt-4">
                   <KnowledgeGraph
@@ -718,7 +718,7 @@ export function ManagedObjectsScreen() {
                   items={view.detail.events.map((event) => `${event.name} · ${event.status} · ${event.durationHours}시간`)}
                 />
                 <LinkedList
-                  title="edge 요약"
+                  title="연결 요약"
                   items={view.detail.graphEdges.map((edge) => {
                     const from = view.detail.graphNodes.find((node) => node.id === edge.fromId)?.label ?? edge.fromId;
                     const to = view.detail.graphNodes.find((node) => node.id === edge.toId)?.label ?? edge.toId;
@@ -799,7 +799,7 @@ export function WorkflowScreen() {
                   연결 관리 대상: {connectedEntities.map((item) => `${item.kind} ${item.name}`).join(", ") || "없음"}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  관계 edge: {connectedRelations.map((relation) => relation.type).join(", ") || "없음"}
+                  관계 연결: {connectedRelations.map((relation) => relation.type).join(", ") || "없음"}
                 </p>
               </div>
               <div className="space-y-1 text-sm text-slate-600">
@@ -863,7 +863,7 @@ export function MetricsScreen() {
               <LinkedList title="계산 근거" items={basisItems} />
               <LinkedList title="근거 위치" items={evidenceLabels} />
               <LinkedList
-                title="관련 edge"
+                title="관련 연결"
                 items={relatedRelations.map((relation) => {
                   const from = domainNodeLabel(state, relation.fromId);
                   const to = domainNodeLabel(state, relation.toId);

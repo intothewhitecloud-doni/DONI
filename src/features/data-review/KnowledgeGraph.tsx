@@ -1,14 +1,32 @@
 "use client";
 
+import {
+  Background,
+  BaseEdge,
+  Controls,
+  MarkerType,
+  Position,
+  ReactFlow,
+  getSmoothStepPath,
+  type Edge,
+  type EdgeProps,
+  type Node
+} from "@xyflow/react";
+import type { CSSProperties, ReactNode } from "react";
+import { useMemo } from "react";
 import { Badge } from "../../components/ui/Badge";
 import {
   getManagedObjectGraphItemDetail,
   type ManagedObjectDetail,
   type ManagedObjectGraphEdge,
-  type ManagedObjectGraphEdgeType,
-  type ManagedObjectGraphLegendItem,
   type ManagedObjectGraphNode
 } from "../../lib/prototype/queries/managedObjectQueries";
+import {
+  buildManagedObjectGraphLayout,
+  type ManagedObjectGraphEdgeRoute,
+  type ManagedObjectGraphEdgeVisual,
+  type ManagedObjectGraphLayout
+} from "../../lib/prototype/queries/managedObjectGraphLayout";
 import type { EvidenceReference, MetricDefinition } from "../../lib/domain/types";
 
 type KnowledgeGraphProps = {
@@ -19,139 +37,120 @@ type KnowledgeGraphProps = {
   onSelectItem: (itemId: string) => void;
 };
 
-const graphWidth = 940;
-const nodeWidth = 150;
-const nodeHeight = 58;
-const horizontalGap = 34;
-const verticalGap = 28;
-const columnOrder: Array<ManagedObjectGraphNode["type"]> = ["category", "managed_object", "workflow", "metric", "insight"];
+type GraphNodeData = {
+  label: ReactNode;
+};
+
+type GraphEdgeData = {
+  borderRadius: number;
+  route: ManagedObjectGraphEdgeRoute;
+};
+
+type FlowNode = Node<GraphNodeData, "default">;
+type FlowEdge = Edge<GraphEdgeData, "knowledge">;
+
+const nodeWidth = 172;
+const fallbackEdgeRoute: ManagedObjectGraphEdgeRoute = { offset: 20, parallelOffset: 0, stepPosition: 0.5 };
+
+const nodeLegend: Array<{
+  type: ManagedObjectGraphNode["type"];
+  label: string;
+  description: string;
+}> = [
+  { type: "category", label: "범위", description: "현재 선택한 관리 대상 카테고리" },
+  { type: "managed_object", label: "관리 대상", description: "영향관계 탐색의 중심 객체" },
+  { type: "workflow", label: "업무흐름", description: "관리 대상과 연결된 업무 단계" },
+  { type: "metric", label: "지표", description: "업무흐름을 측정하는 수치 기준" },
+  { type: "insight", label: "인사이트", description: "지표 변화에서 생성된 운영 신호" }
+];
 
 export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, selectedItemId }: KnowledgeGraphProps) {
-  const layout = layoutGraph(detail.graphNodes);
+  const graph = useMemo(() => buildFlowModel(detail, selectedItemId), [detail, selectedItemId]);
+  const edgeTypes = useMemo(() => ({ knowledge: KnowledgeEdge }), []);
   const selectedDetail = getManagedObjectGraphItemDetail(detail, selectedItemId);
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-        <svg
-          className="min-w-[920px]"
-          role="img"
-          aria-label="관리 대상 연결 그래프"
-          viewBox={`0 0 ${graphWidth} ${layout.height}`}
+      <div className="h-[560px] overflow-hidden rounded-md border border-slate-200 bg-white">
+        <ReactFlow
+          key={detail.category?.id ?? "empty-graph"}
+          nodes={graph.nodes}
+          edges={graph.edges}
+          defaultViewport={graph.layout.defaultViewport}
+          minZoom={0.35}
+          maxZoom={1.35}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          edgesReconnectable={false}
+          elementsSelectable
+          onNodeClick={(event, node) => {
+            event.stopPropagation();
+            onSelectItem(node.id);
+          }}
+          onEdgeClick={(event, edge) => {
+            event.stopPropagation();
+            onSelectItem(edge.id);
+          }}
+          edgeTypes={edgeTypes}
+          proOptions={{ hideAttribution: true }}
         >
-          <defs>
-            {detail.graphLegend.map((item) => (
-              <marker
-                key={item.edgeType}
-                id={`arrow-${item.edgeType}`}
-                markerHeight="8"
-                markerWidth="8"
-                orient="auto"
-                refX="7"
-                refY="4"
-                viewBox="0 0 8 8"
-              >
-                <path d="M 0 0 L 8 4 L 0 8 z" fill={item.color} />
-              </marker>
+          <Background color="#e2e8f0" gap={28} size={1} />
+          <Controls showInteractive={false} />
+        </ReactFlow>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-[1fr_1.35fr]">
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase text-slate-500">노드 유형</p>
+            <Badge tone="neutral">{nodeLegend.length}개</Badge>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+            {nodeLegend.map((item) => (
+              <div key={item.type} className="flex gap-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+                <span
+                  className="mt-1 h-3 w-3 shrink-0 rounded-full border"
+                  style={{ backgroundColor: nodeFill(item.type), borderColor: nodeStroke(item.type) }}
+                />
+                <span>
+                  <span className="block text-xs font-bold text-slate-900">{item.label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">{item.description}</span>
+                </span>
+              </div>
             ))}
-          </defs>
-          {detail.graphEdges.map((edge) => {
-            const from = layout.positions.get(edge.fromId);
-            const to = layout.positions.get(edge.toId);
-            if (!from || !to) {
-              return null;
-            }
+          </div>
+        </div>
 
-            const color = edgeColor(edge.edgeType, detail.graphLegend);
-            const selected = selectedItemId === edge.id;
-            const path = edgePath(from, to);
-
-            return (
-              <g
-                key={edge.id}
-                className="cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelectItem(edge.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase text-slate-500">연결 유형</p>
+            <Badge tone="neutral">{detail.graphLegend.length}개</Badge>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {detail.graphLegend.map((item) => (
+              <button
+                key={item.edgeType}
+                className={`rounded-md border p-3 text-left transition ${
+                  selectedDetail?.subtitle === item.label ? "border-blue-500 bg-blue-50" : "border-slate-100 bg-white hover:bg-slate-50"
+                }`}
+                onClick={() => {
+                  const edge = detail.graphEdges.find((candidate) => candidate.edgeType === item.edgeType);
+                  if (edge) {
                     onSelectItem(edge.id);
                   }
                 }}
               >
-                <path d={path} fill="none" stroke="transparent" strokeWidth="16" />
-                <path
-                  d={path}
-                  fill="none"
-                  markerEnd={`url(#arrow-${edge.edgeType})`}
-                  stroke={color}
-                  strokeLinecap="round"
-                  strokeWidth={selected ? 3.5 : 2}
-                  opacity={selected ? 1 : 0.72}
-                />
-              </g>
-            );
-          })}
-          {detail.graphNodes.map((node) => {
-            const position = layout.positions.get(node.id);
-            if (!position) {
-              return null;
-            }
+                <span className="flex items-center gap-2">
+                  <span className="inline-block h-1.5 w-8 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-xs font-bold text-slate-900">{item.label}</span>
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">{item.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-            const selected = selectedItemId === node.id;
-            return (
-              <g
-                key={node.id}
-                className="cursor-pointer"
-                role="button"
-                tabIndex={0}
-                transform={`translate(${position.x} ${position.y})`}
-                onClick={() => onSelectItem(node.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    onSelectItem(node.id);
-                  }
-                }}
-              >
-                <rect
-                  width={nodeWidth}
-                  height={nodeHeight}
-                  rx="8"
-                  fill={nodeFill(node.tone)}
-                  stroke={selected ? "#2563eb" : nodeStroke(node.tone)}
-                  strokeWidth={selected ? 2.6 : 1}
-                />
-                <text x="14" y="24" fill="#0f172a" fontSize="13" fontWeight="700">
-                  {compactLabel(node.label, 15)}
-                </text>
-                <text x="14" y="43" fill="#64748b" fontSize="11" fontWeight="600">
-                  {compactLabel(node.caption, 16)}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-      <div className="grid gap-2 md:grid-cols-5">
-        {detail.graphLegend.map((item) => (
-          <button
-            key={item.edgeType}
-            className={`rounded-md border p-3 text-left transition ${
-              selectedDetail?.subtitle === item.label ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"
-            }`}
-            onClick={() => {
-              const edge = detail.graphEdges.find((candidate) => candidate.edgeType === item.edgeType);
-              if (edge) {
-                onSelectItem(edge.id);
-              }
-            }}
-          >
-            <span className="inline-block h-2 w-6 rounded-full" style={{ backgroundColor: item.color }} />
-            <p className="mt-2 text-xs font-bold text-slate-900">{item.label}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>
-          </button>
-        ))}
-      </div>
       <GraphDetailPanel detail={selectedDetail} evidence={evidence} metrics={metrics} />
     </div>
   );
@@ -169,7 +168,7 @@ function GraphDetailPanel({
   if (!detail) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-4">
-        <p className="text-sm text-slate-600">그래프 노드나 edge를 선택하면 상세 정보가 표시됩니다.</p>
+        <p className="text-sm text-slate-600">그래프 노드나 연결을 선택하면 상세 정보가 표시됩니다.</p>
       </div>
     );
   }
@@ -180,7 +179,7 @@ function GraphDetailPanel({
   return (
     <div className="rounded-md border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={detail.kind === "edge" ? "info" : "neutral"}>{detail.kind === "edge" ? "edge" : "node"}</Badge>
+        <Badge tone={detail.kind === "edge" ? "info" : "neutral"}>{detail.kind === "edge" ? "연결" : "노드"}</Badge>
         <Badge tone="neutral">{detail.subtitle}</Badge>
         {detail.badges.map((badge) => (
           <Badge key={badge} tone="info">{badge}</Badge>
@@ -197,82 +196,240 @@ function GraphDetailPanel({
   );
 }
 
-function layoutGraph(nodes: ManagedObjectGraphNode[]): { height: number; positions: Map<string, { x: number; y: number }> } {
-  const positions = new Map<string, { x: number; y: number }>();
-  const grouped = columnOrder.map((type) => nodes.filter((node) => node.type === type));
-  const maxRows = Math.max(1, ...grouped.map((items) => items.length));
-  const height = 48 + maxRows * (nodeHeight + verticalGap);
+function buildFlowModel(detail: ManagedObjectDetail, selectedItemId?: string): { edges: FlowEdge[]; layout: ManagedObjectGraphLayout; nodes: FlowNode[] } {
+  const layout = buildManagedObjectGraphLayout(detail);
+  const relatedIds = selectedItemId ? selectedRelatedIds(detail, selectedItemId) : new Set<string>();
+  const hasSelection = Boolean(selectedItemId);
 
-  for (const [columnIndex, items] of grouped.entries()) {
-    const x = 28 + columnIndex * (nodeWidth + horizontalGap);
-    const columnHeight = items.length * nodeHeight + Math.max(0, items.length - 1) * verticalGap;
-    const startY = Math.max(28, (height - columnHeight) / 2);
+  const nodes: FlowNode[] = detail.graphNodes.map((node) => {
+    const position = layout.positionsByNodeId[node.id] ?? { x: 0, y: 0 };
+    const selected = selectedItemId === node.id;
+    const related = relatedIds.has(node.id);
 
-    for (const [rowIndex, node] of items.entries()) {
-      positions.set(node.id, {
-        x,
-        y: startY + rowIndex * (nodeHeight + verticalGap)
-      });
+    return {
+      id: node.id,
+      type: "default",
+      position,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      selected,
+      data: {
+        label: <GraphNodeLabel node={node} />
+      },
+      style: nodeStyle(node, selected, related, hasSelection)
+    };
+  });
+
+  const edges: FlowEdge[] = detail.graphEdges.map((edge) => {
+    const selected = selectedItemId === edge.id;
+    const related = relatedIds.has(edge.id);
+    const route = layout.edgeRouteByEdgeId[edge.id] ?? fallbackEdgeRoute;
+    const visual = edgeVisualForState(layout.edgePriorityByEdgeId[edge.id], selected, related, hasSelection);
+
+    return {
+      id: edge.id,
+      source: edge.fromId,
+      target: edge.toId,
+      type: "knowledge",
+      data: {
+        borderRadius: visual.priority === "primaryInfluence" ? 18 : 10,
+        route
+      },
+      selected,
+      label: visual.labelVisible || selected ? edge.label : undefined,
+      labelShowBg: true,
+      labelBgBorderRadius: 6,
+      labelBgPadding: [6, 3],
+      labelBgStyle: { fill: "#ffffff", fillOpacity: 0.92 },
+      labelStyle: {
+        fill: visual.color,
+        fontSize: 11,
+        fontWeight: 700
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: visual.color,
+        width: visual.markerSize,
+        height: visual.markerSize
+      },
+      interactionWidth: visual.priority === "primaryInfluence" ? 18 : 14,
+      style: {
+        stroke: visual.color,
+        strokeWidth: visual.strokeWidth,
+        opacity: visual.opacity
+      }
+    };
+  });
+
+  return { edges, layout, nodes };
+}
+
+function KnowledgeEdge({
+  data,
+  id,
+  interactionWidth,
+  label,
+  labelBgBorderRadius,
+  labelBgPadding,
+  labelBgStyle,
+  labelShowBg,
+  labelStyle,
+  markerEnd,
+  markerStart,
+  sourcePosition,
+  sourceX,
+  sourceY,
+  style,
+  targetPosition,
+  targetX,
+  targetY
+}: EdgeProps<FlowEdge>) {
+  const route = data?.route ?? fallbackEdgeRoute;
+  const [path, labelX, labelY] = getSmoothStepPath({
+    borderRadius: data?.borderRadius ?? 10,
+    offset: route.offset,
+    sourcePosition,
+    sourceX,
+    sourceY: sourceY + route.parallelOffset,
+    stepPosition: route.stepPosition,
+    targetPosition,
+    targetX,
+    targetY: targetY + route.parallelOffset
+  });
+
+  return (
+    <BaseEdge
+      id={id}
+      interactionWidth={interactionWidth}
+      label={label}
+      labelBgBorderRadius={labelBgBorderRadius}
+      labelBgPadding={labelBgPadding}
+      labelBgStyle={labelBgStyle}
+      labelShowBg={labelShowBg}
+      labelStyle={labelStyle}
+      labelX={labelX}
+      labelY={labelY}
+      markerEnd={markerEnd}
+      markerStart={markerStart}
+      path={path}
+      style={style}
+    />
+  );
+}
+
+function GraphNodeLabel({ node }: { node: ManagedObjectGraphNode }) {
+  return (
+    <div className="min-w-0 text-left">
+      <span className="mb-1 inline-flex rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+        {nodeTypeLabel(node.type)}
+      </span>
+      <span className="block truncate text-[13px] font-bold leading-5 text-slate-950">{node.label}</span>
+      <span className="block truncate text-[11px] font-semibold leading-4 text-slate-500">{node.caption}</span>
+    </div>
+  );
+}
+
+function selectedRelatedIds(detail: ManagedObjectDetail, selectedItemId: string): Set<string> {
+  const related = new Set<string>([selectedItemId]);
+  const selectedEdge = detail.graphEdges.find((edge) => edge.id === selectedItemId);
+
+  if (selectedEdge) {
+    related.add(selectedEdge.fromId);
+    related.add(selectedEdge.toId);
+    return related;
+  }
+
+  const selectedNode = detail.graphNodes.find((node) => node.id === selectedItemId);
+  if (!selectedNode) {
+    return related;
+  }
+
+  for (const edge of detail.graphEdges) {
+    if (edge.fromId === selectedNode.id || edge.toId === selectedNode.id) {
+      related.add(edge.id);
+      related.add(edge.fromId);
+      related.add(edge.toId);
     }
   }
 
-  return { height, positions };
+  return related;
 }
 
-function edgePath(from: { x: number; y: number }, to: { x: number; y: number }): string {
-  const fromCenterX = from.x + nodeWidth / 2;
-  const fromCenterY = from.y + nodeHeight / 2;
-  const toCenterX = to.x + nodeWidth / 2;
-  const toCenterY = to.y + nodeHeight / 2;
-
-  if (Math.abs(fromCenterX - toCenterX) < 4) {
-    const controlY = (fromCenterY + toCenterY) / 2;
-    return `M ${fromCenterX} ${fromCenterY} C ${fromCenterX + 42} ${controlY}, ${toCenterX + 42} ${controlY}, ${toCenterX} ${toCenterY}`;
+function edgeVisualForState(
+  base: ManagedObjectGraphEdgeVisual,
+  selected: boolean,
+  related: boolean,
+  hasSelection: boolean
+): ManagedObjectGraphEdgeVisual {
+  if (selected) {
+    return {
+      ...base,
+      labelVisible: true,
+      markerSize: Math.max(base.markerSize, 11),
+      opacity: 1,
+      strokeWidth: Math.max(base.strokeWidth + 0.8, 2.8)
+    };
   }
 
-  const startX = fromCenterX < toCenterX ? from.x + nodeWidth : from.x;
-  const endX = fromCenterX < toCenterX ? to.x : to.x + nodeWidth;
-  const controlOffset = Math.max(52, Math.abs(endX - startX) * 0.38);
-  const c1 = fromCenterX < toCenterX ? startX + controlOffset : startX - controlOffset;
-  const c2 = fromCenterX < toCenterX ? endX - controlOffset : endX + controlOffset;
-
-  return `M ${startX} ${fromCenterY} C ${c1} ${fromCenterY}, ${c2} ${toCenterY}, ${endX} ${toCenterY}`;
+  return {
+    ...base,
+    opacity: hasSelection && !related && base.priority !== "primaryInfluence" ? Math.min(base.opacity, 0.26) : base.opacity
+  };
 }
 
-function edgeColor(type: ManagedObjectGraphEdgeType, legend: ManagedObjectGraphLegendItem[]): string {
-  return legend.find((item) => item.edgeType === type)?.color ?? "#475569";
+function nodeStyle(node: ManagedObjectGraphNode, selected: boolean, related: boolean, hasSelection: boolean): CSSProperties {
+  const dimmed = hasSelection && !selected && !related;
+  const managedObject = node.type === "managed_object";
+
+  return {
+    width: nodeWidth,
+    minHeight: managedObject ? 76 : 68,
+    borderColor: selected ? "#2563eb" : nodeStroke(node.type),
+    borderRadius: 8,
+    borderWidth: selected ? 2 : managedObject ? 1.5 : 1,
+    background: nodeFill(node.type),
+    boxShadow: selected
+      ? "0 14px 34px rgba(37, 99, 235, 0.2)"
+      : managedObject
+        ? "0 10px 24px rgba(15, 23, 42, 0.08)"
+        : "0 6px 16px rgba(15, 23, 42, 0.05)",
+    opacity: dimmed ? managedObject ? 0.72 : 0.42 : managedObject ? 1 : 0.86,
+    padding: 12
+  };
 }
 
-function nodeFill(tone: ManagedObjectGraphNode["tone"]): string {
-  const fills: Record<ManagedObjectGraphNode["tone"], string> = {
-    danger: "#fff1f2",
-    info: "#eff6ff",
-    neutral: "#f8fafc",
-    primary: "#eef2ff",
-    success: "#ecfdf5",
-    warning: "#fffbeb"
+function nodeFill(type: ManagedObjectGraphNode["type"]): string {
+  const fills: Record<ManagedObjectGraphNode["type"], string> = {
+    category: "#eef2ff",
+    insight: "#fff1f2",
+    managed_object: "#eff6ff",
+    metric: "#fffbeb",
+    workflow: "#f0fdfa"
   };
 
-  return fills[tone];
+  return fills[type];
 }
 
-function nodeStroke(tone: ManagedObjectGraphNode["tone"]): string {
-  const strokes: Record<ManagedObjectGraphNode["tone"], string> = {
-    danger: "#fb7185",
-    info: "#60a5fa",
-    neutral: "#cbd5e1",
-    primary: "#6366f1",
-    success: "#34d399",
-    warning: "#f59e0b"
+function nodeStroke(type: ManagedObjectGraphNode["type"]): string {
+  const strokes: Record<ManagedObjectGraphNode["type"], string> = {
+    category: "#6366f1",
+    insight: "#fb7185",
+    managed_object: "#2563eb",
+    metric: "#f59e0b",
+    workflow: "#0f766e"
   };
 
-  return strokes[tone];
+  return strokes[type];
 }
 
-function compactLabel(value: string, maxLength: number): string {
-  if (value.length <= maxLength) {
-    return value;
-  }
+function nodeTypeLabel(type: ManagedObjectGraphNode["type"]): string {
+  const labels: Record<ManagedObjectGraphNode["type"], string> = {
+    category: "범위",
+    insight: "인사이트",
+    managed_object: "관리 대상",
+    metric: "지표",
+    workflow: "업무흐름"
+  };
 
-  return `${value.slice(0, maxLength - 3)}...`;
+  return labels[type];
 }
