@@ -33,7 +33,7 @@ export function hasParsedTablePreview(file: Partial<Pick<SourceFile, "previewCol
   return Boolean(file.previewColumns?.length && file.previewRows?.length);
 }
 
-export function isSupportedImageSource(file: SourceFileLike): boolean {
+function isSupportedImageSource(file: SourceFileLike): boolean {
   return Boolean(file.mimeType?.toLowerCase().startsWith("image/")) || imageExtensions.has(sourceFileExtension(file.name));
 }
 
@@ -63,10 +63,6 @@ export function sourceFileKindForName(name: string): string {
   return "업무 파일";
 }
 
-export function isParsedTableUpload(file: Pick<UploadFileLike, "name">): boolean {
-  return parsedTableExtensions.has(sourceFileExtension(file.name));
-}
-
 export function isBinaryLimitedUpload(file: Pick<UploadFileLike, "name" | "type">): boolean {
   const extension = sourceFileExtension(file.name);
   if (parsedTableExtensions.has(extension)) {
@@ -92,4 +88,3 @@ export function validateSourceFileRename(currentName: string, nextName: string):
 
   return { name, valid: true };
 }
-
