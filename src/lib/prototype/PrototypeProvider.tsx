@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useReducer, type PropsWithChildren } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type PropsWithChildren } from "react";
 import type { CandidateType, LinkTarget, PrototypeState, Role, Screen, VoteChoice } from "../domain/types";
 import { advanceAnalysisJob, confirmCandidates, editCandidate, excludeCandidate, setCandidateType, startAnalysisJob } from "./commands/analysisCommands";
 import { loginWithCredentials, logout } from "./commands/authCommands";
@@ -19,7 +19,7 @@ import { castVote, finalizeProposal } from "./commands/proposalCommands";
 import { generateVerificationRecord } from "./commands/verificationCommands";
 import { createWorkspace, joinWorkspaceByInviteCode, leaveWorkspace, selectWorkspace } from "./commands/workspaceCommands";
 import { findDemoAccount } from "./authAccounts";
-import { loadUserState, saveUserState, screenAfterUserRestore } from "./persistence";
+import { loadUserState, persistedStateSignature, saveUserState, screenAfterUserRestore } from "./persistence";
 import { pathForScreen } from "./routes";
 import { createInitialState, reducer } from "./store";
 
@@ -66,9 +66,22 @@ const PrototypeContext = createContext<PrototypeContextValue | undefined>(undefi
 export function PrototypeProvider({ children }: PropsWithChildren) {
   const router = useRouter();
   const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+  const failedPersistenceSignatureRef = useRef("");
 
   useEffect(() => {
-    saveUserState(state);
+    const signature = persistedStateSignature(state);
+    if (failedPersistenceSignatureRef.current && failedPersistenceSignatureRef.current === signature) {
+      return;
+    }
+
+    const result = saveUserState(state);
+    if (result.ok) {
+      failedPersistenceSignatureRef.current = "";
+      return;
+    }
+
+    failedPersistenceSignatureRef.current = result.signature;
+    dispatch({ type: "SET_SIMULATED_ERROR", message: result.message });
   }, [state]);
 
   const commands = useMemo<PrototypeCommands>(

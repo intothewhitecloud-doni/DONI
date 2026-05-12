@@ -1,8 +1,11 @@
 import type { Dispatch } from "react";
 import { initialPrototypeState as preparedData } from "../../domain/mock-data";
+import { reducer } from "../../domain/state-machine";
 import type { PrototypeState, SourceFile } from "../../domain/types";
 import { commandMeta } from "../events";
 import { can } from "../permissions";
+import { checkPersistedWriteBudget } from "../persistence";
+import { sourceFileKindForName, validateSourceFileRename } from "../sourceFiles";
 import type { PrototypeAction } from "../store";
 
 type SourceFileInput = {
@@ -17,7 +20,6 @@ type SourceFileInput = {
 };
 
 function toSourceFile(file: SourceFileInput, index: number): SourceFile {
-  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
   const baseId = file.name
     .replace(/\.[^.]+$/, "")
     .trim()
@@ -25,21 +27,11 @@ function toSourceFile(file: SourceFileInput, index: number): SourceFile {
     .replace(/[^a-z0-9가-힣]+/g, "-")
     .replace(/^-|-$/g, "");
 
-  const kindByExtension: Record<string, string> = {
-    csv: "표 형식 데이터",
-    doc: "업무 문서",
-    docx: "업무 문서",
-    pdf: "업무 문서",
-    tsv: "표 형식 데이터",
-    xls: "표 형식 데이터",
-    xlsx: "표 형식 데이터"
-  };
-
   return {
     id: `source-${baseId || "file"}-${index + 1}`,
     name: file.name,
-    kind: kindByExtension[extension] ?? "업무 파일",
-    rowCount: file.rowCount ?? Math.max(1, Math.round(file.size / 120)),
+    kind: sourceFileKindForName(file.name),
+    rowCount: file.rowCount ?? 0,
     status: "ready",
     size: file.size,
     mimeType: file.mimeType,
@@ -61,12 +53,19 @@ export function addSourceFiles(state: PrototypeState, dispatch: Dispatch<Prototy
     return false;
   }
 
-  dispatch({
+  const action: PrototypeAction = {
     type: "ADD_SOURCE_FILES",
     files: files.map(toSourceFile),
     notificationId: `notice-source-files-${Date.now()}`,
     ...commandMeta(state, "파일 추가", "source_file", "source-files", `${files.length}개 파일을 데이터 보관함에 추가했습니다.`)
-  });
+  };
+  const budget = checkPersistedWriteBudget(reducer(state, action));
+  if (!budget.ok) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: budget.message });
+    return false;
+  }
+
+  dispatch(action);
   return true;
 }
 
@@ -81,10 +80,22 @@ export function updateSourceFile(
     return false;
   }
 
+  const currentFile = state.sourceFiles.find((file) => file.id === fileId);
+  if (!currentFile) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "수정할 파일을 찾지 못했습니다." });
+    return false;
+  }
+
+  const renameResult = validateSourceFileRename(currentFile.name, patch.name);
+  if (!renameResult.valid) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: renameResult.message });
+    return false;
+  }
+
   dispatch({
     type: "UPDATE_SOURCE_FILE",
     fileId,
-    patch,
+    patch: { ...patch, name: renameResult.name },
     notificationId: `notice-source-file-update-${Date.now()}`,
     ...commandMeta(state, "파일 정보 수정", "source_file", fileId, "데이터 보관함의 파일 정보를 수정했습니다.")
   });

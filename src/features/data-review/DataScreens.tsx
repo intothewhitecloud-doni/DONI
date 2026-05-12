@@ -8,6 +8,16 @@ import type { EvidenceReference, MetricValue, SourceFile } from "../../lib/domai
 import { can } from "../../lib/prototype/permissions";
 import { getManagedObjectView } from "../../lib/prototype/queries/managedObjectQueries";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
+import {
+  BINARY_SOURCE_FILE_LIMIT_BYTES,
+  deriveSourceFileRenderType,
+  findOversizedBinarySourceFile,
+  hasParsedTablePreview,
+  sourceFileExtension,
+  SUPPORTED_SOURCE_FILE_ACCEPT,
+  validateSourceFileRename,
+  type SourceFileRenderType
+} from "../../lib/prototype/sourceFiles";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 
 type SourceFileUploadDraft = {
@@ -31,6 +41,7 @@ export function DataVaultScreen() {
   const [activeFileId, setActiveFileId] = useState("");
   const [isReadingFiles, setIsReadingFiles] = useState(false);
   const [editingFile, setEditingFile] = useState({ kind: "", name: "" });
+  const [fileFeedback, setFileFeedback] = useState("");
   const activeFile = useMemo(
     () => state.sourceFiles.find((file) => file.id === activeFileId) ?? state.sourceFiles[0],
     [activeFileId, state.sourceFiles]
@@ -61,6 +72,16 @@ export function DataVaultScreen() {
       return;
     }
 
+    const oversizedFile = findOversizedBinarySourceFile(selectedFiles);
+    if (oversizedFile) {
+      setFileFeedback(
+        `${oversizedFile.name} 파일은 ${(BINARY_SOURCE_FILE_LIMIT_BYTES / 1024 / 1024).toLocaleString("ko-KR")}MB 이하만 추가할 수 있습니다. 선택한 파일 묶음은 추가되지 않았습니다.`
+      );
+      event.currentTarget.value = "";
+      return;
+    }
+
+    setFileFeedback("");
     setIsReadingFiles(true);
     try {
       const results = await Promise.allSettled(selectedFiles.map(readSourceFileUpload));
@@ -68,15 +89,20 @@ export function DataVaultScreen() {
         .filter((result): result is PromiseFulfilledResult<SourceFileUploadDraft> => result.status === "fulfilled")
         .map((result) => result.value);
 
-      if (files.length > 0 && commands.addSourceFiles(files)) {
-        event.currentTarget.value = "";
+      if (files.length > 0) {
+        if (commands.addSourceFiles(files)) {
+          event.currentTarget.value = "";
+          setFileFeedback("");
+        } else {
+          setFileFeedback("파일을 추가하지 못했습니다. 화면 상단의 알림 내용을 확인해 주세요.");
+        }
       }
 
       if (files.length === 0) {
-        console.warn("선택한 파일을 읽지 못했습니다.");
+        setFileFeedback("선택한 파일을 읽지 못했습니다.");
       }
     } catch {
-      console.warn("선택한 파일을 읽지 못했습니다.");
+      setFileFeedback("선택한 파일을 읽지 못했습니다.");
     } finally {
       setIsReadingFiles(false);
     }
@@ -98,7 +124,7 @@ export function DataVaultScreen() {
                 className="hidden"
                 type="file"
                 multiple
-                accept=".csv,.doc,.docx,.pdf,.tsv,.xls,.xlsx"
+                accept={SUPPORTED_SOURCE_FILE_ACCEPT}
                 onChange={handleFileInputChange}
               />
               <Button disabled={isReadingFiles} onClick={() => inputRef.current?.click()}>
@@ -110,6 +136,11 @@ export function DataVaultScreen() {
             </div>
           )}
         </div>
+        {fileFeedback && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+            {fileFeedback}
+          </div>
+        )}
       </Card>
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_1.1fr]">
         <Card className="min-w-0 space-y-3">
@@ -134,9 +165,7 @@ export function DataVaultScreen() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="font-bold text-slate-950">{file.name}</h3>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {file.kind} · {file.rowCount > 0 ? `${file.rowCount.toLocaleString("ko-KR")}행` : "행 수 확인 전"}
-                    </p>
+                    <p className="mt-2 text-sm text-slate-600">{sourceFileListSummary(file)}</p>
                     <p className="mt-2 text-xs text-slate-500">
                       {file.uploadedAt ? `업로드 시각 ${new Date(file.uploadedAt).toLocaleString("ko-KR")}` : "업로드 전"}
                     </p>
@@ -202,33 +231,23 @@ export function DataVaultScreen() {
                     <Button
                       className="w-full"
                       variant="secondary"
-                      onClick={() => commands.updateSourceFile(activeFile.id, editingFile)}
+                      onClick={() => {
+                        const renameResult = validateSourceFileRename(activeFile.name, editingFile.name);
+                        if (!renameResult.valid) {
+                          setFileFeedback(renameResult.message);
+                          return;
+                        }
+
+                        setFileFeedback("");
+                        commands.updateSourceFile(activeFile.id, { ...editingFile, name: renameResult.name });
+                      }}
                     >
                       정보 저장
                     </Button>
                   </div>
                 </div>
               )}
-              <div className="overflow-x-auto rounded-md border border-slate-200">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs font-bold text-slate-500">
-                    <tr>
-                      {filePreviewColumns(activeFile).map((column) => (
-                        <th key={column} className="whitespace-nowrap px-3 py-2">{column}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filePreviewRows(activeFile).map((row) => (
-                      <tr key={row.join("-")}>
-                        {row.map((cell) => (
-                          <td key={cell} className="whitespace-nowrap px-3 py-2 text-slate-700">{cell}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <SourceFilePreview file={activeFile} renderType={deriveSourceFileRenderType(activeFile)} />
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-bold text-slate-500">선택 파일 근거</p>
                 <div className="mt-2 space-y-2">
@@ -286,36 +305,119 @@ function fileStatusLabel(status: SourceFile["status"]): string {
   return "추가됨";
 }
 
+function sourceFileListSummary(file: SourceFile): string {
+  if (deriveSourceFileRenderType(file) === "table") {
+    return `${file.kind} · ${file.rowCount.toLocaleString("ko-KR")}행`;
+  }
+
+  return `${file.kind} · ${formatFileSize(file.size)} · ${formatFileType(file)}`;
+}
+
+function SourceFilePreview({ file, renderType }: { file: SourceFile; renderType: SourceFileRenderType }) {
+  if (renderType === "table") {
+    return (
+      <div className="overflow-x-auto rounded-md border border-slate-200">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 text-xs font-bold text-slate-500">
+            <tr>
+              {filePreviewColumns(file).map((column) => (
+                <th key={column} className="whitespace-nowrap px-3 py-2">{column}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filePreviewRows(file).map((row) => (
+              <tr key={row.join("-")}>
+                {row.map((cell, index) => (
+                  <td key={`${index}-${cell}`} className="whitespace-nowrap px-3 py-2 text-slate-700">{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (renderType === "image" && file.dataUrl) {
+    return (
+      <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <img className="max-h-[420px] w-full object-contain" src={file.dataUrl} alt={file.name} />
+        </div>
+        <SourceFileMetadata file={file} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-4">
+      <div>
+        <p className="font-bold text-slate-950">미리보기를 제공하지 않는 파일입니다</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">이 파일은 보관과 다운로드 대상으로 유지됩니다.</p>
+      </div>
+      <SourceFileMetadata file={file} />
+    </div>
+  );
+}
+
+function SourceFileMetadata({ file }: { file: SourceFile }) {
+  return (
+    <dl className="grid gap-3 text-sm md:grid-cols-3">
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <dt className="text-xs font-bold text-slate-500">파일 크기</dt>
+        <dd className="mt-1 font-semibold text-slate-900">{formatFileSize(file.size)}</dd>
+      </div>
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <dt className="text-xs font-bold text-slate-500">파일 형식</dt>
+        <dd className="mt-1 font-semibold text-slate-900">{formatFileType(file)}</dd>
+      </div>
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <dt className="text-xs font-bold text-slate-500">렌더 유형</dt>
+        <dd className="mt-1 font-semibold text-slate-900">{sourceFileRenderTypeLabel(deriveSourceFileRenderType(file))}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function sourceFileRenderTypeLabel(renderType: SourceFileRenderType): string {
+  if (renderType === "table") {
+    return "표 미리보기";
+  }
+
+  if (renderType === "image") {
+    return "이미지";
+  }
+
+  return "파일";
+}
+
 function filePreviewColumns(file: SourceFile): string[] {
-  if (file.previewColumns && file.previewColumns.length > 0) {
-    return file.previewColumns;
-  }
-
-  if (file.name.includes("마진") || file.name.includes("상품")) {
-    return ["상품군", "공급사", "마진율", "할인율"];
-  }
-
-  return ["주문번호", "고객군", "상태", "소요 시간"];
+  return hasParsedTablePreview(file) ? file.previewColumns ?? [] : [];
 }
 
 function filePreviewRows(file: SourceFile): string[][] {
-  if (file.previewRows && file.previewRows.length > 0) {
-    return file.previewRows;
+  return hasParsedTablePreview(file) ? file.previewRows ?? [] : [];
+}
+
+function formatFileSize(size?: number): string {
+  if (typeof size !== "number") {
+    return "크기 확인 전";
   }
 
-  if (file.name.includes("마진") || file.name.includes("상품")) {
-    return [
-      ["P-42", "공급업체 A사", "13.8%", "6.4%"],
-      ["P-17", "공급업체 B사", "21.2%", "2.1%"],
-      ["P-08", "공급업체 A사", "15.1%", "4.7%"]
-    ];
+  if (size < 1024) {
+    return `${size.toLocaleString("ko-KR")} bytes`;
   }
 
-  return [
-    ["O-184", "핵심 고객군", "출고 지연", "41시간"],
-    ["O-205", "핵심 고객군", "클레임 접수", "18시간"],
-    ["O-231", "일반 고객군", "정상 출고", "22시간"]
-  ];
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toLocaleString("ko-KR", { maximumFractionDigits: 1 })} KB`;
+  }
+
+  return `${(size / 1024 / 1024).toLocaleString("ko-KR", { maximumFractionDigits: 1 })} MB`;
+}
+
+function formatFileType(file: SourceFile): string {
+  return file.mimeType || sourceFileExtension(file.name).toUpperCase() || "형식 확인 전";
 }
 
 function downloadSourceFile(file: SourceFile): void {
@@ -327,10 +429,16 @@ function downloadSourceFile(file: SourceFile): void {
     return;
   }
 
-  const columns = filePreviewColumns(file);
-  const rows = filePreviewRows(file);
-  const csv = [columns, ...rows].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const blob = hasParsedTablePreview(file)
+    ? new Blob(
+        [
+          `\uFEFF${[filePreviewColumns(file), ...filePreviewRows(file)]
+            .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
+            .join("\n")}`
+        ],
+        { type: "text/csv;charset=utf-8" }
+      )
+    : new Blob([`${file.name}\n${formatFileType(file)}\n${formatFileSize(file.size)}\n`], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
