@@ -67,6 +67,7 @@ export function DataVaultScreen() {
   }, [activeFile]);
 
   async function handleFileInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length === 0) {
       return;
@@ -77,7 +78,7 @@ export function DataVaultScreen() {
       setFileFeedback(
         `${oversizedFile.name} 파일은 ${(BINARY_SOURCE_FILE_LIMIT_BYTES / 1024 / 1024).toLocaleString("ko-KR")}MB 이하만 추가할 수 있습니다. 선택한 파일 묶음은 추가되지 않았습니다.`
       );
-      event.currentTarget.value = "";
+      input.value = "";
       return;
     }
 
@@ -91,7 +92,7 @@ export function DataVaultScreen() {
 
       if (files.length > 0) {
         if (commands.addSourceFiles(files)) {
-          event.currentTarget.value = "";
+          input.value = "";
           setFileFeedback("");
         } else {
           setFileFeedback("파일을 추가하지 못했습니다. 화면 상단의 알림 내용을 확인해 주세요.");
