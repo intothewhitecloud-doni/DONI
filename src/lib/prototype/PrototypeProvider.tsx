@@ -19,6 +19,7 @@ import { castVote, finalizeProposal } from "./commands/proposalCommands";
 import { generateVerificationRecord } from "./commands/verificationCommands";
 import { createWorkspace, joinWorkspaceByInviteCode, leaveWorkspace, selectWorkspace } from "./commands/workspaceCommands";
 import { findDemoAccount } from "./authAccounts";
+import { createPersistenceEffectController } from "./persistenceEffect";
 import { loadUserState, persistedStateSignature, saveUserState, screenAfterUserRestore } from "./persistence";
 import { pathForScreen } from "./routes";
 import { createInitialState, reducer } from "./store";
@@ -66,22 +67,10 @@ const PrototypeContext = createContext<PrototypeContextValue | undefined>(undefi
 export function PrototypeProvider({ children }: PropsWithChildren) {
   const router = useRouter();
   const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
-  const failedPersistenceSignatureRef = useRef("");
+  const persistenceEffectControllerRef = useRef(createPersistenceEffectController());
 
   useEffect(() => {
-    const signature = persistedStateSignature(state);
-    if (failedPersistenceSignatureRef.current && failedPersistenceSignatureRef.current === signature) {
-      return;
-    }
-
-    const result = saveUserState(state);
-    if (result.ok) {
-      failedPersistenceSignatureRef.current = "";
-      return;
-    }
-
-    failedPersistenceSignatureRef.current = result.signature;
-    dispatch({ type: "SET_SIMULATED_ERROR", message: result.message });
+    persistenceEffectControllerRef.current.persist(state, { dispatch, save: saveUserState, signatureForState: persistedStateSignature });
   }, [state]);
 
   const commands = useMemo<PrototypeCommands>(

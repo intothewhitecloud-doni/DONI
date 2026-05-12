@@ -210,11 +210,13 @@ test("missing workspace payload restores empty data instead of caller fallback d
 
 test("persisted write byte size uses the serialized key and value payloads", () => {
   const state = loggedInState();
-  const payloads = buildPersistedWritePayloads(state, "");
+  const payloads = buildPersistedWritePayloads(state);
   const expectedSize = payloads.reduce((total, payload) => total + serializedStorageEntryByteSize(payload), 0);
+  const exactBudget = checkPersistedWriteBudget(state, expectedSize);
 
   assert.equal(persistedWritePayloadByteSize(payloads), expectedSize);
-  assert.equal(checkPersistedWriteBudget(state, expectedSize).ok, true);
+  assert.equal(exactBudget.ok, true);
+  assert.equal(exactBudget.byteSize, expectedSize);
   assert.equal(checkPersistedWriteBudget(state, expectedSize - 1).ok, false);
 });
 

@@ -161,7 +161,7 @@ export function persistedStateSignature(state: PrototypeState): string {
 }
 
 export function checkPersistedWriteBudget(state: PrototypeState, budgetBytes?: number): PersistedWriteBudgetResult {
-  const payloads = buildPersistedWritePayloads(state, "");
+  const payloads = buildPersistedWritePayloads(state);
   const byteSize = persistedWritePayloadByteSize(payloads);
   const thresholdBytes = configuredPersistedWriteBudgetBytes(budgetBytes);
   if (byteSize > thresholdBytes) {
