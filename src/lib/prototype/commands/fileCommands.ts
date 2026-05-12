@@ -20,15 +20,14 @@ type SourceFileInput = {
 };
 
 function toSourceFile(file: SourceFileInput, index: number): SourceFile {
-  const baseId = file.name
-    .replace(/\.[^.]+$/, "")
+  const fileIdStem = file.name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9가-힣]+/g, "-")
     .replace(/^-|-$/g, "");
 
   return {
-    id: `source-${baseId || "file"}-${index + 1}`,
+    id: `source-${fileIdStem || "file"}-${index + 1}`,
     name: file.name,
     kind: sourceFileKindForName(file.name),
     rowCount: file.rowCount ?? 0,

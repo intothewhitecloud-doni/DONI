@@ -17,7 +17,7 @@ type UploadFileLike = {
   type?: string;
 };
 
-export type SourceFileRenderType = "file" | "image" | "table";
+export type SourceFileRenderType = "file" | "image" | "pdf" | "table";
 
 export function sourceFileExtension(name: string): string {
   const trimmed = name.trim();
@@ -37,9 +37,17 @@ function isSupportedImageSource(file: SourceFileLike): boolean {
   return Boolean(file.mimeType?.toLowerCase().startsWith("image/")) || imageExtensions.has(sourceFileExtension(file.name));
 }
 
+function isPdfSource(file: SourceFileLike): boolean {
+  return file.mimeType?.toLowerCase() === "application/pdf" || sourceFileExtension(file.name) === "pdf";
+}
+
 export function deriveSourceFileRenderType(file: SourceFileLike): SourceFileRenderType {
   if (hasParsedTablePreview(file)) {
     return "table";
+  }
+
+  if (isPdfSource(file)) {
+    return "pdf";
   }
 
   if (isSupportedImageSource(file)) {

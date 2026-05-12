@@ -63,6 +63,67 @@ test("addSourceFiles rejects batches over the projected persisted write budget",
   }
 });
 
+test("addSourceFiles keeps same-basename files when extensions differ", () => {
+  const harness = statefulDispatch();
+
+  assert.equal(
+    addSourceFiles(harness.state, harness.dispatch, [
+      { name: "vault-sample.png", size: 128, mimeType: "image/png", dataUrl: "data:image/png;base64,AA==" }
+    ]),
+    true
+  );
+  assert.equal(
+    addSourceFiles(harness.state, harness.dispatch, [
+      { name: "vault-sample.pdf", size: 256, mimeType: "application/pdf", dataUrl: "data:application/pdf;base64,AA==" }
+    ]),
+    true
+  );
+
+  assert.deepEqual(
+    harness.state.sourceFiles.map((file) => file.name),
+    ["vault-sample.pdf", "vault-sample.png"]
+  );
+  assert.notEqual(harness.state.sourceFiles[0].id, harness.state.sourceFiles[1].id);
+});
+
+test("addSourceFiles replaces legacy same-name IDs without removing sibling extensions", () => {
+  const harness = statefulDispatch({
+    ...loggedInState(),
+    sourceFiles: [
+      {
+        id: "source-vault-sample-1",
+        name: "vault-sample.png",
+        kind: "업무 파일",
+        rowCount: 0,
+        status: "ready",
+        size: 128,
+        mimeType: "image/png"
+      }
+    ]
+  });
+
+  assert.equal(
+    addSourceFiles(harness.state, harness.dispatch, [
+      { name: "vault-sample.png", size: 256, mimeType: "image/png", dataUrl: "data:image/png;base64,AA==" }
+    ]),
+    true
+  );
+  assert.equal(
+    addSourceFiles(harness.state, harness.dispatch, [
+      { name: "vault-sample.pdf", size: 512, mimeType: "application/pdf", dataUrl: "data:application/pdf;base64,AA==" }
+    ]),
+    true
+  );
+
+  assert.deepEqual(
+    harness.state.sourceFiles.map((file) => ({ id: file.id, name: file.name, size: file.size })),
+    [
+      { id: "source-vault-sample-pdf-1", name: "vault-sample.pdf", size: 512 },
+      { id: "source-vault-sample-png-1", name: "vault-sample.png", size: 256 }
+    ]
+  );
+});
+
 test("updateSourceFile allows same-extension rename and blocks extension changes", () => {
   const harness = statefulDispatch();
   assert.equal(addSourceFiles(harness.state, harness.dispatch, [{ name: "sample.png", size: 128, mimeType: "image/png" }]), true);
@@ -76,4 +137,3 @@ test("updateSourceFile allows same-extension rename and blocks extension changes
   assert.equal(harness.state.sourceFiles[0].name, "hero.png");
   assert.equal(harness.state.permissionDenied, "파일 확장자는 변경할 수 없습니다.");
 });
-

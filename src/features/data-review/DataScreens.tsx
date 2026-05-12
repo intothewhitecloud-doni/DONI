@@ -351,6 +351,21 @@ function SourceFilePreview({ file, renderType }: { file: SourceFile; renderType:
     );
   }
 
+  if (renderType === "pdf" && file.dataUrl) {
+    return (
+      <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <iframe
+            className="h-[520px] w-full border-0"
+            src={file.dataUrl}
+            title={`${file.name} 미리보기`}
+          />
+        </div>
+        <SourceFileMetadata file={file} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-4">
       <div>
@@ -388,6 +403,10 @@ function sourceFileRenderTypeLabel(renderType: SourceFileRenderType): string {
 
   if (renderType === "image") {
     return "이미지";
+  }
+
+  if (renderType === "pdf") {
+    return "PDF";
   }
 
   return "파일";

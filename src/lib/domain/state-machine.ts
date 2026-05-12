@@ -754,6 +754,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
 
     case "ADD_SOURCE_FILES": {
       const incomingIds = new Set(action.files.map((file) => file.id));
+      const incomingNameKeys = new Set(action.files.map((file) => file.name.trim().toLowerCase()));
       const baseState = clearAnalysisOutputs(state);
       return withAudit(
         {
@@ -761,7 +762,9 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
           screen: "vault",
           sourceFiles: [
             ...action.files.map((file) => ({ ...file, status: "ready" as const, uploadedAt: undefined })),
-            ...baseState.sourceFiles.filter((file) => !incomingIds.has(file.id)).map((file) => ({ ...file, status: "ready" as const, uploadedAt: undefined }))
+            ...baseState.sourceFiles
+              .filter((file) => !incomingIds.has(file.id) && !incomingNameKeys.has(file.name.trim().toLowerCase()))
+              .map((file) => ({ ...file, status: "ready" as const, uploadedAt: undefined }))
           ],
           notifications: [
             { id: action.notificationId ?? "notice-source-files", level: "success", message: "파일이 데이터 보관함에 추가되었습니다." },

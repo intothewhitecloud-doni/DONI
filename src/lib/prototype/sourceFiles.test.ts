@@ -26,8 +26,12 @@ test("supported image files derive image rendering from mime type or extension",
   assert.equal(deriveSourceFileRenderType({ name: "diagram.bin", mimeType: "image/png" }), "image");
   assert.equal(deriveSourceFileRenderType({ name: "photo.JPG", mimeType: "" }), "image");
   assert.equal(deriveSourceFileRenderType({ name: "flow.webp" }), "image");
-  assert.equal(deriveSourceFileRenderType({ name: "sample.pdf", mimeType: "application/pdf" }), "file");
   assert.equal(deriveSourceFileRenderType({ name: "legacy.xls" }), "file");
+});
+
+test("supported PDF files derive PDF rendering from mime type or extension", () => {
+  assert.equal(deriveSourceFileRenderType({ name: "manual.bin", mimeType: "application/pdf" }), "pdf");
+  assert.equal(deriveSourceFileRenderType({ name: "sample.PDF", mimeType: "" }), "pdf");
 });
 
 test("source file business kind is display metadata and follows extension families", () => {
@@ -52,4 +56,3 @@ test("source file rename keeps the original extension", () => {
   assert.deepEqual(validateSourceFileRename("sample.png", "sample.pdf"), { message: "파일 확장자는 변경할 수 없습니다.", valid: false });
   assert.deepEqual(validateSourceFileRename("sample.png", "   "), { message: "파일명을 입력해 주세요.", valid: false });
 });
-
