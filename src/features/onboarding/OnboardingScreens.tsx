@@ -25,8 +25,8 @@ type CandidateSelectionMap = Record<CandidateType, string[]>;
 const reviewSteps: ReviewStep[] = [
   {
     type: "managed_object",
-    label: "관리 대상",
-    description: "조직이 이번 분석에서 함께 관찰할 최상위 분류군을 선택합니다."
+    label: "관리 대상 유형",
+    description: "조직이 이번 분석에서 관찰할 유형을 선택합니다. 선택한 유형에 속한 관리 대상 인스턴스가 함께 따라옵니다."
   },
   {
     type: "workflow_event",
@@ -550,8 +550,8 @@ export function ReviewScreen() {
       <div className="mx-auto max-w-6xl space-y-8">
         <SectionTitle
           eyebrow="데이터 보관함 > 구조 검토"
-          title="관리 대상을 먼저 정하고 관련 후보를 확정합니다"
-          description="관리 대상은 여러 개를 선택할 수 있고, 이후 선택한 관리 대상과 관련된 업무 흐름, 연결 관계, 지표를 단계적으로 확정합니다."
+          title="관리 대상 유형을 먼저 정하고 관련 후보를 확정합니다"
+          description="관리 대상 유형은 여러 개를 선택할 수 있고, 이후 선택한 유형에 속한 인스턴스와 관련 업무 흐름, 연결 관계, 지표를 단계적으로 확정합니다."
         />
         <div className="rounded-lg border border-blue-100 bg-blue-50 p-5">
           <Badge tone="info">{reviewStepIndex + 1} / {reviewSteps.length}</Badge>

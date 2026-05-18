@@ -154,8 +154,8 @@ export const sampleCandidates: ExtractionCandidate[] = [
   {
     id: "candidate-customer",
     type: "managed_object",
-    title: "고객A",
-    description: "P-42 배송 지연 이후 클레임과 보상 요청이 집중되는 고객 인스턴스입니다.",
+    title: "고객군",
+    description: "선택하면 고객A, 고객B, 고객C처럼 배송 지연과 클레임 영향을 받는 고객 인스턴스가 함께 운영 구조에 반영됩니다.",
     confidence: 0.92,
     status: "needs_review",
     evidenceIds: ["evidence-claims", "evidence-orders-delay"]
@@ -163,8 +163,8 @@ export const sampleCandidates: ExtractionCandidate[] = [
   {
     id: "candidate-supplier",
     type: "managed_object",
-    title: "공급업체 A사",
-    description: "P-42와 P-08 공급을 담당하며 납품준수율과 출고 대기 시간이 악화된 공급사입니다.",
+    title: "공급사",
+    description: "선택하면 공급업체 A사, 공급업체 B사처럼 납품준수율과 출고 대기 시간이 관찰되는 공급사 인스턴스가 함께 반영됩니다.",
     confidence: 0.95,
     status: "needs_review",
     evidenceIds: ["evidence-supplier", "evidence-orders-delay"]
@@ -172,8 +172,8 @@ export const sampleCandidates: ExtractionCandidate[] = [
   {
     id: "candidate-product-group",
     type: "managed_object",
-    title: "P-42 산업용 센서 패키지",
-    description: "마진율 13%대, 납품준수율 70%대, 클레임 발생이 동시에 나타난 상품군입니다.",
+    title: "상품군",
+    description: "선택하면 P-42 산업용 센서 패키지와 기타 상품군 인스턴스가 마진, 납품, 클레임 지표와 함께 반영됩니다.",
     confidence: 0.93,
     status: "needs_review",
     evidenceIds: ["evidence-margin", "evidence-supplier", "evidence-claims"]

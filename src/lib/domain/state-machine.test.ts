@@ -896,6 +896,9 @@ test("managed object type updates propagate as category labels and deletion fall
     type: "START_ANALYSIS",
     ...commandMeta(uploaded, "인공지능 분석 시작", "analysis_job", "analysis-job-main", "분석 시작 테스트")
   });
+  const managedCandidates = analyzed.candidates.filter((candidate) => candidate.type === "managed_object");
+  assert.deepEqual(managedCandidates.map((candidate) => candidate.title), ["고객군", "공급사", "상품군"]);
+
   const confirmed = reducer(
     analyzed,
     audited(analyzed, { type: "CONFIRM_CANDIDATES" }, "데이터 구조 확정", "workspace", analyzed.session.workspaceId)
