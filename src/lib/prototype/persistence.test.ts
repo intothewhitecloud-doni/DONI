@@ -187,7 +187,7 @@ test("restored legacy claim-rate time series is migrated to dated weekly points"
     },
     series: [
       { label: "일반 고객군", value: 0 },
-      { label: "고객A", value: 100 },
+      { label: "핵심 고객군", value: 100 },
       { label: "P-08", value: 0 },
       { label: "P-42", value: 100 }
     ]

@@ -281,14 +281,12 @@ function normalizeMetricValues(metricValues: WorkspaceOperationalState["metricVa
 }
 
 function isLegacyClaimRateTimeSeries(metricValue: WorkspaceOperationalState["metricValues"][number]): boolean {
-  const legacyLabels = ["일반 고객군", "고객A", "P-08", "P-42"];
-
   return (
     metricValue.id === "metric-value-claim" &&
     metricValue.metricId === "metric-claim-rate" &&
     metricValue.chartType === "time_series" &&
-    metricValue.series.length === legacyLabels.length &&
-    metricValue.series.every((point, index) => !point.observedAt && point.label === legacyLabels[index])
+    metricValue.series.length > 0 &&
+    metricValue.series.every((point) => !point.observedAt)
   );
 }
 
