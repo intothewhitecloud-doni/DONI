@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
+import { MetricChart } from "../../components/ui/MetricChart";
 import { Popup } from "../../components/ui/Popup";
 import type { DomainTypeColor, DomainTypeDefinition, EvidenceReference, MetricValue, SourceFile } from "../../lib/domain/types";
 import {
@@ -1520,8 +1521,6 @@ function MetricTrendChart({ unit, value }: { unit: string; value: MetricValue })
         { label: "이전", value: value.previousValue },
         { label: "현재", value: value.value }
       ];
-  const maxValue = Math.max(1, Math.max(...points.map((point) => point.value)));
-  const color = value.status === "critical" ? "bg-rose-500" : value.status === "warning" ? "bg-amber-500" : "bg-blue-500";
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -1529,24 +1528,7 @@ function MetricTrendChart({ unit, value }: { unit: string; value: MetricValue })
         <p className="text-xs font-bold text-slate-500">그래프</p>
         <Badge tone="info">{chartTypeLabel(value.chartType)}</Badge>
       </div>
-      <div className="mt-4 flex h-40 items-end gap-2 pb-1">
-        {points.map((point, index) => {
-          const isCurrent = index === points.length - 1;
-          const heightPercent = Math.max(10, (point.value / maxValue) * 100);
-
-          return (
-            <div key={`${value.id}-${point.label}`} className="flex h-full flex-1 flex-col items-center justify-end">
-              <span className={`text-xs font-bold ${isCurrent ? "text-slate-900" : "text-slate-500"}`}>
-                {point.value}{unit}
-              </span>
-              <div className="mt-1 flex h-24 w-full items-end">
-                <div className={`w-full rounded-t-md ${isCurrent ? color : "bg-slate-200"}`} style={{ height: `${heightPercent}%` }} />
-              </div>
-              <p className="mt-2 min-h-8 w-full text-center text-xs font-semibold leading-4 text-slate-600">{point.label}</p>
-            </div>
-          );
-        })}
-      </div>
+      <MetricChart chartType={value.chartType} id={value.id} points={points} status={value.status} unit={unit} />
     </div>
   );
 }
