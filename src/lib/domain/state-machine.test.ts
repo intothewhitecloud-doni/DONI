@@ -61,6 +61,8 @@ test("domain type catalog normalizes legacy and invalid colors", () => {
   assert.equal(normalized[0]?.color, "blue");
   assert.equal(normalized[1]?.color, "slate");
   assert.equal(normalizeTypeColor("emerald"), "emerald");
+  assert.equal(normalizeTypeColor("#ABC"), "#aabbcc");
+  assert.equal(normalizeTypeColor("2563EB"), "#2563eb");
   assert.equal(normalizeTypeColor("not-a-token"), "slate");
 });
 

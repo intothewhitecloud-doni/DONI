@@ -63,7 +63,8 @@ export type MetricChartType = "bar" | "line" | "time_series" | "pie" | "table";
 export type VerificationMethod = "local_hash" | "xrpl_ready" | "xrpl_confirmed";
 export type TrustCertificationStatus = "pending" | "certified" | "failed" | "not_requested";
 export type DomainTypeScope = "managed_object" | "workflow";
-export type DomainTypeColor = "blue" | "orange" | "pink" | "violet" | "emerald" | "slate";
+export type DomainTypePresetColor = "blue" | "orange" | "pink" | "violet" | "emerald" | "slate";
+export type DomainTypeColor = DomainTypePresetColor | `#${string}`;
 
 export interface DomainTypeDefinition {
   id: string;

@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Badge, type BadgeTone } from "../../components/ui/Badge";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
+import { Popup } from "../../components/ui/Popup";
 import type { DomainTypeColor, DomainTypeDefinition, EvidenceReference, MetricValue, SourceFile } from "../../lib/domain/types";
-import { DOMAIN_TYPE_COLORS, displayTypeLabel, domainTypeColorLabels, normalizeTypeColor } from "../../lib/domain/type-catalog";
+import {
+  DOMAIN_TYPE_COLORS,
+  displayTypeLabel,
+  domainTypeColorDisplayLabel,
+  domainTypeColorHex,
+  normalizeHexColor,
+  normalizeTypeColor
+} from "../../lib/domain/type-catalog";
 import { can } from "../../lib/prototype/permissions";
 import { getManagedObjectView } from "../../lib/prototype/queries/managedObjectQueries";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
@@ -725,20 +733,6 @@ function parseXlsxCell(cellNode: Element, sharedStrings: string[]): string {
   return cellNode.getElementsByTagName("v")[0]?.textContent ?? "";
 }
 
-function typeColorTone(color?: string): BadgeTone {
-  const normalized = normalizeTypeColor(color);
-  const tones: Record<DomainTypeColor, BadgeTone> = {
-    blue: "info",
-    emerald: "emerald",
-    orange: "orange",
-    pink: "pink",
-    slate: "neutral",
-    violet: "violet"
-  };
-
-  return tones[normalized];
-}
-
 function typeDefinitionForLabel(types: DomainTypeDefinition[], label?: string): DomainTypeDefinition | undefined {
   const displayLabel = displayTypeLabel(label);
   return types.find((type) => displayTypeLabel(type.label) === displayLabel);
@@ -759,6 +753,52 @@ function uniqueTypeLabelsFrom(types: DomainTypeDefinition[], labels: string[]): 
   }
 
   return result;
+}
+
+function TypeBadge({ color, label }: { color?: string; label: string }) {
+  const hex = domainTypeColorHex(color);
+
+  return (
+    <span
+      className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold"
+      style={{
+        backgroundColor: colorWithAlpha(hex, 0.12),
+        borderColor: colorWithAlpha(hex, 0.42),
+        color: readableTypeTextColor(hex)
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function colorWithAlpha(hex: string, alpha: number): string {
+  const rgb = hexToRgb(hex);
+  return rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})` : hex;
+}
+
+function readableTypeTextColor(hex: string): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) {
+    return "#334155";
+  }
+
+  const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+  return luminance > 0.72 ? "#334155" : hex;
+}
+
+function hexToRgb(hex: string): { b: number; g: number; r: number } | undefined {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const value = normalized.slice(1);
+  return {
+    r: Number.parseInt(value.slice(0, 2), 16),
+    g: Number.parseInt(value.slice(2, 4), 16),
+    b: Number.parseInt(value.slice(4, 6), 16)
+  };
 }
 
 export function ManagedObjectsScreen() {
@@ -844,66 +884,61 @@ export function ManagedObjectsScreen() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-slate-950">관리 대상 목록</h2>
-                <p className="mt-1 text-xs font-semibold text-slate-500">{filteredObjects.length}/{state.entities.length}개 · 유형 필터 · 대상명 검색</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">{filteredObjects.length}/{state.entities.length}개</p>
               </div>
               <Button
-                aria-expanded={showTypeManager}
                 aria-label="관리대상 유형 관리 열기"
-                className="h-9 px-3"
+                className="h-9 w-9 px-0"
                 variant="secondary"
-                onClick={() => setShowTypeManager((open) => !open)}
+                onClick={() => setShowTypeManager(true)}
               >
-                유형 관리
+                <SettingsIcon />
               </Button>
             </div>
             <div className="grid gap-3">
-              <div className="space-y-2">
-                <p className="text-xs font-bold text-slate-500">유형 필터</p>
-                <div className="flex flex-wrap gap-2" role="list" aria-label="관리대상 유형 필터">
-                  <button
-                    className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                      typeFilter === "all" ? "ring-2 ring-primary ring-offset-2" : ""
-                    }`}
-                    onClick={() => setTypeFilter("all")}
-                  >
-                    <Badge tone="neutral">전체 유형</Badge>
-                  </button>
-                  {typeOptions.map((type) => {
-                    const definition = typeDefinitionForLabel(state.managedObjectTypes, type);
-                    return (
-                      <button
-                        key={type}
-                        className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                          typeFilter === type ? "ring-2 ring-primary ring-offset-2" : ""
-                        }`}
-                        onClick={() => setTypeFilter(type)}
-                      >
-                        <Badge tone={typeColorTone(definition?.color)}>{type}</Badge>
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="flex flex-wrap gap-2" role="list" aria-label="관리대상 유형 필터">
+                <button
+                  className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                    typeFilter === "all" ? "ring-2 ring-primary ring-offset-2" : ""
+                  }`}
+                  onClick={() => setTypeFilter("all")}
+                >
+                  <Badge tone="neutral">전체</Badge>
+                </button>
+                {typeOptions.map((type) => {
+                  const definition = typeDefinitionForLabel(state.managedObjectTypes, type);
+                  return (
+                    <button
+                      key={type}
+                      className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                        typeFilter === type ? "ring-2 ring-primary ring-offset-2" : ""
+                      }`}
+                      onClick={() => setTypeFilter(type)}
+                    >
+                      <TypeBadge color={definition?.color} label={type} />
+                    </button>
+                  );
+                })}
               </div>
-              <label className="space-y-1">
-                <span className="text-xs font-bold text-slate-500">대상명 검색</span>
-                <input
-                  className="w-full rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                  placeholder="예: 고객A, 공급업체 A사"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
-              </label>
+              <input
+                aria-label="관리 대상명 검색"
+                className="w-full rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                placeholder="예: 고객A, 공급업체 A사"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
             </div>
             {showTypeManager && (
-              <DomainTypeManager
-                canManage={canManageTypes}
-                description="관리대상 유형은 인스턴스를 나누는 필터 기준입니다. 삭제된 유형은 연결 데이터를 유지한 채 미지정으로 표시됩니다."
-                onAdd={(label, color) => commands.addDomainType("managed_object", label, color)}
-                onDelete={(typeId) => commands.deleteDomainType("managed_object", typeId)}
-                onUpdate={(typeId, label, color) => commands.updateDomainType("managed_object", typeId, label, color)}
-                title="관리대상 유형 관리"
-                types={state.managedObjectTypes}
-              />
+              <Popup eyebrow="유형 관리" size="lg" title="관리 대상 유형" tone="info" onClose={() => setShowTypeManager(false)}>
+                <DomainTypeManager
+                  canManage={canManageTypes}
+                  description="관리 대상 유형은 인스턴스를 나누는 필터 기준입니다. 삭제된 유형은 연결 데이터를 유지한 채 미지정으로 표시됩니다."
+                  onAdd={(label, color) => commands.addDomainType("managed_object", label, color)}
+                  onDelete={(typeId) => commands.deleteDomainType("managed_object", typeId)}
+                  onUpdate={(typeId, label, color) => commands.updateDomainType("managed_object", typeId, label, color)}
+                  types={state.managedObjectTypes}
+                />
+              </Popup>
             )}
             <div className="space-y-3">
               {filteredObjects.map((entity) => {
@@ -918,9 +953,7 @@ export function ManagedObjectsScreen() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <Badge tone={typeColorTone(typeDefinitionForLabel(state.managedObjectTypes, entity.kind)?.color)}>
-                          {displayTypeLabel(entity.kind)}
-                        </Badge>
+                        <TypeBadge color={typeDefinitionForLabel(state.managedObjectTypes, entity.kind)?.color} label={displayTypeLabel(entity.kind)} />
                         <h2 className="mt-2 truncate text-lg font-bold text-slate-950">{entity.name}</h2>
                         <p className="mt-1 text-xs font-semibold text-slate-500">개별 대상</p>
                       </div>
@@ -944,9 +977,7 @@ export function ManagedObjectsScreen() {
             <>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <Badge tone={typeColorTone(typeDefinitionForLabel(state.managedObjectTypes, selectedObject.kind)?.color)}>
-                    {displayTypeLabel(selectedObject.kind)}
-                  </Badge>
+                  <TypeBadge color={typeDefinitionForLabel(state.managedObjectTypes, selectedObject.kind)?.color} label={displayTypeLabel(selectedObject.kind)} />
                   <h2 className="mt-3 text-2xl font-bold text-slate-950">{selectedObject.name}</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600">{selectedObject.summary}</p>
                   <p className="mt-2 text-xs font-semibold text-slate-500">담당: {selectedObject.owner}</p>
@@ -1016,7 +1047,6 @@ function DomainTypeManager({
   onAdd,
   onDelete,
   onUpdate,
-  title,
   types
 }: {
   canManage: boolean;
@@ -1024,7 +1054,6 @@ function DomainTypeManager({
   onAdd: (label: string, color?: string) => boolean;
   onDelete: (typeId: string) => boolean;
   onUpdate: (typeId: string, label: string, color?: string) => boolean;
-  title: string;
   types: DomainTypeDefinition[];
 }) {
   const [draftLabel, setDraftLabel] = useState("");
@@ -1053,12 +1082,9 @@ function DomainTypeManager({
   }
 
   return (
-    <Card className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-slate-950">{title}</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
-      </div>
-      <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-3">
+    <div className="space-y-4">
+      <p className="text-sm leading-6 text-slate-600">{description}</p>
+      <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-3 md:grid-cols-[1fr_220px_auto]">
         <input
           className="min-w-0 rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-slate-100"
           disabled={!canManage}
@@ -1067,13 +1093,15 @@ function DomainTypeManager({
           onChange={(event) => setDraftLabel(event.target.value)}
         />
         <TypeColorPicker disabled={!canManage} value={draftColor} onChange={setDraftColor} />
-        <Button disabled={!canManage || !draftLabel.trim()} onClick={submitAdd}>추가</Button>
+        <IconButton disabled={!canManage || !draftLabel.trim()} label="유형 추가" variant="primary" onClick={submitAdd}>
+          <PlusIcon />
+        </IconButton>
       </div>
       <div className="space-y-2">
         {types.map((type) => (
           <div key={type.id} className="rounded-md border border-slate-200 bg-white p-3">
             {editingId === type.id ? (
-              <div className="grid gap-2">
+              <div className="grid gap-2 md:grid-cols-[1fr_220px_auto]">
                 <input
                   className="min-w-0 flex-1 rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   value={editingLabel}
@@ -1081,16 +1109,24 @@ function DomainTypeManager({
                 />
                 <TypeColorPicker value={editingColor} onChange={setEditingColor} />
                 <div className="flex flex-wrap gap-2">
-                  <Button disabled={!editingLabel.trim()} onClick={() => submitEdit(type.id)}>저장</Button>
-                  <Button variant="secondary" onClick={() => setEditingId(undefined)}>취소</Button>
+                  <IconButton disabled={!editingLabel.trim()} label="유형 저장" variant="primary" onClick={() => submitEdit(type.id)}>
+                    <CheckIcon />
+                  </IconButton>
+                  <IconButton label="수정 취소" variant="secondary" onClick={() => setEditingId(undefined)}>
+                    <CloseIcon />
+                  </IconButton>
                 </div>
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Badge tone={typeColorTone(type.color)}>{type.label}</Badge>
+                <TypeBadge color={type.color} label={type.label} />
                 <div className="flex flex-wrap gap-2">
-                  <Button disabled={!canManage} variant="secondary" onClick={() => startEdit(type)}>수정</Button>
-                  <Button disabled={!canManage} variant="danger" onClick={() => onDelete(type.id)}>삭제</Button>
+                  <IconButton disabled={!canManage} label={`${type.label} 수정`} variant="secondary" onClick={() => startEdit(type)}>
+                    <PencilIcon />
+                  </IconButton>
+                  <IconButton disabled={!canManage} label={`${type.label} 삭제`} variant="danger" onClick={() => onDelete(type.id)}>
+                    <TrashIcon />
+                  </IconButton>
                 </div>
               </div>
             )}
@@ -1103,7 +1139,7 @@ function DomainTypeManager({
         )}
       </div>
       {!canManage && <p className="text-xs font-semibold text-slate-500">관리자만 유형을 추가/수정/삭제할 수 있습니다.</p>}
-    </Card>
+    </div>
   );
 }
 
@@ -1116,24 +1152,138 @@ function TypeColorPicker({
   onChange: (color: DomainTypeColor) => void;
   value: DomainTypeColor;
 }) {
+  const [hexDraft, setHexDraft] = useState(domainTypeColorHex(value));
+  const normalizedHexDraft = normalizeHexColor(hexDraft);
+
+  useEffect(() => {
+    setHexDraft(domainTypeColorHex(value));
+  }, [value]);
+
   return (
-    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="유형 색상 선택">
-      {DOMAIN_TYPE_COLORS.map((color) => (
-        <button
-          key={color}
-          aria-checked={value === color}
-          className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-            value === color ? "ring-2 ring-primary ring-offset-2" : ""
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="유형 색상 팔레트">
+        {DOMAIN_TYPE_COLORS.map((color) => (
+          <button
+            key={color}
+            aria-checked={normalizeTypeColor(value) === color}
+            aria-label={`${domainTypeColorDisplayLabel(color)} 선택`}
+            className={`h-8 w-8 rounded-full border border-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+              normalizeTypeColor(value) === color ? "ring-2 ring-primary ring-offset-2" : ""
+            }`}
+            disabled={disabled}
+            role="radio"
+            style={{ backgroundColor: domainTypeColorHex(color) }}
+            type="button"
+            onClick={() => {
+              setHexDraft(domainTypeColorHex(color));
+              onChange(color);
+            }}
+          />
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="h-8 w-8 shrink-0 rounded-md border border-slate-200"
+          style={{ backgroundColor: normalizedHexDraft ?? domainTypeColorHex(value) }}
+        />
+        <input
+          aria-label="HEX 색상 입력"
+          aria-invalid={Boolean(hexDraft.trim()) && !normalizedHexDraft}
+          className={`min-w-0 flex-1 rounded-md border bg-white px-3 py-2 font-mono text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-slate-100 ${
+            Boolean(hexDraft.trim()) && !normalizedHexDraft ? "border-rose-400" : "border-hairline"
           }`}
           disabled={disabled}
-          role="radio"
-          type="button"
-          onClick={() => onChange(color)}
-        >
-          <Badge tone={typeColorTone(color)}>{domainTypeColorLabels[color]}</Badge>
-        </button>
-      ))}
+          inputMode="text"
+          placeholder="#2563eb"
+          value={hexDraft}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setHexDraft(nextValue);
+            const normalized = normalizeHexColor(nextValue);
+            if (normalized) {
+              onChange(normalized);
+            }
+          }}
+        />
+      </div>
     </div>
+  );
+}
+
+function IconButton({
+  children,
+  disabled = false,
+  label,
+  onClick,
+  variant = "secondary"
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+  variant?: "primary" | "secondary" | "danger" | "ghost";
+}) {
+  return (
+    <Button
+      aria-label={label}
+      className="h-9 w-9 px-0"
+      disabled={disabled}
+      title={label}
+      type="button"
+      variant={variant}
+      onClick={onClick}
+    >
+      <span aria-hidden="true">{children}</span>
+    </Button>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h10M18 7h2M4 17h2M10 17h10M8 5v4M16 15v4" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m16.9 4.9 2.2 2.2M4 20h4.2L19.6 8.6a1.6 1.6 0 0 0 0-2.2l-2-2a1.6 1.6 0 0 0-2.2 0L4 15.8V20Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 7h14M10 11v6M14 11v6M8 7l1-3h6l1 3M7 7l1 13h8l1-13" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6 6 18" />
+    </svg>
   );
 }
 
@@ -1183,71 +1333,66 @@ export function WorkflowScreen() {
   return (
     <div className="space-y-8">
       <SectionTitle eyebrow="업무 흐름" title="업무흐름 이벤트와 유형" description="업무흐름 유형을 범주처럼 관리하고, 각 이벤트에 반영된 유형을 확인합니다." />
-      <div className="grid items-start gap-5 lg:grid-cols-[1fr_360px]">
+      <div className="grid items-start gap-5">
         <Card className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-950">업무흐름 목록</h2>
-              <p className="mt-1 text-xs font-semibold text-slate-500">{filteredEvents.length}/{state.events.length}개 · 유형 필터 · 이벤트명 검색</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">{filteredEvents.length}/{state.events.length}개</p>
             </div>
             <Button
-              aria-expanded={showTypeManager}
               aria-label="업무흐름 유형 관리 열기"
-              className="h-9 px-3"
+              className="h-9 w-9 px-0"
               variant="secondary"
-              onClick={() => setShowTypeManager((open) => !open)}
+              onClick={() => setShowTypeManager(true)}
             >
-              유형 관리
+              <SettingsIcon />
             </Button>
           </div>
           <div className="grid gap-3">
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-500">유형 필터</p>
-              <div className="flex flex-wrap gap-2" role="list" aria-label="업무흐름 유형 필터">
-                <button
-                  className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                    typeFilter === "all" ? "ring-2 ring-primary ring-offset-2" : ""
-                  }`}
-                  onClick={() => setTypeFilter("all")}
-                >
-                  <Badge tone="neutral">전체 유형</Badge>
-                </button>
-                {typeOptions.map((type) => {
-                  const definition = typeDefinitionForLabel(state.workflowTypes, type);
-                  return (
-                    <button
-                      key={type}
-                      className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                        typeFilter === type ? "ring-2 ring-primary ring-offset-2" : ""
-                      }`}
-                      onClick={() => setTypeFilter(type)}
-                    >
-                      <Badge tone={typeColorTone(definition?.color)}>{type}</Badge>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="flex flex-wrap gap-2" role="list" aria-label="업무흐름 유형 필터">
+              <button
+                className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                  typeFilter === "all" ? "ring-2 ring-primary ring-offset-2" : ""
+                }`}
+                onClick={() => setTypeFilter("all")}
+              >
+                <Badge tone="neutral">전체</Badge>
+              </button>
+              {typeOptions.map((type) => {
+                const definition = typeDefinitionForLabel(state.workflowTypes, type);
+                return (
+                  <button
+                    key={type}
+                    className={`rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                      typeFilter === type ? "ring-2 ring-primary ring-offset-2" : ""
+                    }`}
+                    onClick={() => setTypeFilter(type)}
+                  >
+                    <TypeBadge color={definition?.color} label={type} />
+                  </button>
+                );
+              })}
             </div>
-            <label className="space-y-1">
-              <span className="text-xs font-bold text-slate-500">이벤트명 검색</span>
-              <input
-                className="w-full rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                placeholder="예: 주문 접수, 클레임 접수"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </label>
+            <input
+              aria-label="업무흐름 이벤트명 검색"
+              className="w-full rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              placeholder="예: 주문 접수, 클레임 접수"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
           </div>
           {showTypeManager && (
-            <DomainTypeManager
-              canManage={canManageTypes}
-              description="업무흐름 유형은 이벤트를 묶는 관리용 범주 정보입니다. 삭제된 유형은 이벤트를 유지한 채 미지정으로 표시됩니다."
-              onAdd={(label, color) => commands.addDomainType("workflow", label, color)}
-              onDelete={(typeId) => commands.deleteDomainType("workflow", typeId)}
-              onUpdate={(typeId, label, color) => commands.updateDomainType("workflow", typeId, label, color)}
-              title="업무흐름 유형 관리"
-              types={state.workflowTypes}
-            />
+            <Popup eyebrow="유형 관리" size="lg" title="업무흐름 유형" tone="info" onClose={() => setShowTypeManager(false)}>
+              <DomainTypeManager
+                canManage={canManageTypes}
+                description="업무흐름 유형은 이벤트를 묶는 관리용 범주 정보입니다. 삭제된 유형은 이벤트를 유지한 채 미지정으로 표시됩니다."
+                onAdd={(label, color) => commands.addDomainType("workflow", label, color)}
+                onDelete={(typeId) => commands.deleteDomainType("workflow", typeId)}
+                onUpdate={(typeId, label, color) => commands.updateDomainType("workflow", typeId, label, color)}
+                types={state.workflowTypes}
+              />
+            </Popup>
           )}
           {filteredEvents.map((event) => {
             const entity = state.entities.find((item) => item.id === event.objectId);
@@ -1266,9 +1411,7 @@ export function WorkflowScreen() {
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={typeColorTone(typeDefinitionForLabel(state.workflowTypes, event.workflowType)?.color)}>
-                      {displayTypeLabel(event.workflowType)}
-                    </Badge>
+                    <TypeBadge color={typeDefinitionForLabel(state.workflowTypes, event.workflowType)?.color} label={displayTypeLabel(event.workflowType)} />
                     <p className="font-bold text-slate-950">{event.name}</p>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">대표 관리 대상: {entity ? `${displayTypeLabel(entity.kind)} · ${entity.name}` : "확인 필요"}</p>
@@ -1291,14 +1434,6 @@ export function WorkflowScreen() {
               선택한 유형과 검색어에 맞는 업무흐름이 없습니다.
             </div>
           )}
-        </Card>
-        <Card className="space-y-3">
-          <h2 className="text-lg font-bold text-slate-950">유형별 보기</h2>
-          <p className="text-sm leading-6 text-slate-600">왼쪽 목록에서 유형 배지와 검색을 함께 사용해 업무흐름을 좁혀 볼 수 있습니다.</p>
-          <LinkedList
-            title="등록된 유형"
-            items={state.workflowTypes.map((type) => `${type.label} · ${domainTypeColorLabels[type.color]}`)}
-          />
         </Card>
       </div>
     </div>
@@ -1393,18 +1528,20 @@ function MetricTrendChart({ unit, value }: { unit: string; value: MetricValue })
         <p className="text-xs font-bold text-slate-500">그래프</p>
         <Badge tone="info">{chartTypeLabel(value.chartType)}</Badge>
       </div>
-      <div className="mt-4 flex h-28 items-end gap-2">
+      <div className="mt-4 flex h-40 items-end gap-2 pb-1">
         {points.map((point, index) => {
           const isCurrent = index === points.length - 1;
           const heightPercent = Math.max(10, (point.value / maxValue) * 100);
 
           return (
-            <div key={`${value.id}-${point.label}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+            <div key={`${value.id}-${point.label}`} className="flex h-full flex-1 flex-col items-center justify-end">
               <span className={`text-xs font-bold ${isCurrent ? "text-slate-900" : "text-slate-500"}`}>
                 {point.value}{unit}
               </span>
-              <div className={`w-full rounded-t-md ${isCurrent ? color : "bg-slate-200"}`} style={{ height: `${heightPercent}%` }} />
-              <p className="mt-1 w-full truncate text-center text-xs font-semibold text-slate-600">{point.label}</p>
+              <div className="mt-1 flex h-24 w-full items-end">
+                <div className={`w-full rounded-t-md ${isCurrent ? color : "bg-slate-200"}`} style={{ height: `${heightPercent}%` }} />
+              </div>
+              <p className="mt-2 min-h-8 w-full text-center text-xs font-semibold leading-4 text-slate-600">{point.label}</p>
             </div>
           );
         })}

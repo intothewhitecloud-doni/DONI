@@ -1,16 +1,25 @@
-import type { DomainTypeColor, DomainTypeDefinition, DomainTypeScope } from "./types";
+import type { DomainTypeColor, DomainTypeDefinition, DomainTypePresetColor, DomainTypeScope } from "./types";
 
 export const UNSPECIFIED_TYPE_LABEL = "미지정";
 export const DEFAULT_TYPE_COLOR: DomainTypeColor = "slate";
-export const DOMAIN_TYPE_COLORS: DomainTypeColor[] = ["blue", "orange", "pink", "violet", "emerald", "slate"];
+export const DOMAIN_TYPE_COLORS: DomainTypePresetColor[] = ["blue", "orange", "pink", "violet", "emerald", "slate"];
 
-export const domainTypeColorLabels: Record<DomainTypeColor, string> = {
+export const domainTypeColorLabels: Record<DomainTypePresetColor, string> = {
   blue: "파랑",
   orange: "주황",
   pink: "분홍",
   violet: "보라",
   emerald: "초록",
   slate: "회색"
+};
+
+export const domainTypeColorHexValues: Record<DomainTypePresetColor, string> = {
+  blue: "#2563eb",
+  orange: "#fb923c",
+  pink: "#ec4899",
+  violet: "#8b5cf6",
+  emerald: "#34d399",
+  slate: "#64748b"
 };
 
 export function normalizeTypeLabel(label: string): string {
@@ -41,8 +50,36 @@ export function domainTypeId(scope: DomainTypeScope, label: string, existingIds:
   return `${baseId}-${index}`;
 }
 
+export function normalizeHexColor(color?: string): `#${string}` | undefined {
+  const normalized = color?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const candidate = normalized.startsWith("#") ? normalized : `#${normalized}`;
+  if (/^#[0-9a-fA-F]{3}$/.test(candidate)) {
+    const [, r, g, b] = candidate;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase() as `#${string}`;
+  }
+
+  if (/^#[0-9a-fA-F]{6}$/.test(candidate)) {
+    return candidate.toLowerCase() as `#${string}`;
+  }
+
+  return undefined;
+}
+
+export function isPresetTypeColor(color?: string): color is DomainTypePresetColor {
+  return DOMAIN_TYPE_COLORS.includes(color as DomainTypePresetColor);
+}
+
 export function normalizeTypeColor(color?: string): DomainTypeColor {
-  return DOMAIN_TYPE_COLORS.includes(color as DomainTypeColor) ? (color as DomainTypeColor) : DEFAULT_TYPE_COLOR;
+  const normalized = color?.trim();
+  if (isPresetTypeColor(normalized)) {
+    return normalized;
+  }
+
+  return normalizeHexColor(normalized) ?? DEFAULT_TYPE_COLOR;
 }
 
 export function defaultTypeColor(indexOrLabel: number | string): DomainTypeColor {
@@ -52,6 +89,20 @@ export function defaultTypeColor(indexOrLabel: number | string): DomainTypeColor
       ? indexOrLabel
       : Array.from(normalizeTypeLabel(indexOrLabel)).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return colors[index % colors.length] ?? DEFAULT_TYPE_COLOR;
+}
+
+export function domainTypeColorHex(color?: string): string {
+  const normalized = normalizeTypeColor(color);
+  if (isPresetTypeColor(normalized)) {
+    return domainTypeColorHexValues[normalized];
+  }
+
+  return normalized;
+}
+
+export function domainTypeColorDisplayLabel(color?: string): string {
+  const normalized = normalizeTypeColor(color);
+  return isPresetTypeColor(normalized) ? domainTypeColorLabels[normalized] : normalized.toUpperCase();
 }
 
 function normalizeCatalogColor(color: string | undefined, index: number): DomainTypeColor {
