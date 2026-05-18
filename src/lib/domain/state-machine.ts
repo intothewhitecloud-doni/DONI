@@ -2,11 +2,21 @@ import { summarizeVotes } from "../policies/voting";
 import { initialPrototypeState as preparedData } from "./mock-data";
 import { buildProposalDraftFromInsight, buildWorkspaceResultBundle, decisionIdForProposal, workflowsHaveSelectedMetrics } from "./result-scenarios";
 import { sampleCandidateOperationalMap } from "./sample-analysis";
+import {
+  defaultTypeColor,
+  displayTypeLabel,
+  domainTypeId,
+  normalizeDomainTypeCatalog,
+  normalizeTypeColor,
+  normalizeTypeLabel
+} from "./type-catalog";
 import type {
   AnalysisJob,
   AuditLog,
   CandidateType,
   Decision,
+  DomainTypeDefinition,
+  DomainTypeScope,
   LinkTarget,
   OutcomeRecord,
   Proposal,
@@ -50,6 +60,9 @@ export type PrototypeAction = ActionMeta &
     | { type: "ADD_SOURCE_FILES"; files: SourceFile[] }
     | { type: "UPDATE_SOURCE_FILE"; fileId: string; patch: Pick<SourceFile, "kind" | "name"> }
     | { type: "REMOVE_SOURCE_FILE"; fileId: string }
+    | { type: "ADD_DOMAIN_TYPE"; scope: DomainTypeScope; label: string; color?: string }
+    | { type: "UPDATE_DOMAIN_TYPE"; scope: DomainTypeScope; typeId: string; label: string; color?: string }
+    | { type: "DELETE_DOMAIN_TYPE"; scope: DomainTypeScope; typeId: string }
     | { type: "UPLOAD_SAMPLE_FILES" }
     | { type: "START_ANALYSIS" }
     | { type: "ADVANCE_ANALYSIS" }
@@ -70,7 +83,7 @@ const analysisSteps: Array<{ status: AnalysisJob["status"]; progress: number; la
   { status: "parsing", progress: 24, label: "원본 표 구조 읽기" },
   { status: "extracting", progress: 44, label: "관리대상 후보 생성" },
   { status: "extracting", progress: 62, label: "업무흐름 후보 생성" },
-  { status: "extracting", progress: 78, label: "관계 edge 구성과 지표 계산" },
+  { status: "extracting", progress: 78, label: "관계 연결 구성과 지표 계산" },
   { status: "reviewing_ready", progress: 100, label: "인사이트 근거 조합 완료" }
 ];
 
@@ -113,6 +126,8 @@ const emptyOperationalCollections = {
   analysisJobs: [],
   evidence: [],
   candidates: [],
+  managedObjectTypes: [],
+  workflowTypes: [],
   entities: [],
   events: [],
   relations: [],
@@ -133,6 +148,8 @@ const emptyOperationalCollections = {
   | "analysisJobs"
   | "evidence"
   | "candidates"
+  | "managedObjectTypes"
+  | "workflowTypes"
   | "entities"
   | "events"
   | "relations"
@@ -173,6 +190,8 @@ export function workspaceDataFromState(state: PrototypeState): WorkspaceOperatio
     analysisJobs: state.analysisJobs,
     evidence: state.evidence,
     candidates: state.candidates,
+    managedObjectTypes: state.managedObjectTypes,
+    workflowTypes: state.workflowTypes,
     entities: state.entities,
     events: state.events,
     relations: state.relations,
@@ -195,6 +214,33 @@ export function workspaceDataFromState(state: PrototypeState): WorkspaceOperatio
   };
 }
 
+function inferDomainTypes(scope: DomainTypeScope, labels: string[]): DomainTypeDefinition[] {
+  return Array.from(new Set(labels.map(displayTypeLabel)))
+    .filter((label) => label !== "미지정")
+    .map((label, index, allLabels) => ({
+      id: domainTypeId(scope, label, allLabels.slice(0, index).map((priorLabel) => domainTypeId(scope, priorLabel))),
+      scope,
+      label,
+      color: defaultTypeColor(index)
+    }));
+}
+
+function mergeDomainTypes(scope: DomainTypeScope, existing: DomainTypeDefinition[], inferred: DomainTypeDefinition[]): DomainTypeDefinition[] {
+  const normalizedExisting = normalizeDomainTypeCatalog(existing, scope);
+  const labels = new Set(normalizedExisting.map((item) => normalizeTypeLabel(item.label)));
+  return [
+    ...normalizedExisting,
+    ...normalizeDomainTypeCatalog(inferred, scope).filter((item) => {
+      const label = normalizeTypeLabel(item.label);
+      if (labels.has(label)) {
+        return false;
+      }
+      labels.add(label);
+      return true;
+    })
+  ];
+}
+
 function normalizeWorkspaceData(data: WorkspaceOperationalState, workspace: Workspace): WorkspaceOperationalState {
   const empty = createEmptyWorkspaceData(workspace);
 
@@ -202,6 +248,8 @@ function normalizeWorkspaceData(data: WorkspaceOperationalState, workspace: Work
     ...empty,
     ...data,
     company: { ...empty.company, ...data.company },
+    managedObjectTypes: normalizeDomainTypeCatalog(data.managedObjectTypes ?? inferDomainTypes("managed_object", data.entities.map((entity) => entity.kind)), "managed_object"),
+    workflowTypes: normalizeDomainTypeCatalog(data.workflowTypes ?? inferDomainTypes("workflow", data.events.map((event) => event.workflowType)), "workflow"),
     workflowMetricBindings: data.workflowMetricBindings ?? [],
     selection: data.selection,
     scope: data.scope
@@ -255,6 +303,8 @@ export function projectWorkspaceData(state: PrototypeState, workspaceId = state.
     analysisJobs: data.analysisJobs,
     evidence: data.evidence,
     candidates: data.candidates,
+    managedObjectTypes: data.managedObjectTypes,
+    workflowTypes: data.workflowTypes,
     entities: data.entities,
     events: data.events,
     relations: data.relations,
@@ -374,6 +424,8 @@ function clearAnalysisOutputs(state: PrototypeState): PrototypeState {
     analysisJobs: [],
     candidates: [],
     decisions: [],
+    managedObjectTypes: [],
+    workflowTypes: [],
     entities: [],
     events: [],
     evidence: [],
@@ -398,6 +450,101 @@ function omitWorkspaceData(
   const nextDataById = { ...dataById };
   delete nextDataById[workspaceId];
   return nextDataById;
+}
+
+function typeCatalogForScope(state: PrototypeState, scope: DomainTypeScope): DomainTypeDefinition[] {
+  return scope === "managed_object" ? state.managedObjectTypes : state.workflowTypes;
+}
+
+function withTypeCatalog(state: PrototypeState, scope: DomainTypeScope, catalog: DomainTypeDefinition[]): PrototypeState {
+  const normalizedCatalog = normalizeDomainTypeCatalog(catalog, scope);
+  return scope === "managed_object"
+    ? { ...state, managedObjectTypes: normalizedCatalog, permissionDenied: undefined }
+    : { ...state, workflowTypes: normalizedCatalog, permissionDenied: undefined };
+}
+
+function addDomainType(state: PrototypeState, scope: DomainTypeScope, label: string, color?: string): PrototypeState {
+  const normalizedLabel = normalizeTypeLabel(label);
+  if (!normalizedLabel) {
+    return { ...state, permissionDenied: "추가할 유형 이름을 입력해 주세요." };
+  }
+
+  const catalog = typeCatalogForScope(state, scope);
+  if (catalog.some((item) => normalizeTypeLabel(item.label) === normalizedLabel)) {
+    return { ...state, permissionDenied: "이미 등록된 유형입니다." };
+  }
+
+  const typeDefinition: DomainTypeDefinition = {
+    id: domainTypeId(scope, normalizedLabel, catalog.map((item) => item.id)),
+    scope,
+    label: normalizedLabel,
+    color: normalizeTypeColor(color) === "slate" && !color ? defaultTypeColor(catalog.length) : normalizeTypeColor(color)
+  };
+
+  return withTypeCatalog(state, scope, [...catalog, typeDefinition]);
+}
+
+function updateDomainType(state: PrototypeState, scope: DomainTypeScope, typeId: string, label: string, color?: string): PrototypeState {
+  const normalizedLabel = normalizeTypeLabel(label);
+  if (!normalizedLabel) {
+    return { ...state, permissionDenied: "수정할 유형 이름을 입력해 주세요." };
+  }
+
+  const catalog = typeCatalogForScope(state, scope);
+  const current = catalog.find((item) => item.id === typeId);
+  if (!current) {
+    return { ...state, permissionDenied: "수정할 유형을 찾지 못했습니다." };
+  }
+
+  if (catalog.some((item) => item.id !== typeId && normalizeTypeLabel(item.label) === normalizedLabel)) {
+    return { ...state, permissionDenied: "이미 등록된 유형입니다." };
+  }
+
+  const updatedCatalog = catalog.map((item) =>
+    item.id === typeId ? { ...item, label: normalizedLabel, color: color === undefined ? item.color : normalizeTypeColor(color) } : item
+  );
+  const updatedState = withTypeCatalog(state, scope, updatedCatalog);
+
+  if (scope === "managed_object") {
+    return {
+      ...updatedState,
+      entities: updatedState.entities.map((entity) =>
+        normalizeTypeLabel(entity.kind) === normalizeTypeLabel(current.label) ? { ...entity, kind: normalizedLabel } : entity
+      )
+    };
+  }
+
+  return {
+    ...updatedState,
+    events: updatedState.events.map((event) =>
+      normalizeTypeLabel(event.workflowType) === normalizeTypeLabel(current.label) ? { ...event, workflowType: normalizedLabel } : event
+    )
+  };
+}
+
+function deleteDomainType(state: PrototypeState, scope: DomainTypeScope, typeId: string): PrototypeState {
+  const catalog = typeCatalogForScope(state, scope);
+  const current = catalog.find((item) => item.id === typeId);
+  if (!current) {
+    return { ...state, permissionDenied: "삭제할 유형을 찾지 못했습니다." };
+  }
+
+  const updatedState = withTypeCatalog(state, scope, catalog.filter((item) => item.id !== typeId));
+  if (scope === "managed_object") {
+    return {
+      ...updatedState,
+      entities: updatedState.entities.map((entity) =>
+        normalizeTypeLabel(entity.kind) === normalizeTypeLabel(current.label) ? { ...entity, kind: "" } : entity
+      )
+    };
+  }
+
+  return {
+    ...updatedState,
+    events: updatedState.events.map((event) =>
+      normalizeTypeLabel(event.workflowType) === normalizeTypeLabel(current.label) ? { ...event, workflowType: "" } : event
+    )
+  };
 }
 
 export function reducer(state: PrototypeState, action: PrototypeAction): PrototypeState {
@@ -755,20 +902,19 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
     case "ADD_SOURCE_FILES": {
       const incomingIds = new Set(action.files.map((file) => file.id));
       const incomingNameKeys = new Set(action.files.map((file) => file.name.trim().toLowerCase()));
-      const baseState = clearAnalysisOutputs(state);
       return withAudit(
         {
-          ...baseState,
+          ...state,
           screen: "vault",
           sourceFiles: [
             ...action.files.map((file) => ({ ...file, status: "ready" as const, uploadedAt: undefined })),
-            ...baseState.sourceFiles
+            ...state.sourceFiles
               .filter((file) => !incomingIds.has(file.id) && !incomingNameKeys.has(file.name.trim().toLowerCase()))
               .map((file) => ({ ...file, status: "ready" as const, uploadedAt: undefined }))
           ],
           notifications: [
             { id: action.notificationId ?? "notice-source-files", level: "success", message: "파일이 데이터 보관함에 추가되었습니다." },
-            ...baseState.notifications
+            ...state.notifications
           ]
         },
         action
@@ -776,16 +922,15 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
     }
 
     case "UPDATE_SOURCE_FILE": {
-      const baseState = clearAnalysisOutputs(state);
       return withAudit(
         {
-          ...baseState,
-          sourceFiles: baseState.sourceFiles.map((file) =>
+          ...state,
+          sourceFiles: state.sourceFiles.map((file) =>
             file.id === action.fileId ? { ...file, ...action.patch, status: "ready" as const, uploadedAt: undefined } : { ...file, status: "ready" as const, uploadedAt: undefined }
           ),
           notifications: [
             { id: action.notificationId ?? "notice-source-file-update", level: "success", message: "파일 정보가 수정되었습니다." },
-            ...baseState.notifications
+            ...state.notifications
           ]
         },
         action
@@ -793,16 +938,66 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
     }
 
     case "REMOVE_SOURCE_FILE": {
-      const baseState = clearAnalysisOutputs(state);
       return withAudit(
         {
-          ...baseState,
-          sourceFiles: baseState.sourceFiles
+          ...state,
+          sourceFiles: state.sourceFiles
             .filter((file) => file.id !== action.fileId)
             .map((file) => ({ ...file, status: "ready" as const, uploadedAt: undefined })),
           notifications: [
             { id: action.notificationId ?? "notice-source-file-remove", level: "info", message: "파일이 데이터 보관함에서 제거되었습니다." },
-            ...baseState.notifications
+            ...state.notifications
+          ]
+        },
+        action
+      );
+    }
+
+    case "ADD_DOMAIN_TYPE": {
+      const next = addDomainType(state, action.scope, action.label, action.color);
+      if (next.permissionDenied) {
+        return syncActiveWorkspaceData(next);
+      }
+      return withAudit(
+        {
+          ...next,
+          notifications: [
+            { id: action.notificationId ?? "notice-type-add", level: "success", message: "유형을 추가했습니다." },
+            ...state.notifications
+          ]
+        },
+        action
+      );
+    }
+
+    case "UPDATE_DOMAIN_TYPE": {
+      const next = updateDomainType(state, action.scope, action.typeId, action.label, action.color);
+      if (next.permissionDenied) {
+        return syncActiveWorkspaceData(next);
+      }
+      return withAudit(
+        {
+          ...next,
+          notifications: [
+            { id: action.notificationId ?? "notice-type-update", level: "success", message: "유형을 수정했습니다." },
+            ...state.notifications
+          ]
+        },
+        action
+      );
+    }
+
+    case "DELETE_DOMAIN_TYPE": {
+      const next = deleteDomainType(state, action.scope, action.typeId);
+      if (next.permissionDenied) {
+        return syncActiveWorkspaceData(next);
+      }
+      return withAudit(
+        {
+          ...next,
+          notifications: [
+            { id: action.notificationId ?? "notice-type-delete", level: "info", message: "유형을 삭제했습니다. 연결 항목은 미지정으로 표시됩니다." },
+            ...state.notifications
           ]
         },
         action
@@ -913,11 +1108,23 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         };
       }
       const confirmedOperationalData = operationalDataForCandidates(selectedCandidateIds, state.candidates);
+      const managedObjectTypes = mergeDomainTypes(
+        "managed_object",
+        state.managedObjectTypes,
+        inferDomainTypes("managed_object", confirmedOperationalData.entities.map((entity) => entity.kind))
+      );
+      const workflowTypes = mergeDomainTypes(
+        "workflow",
+        state.workflowTypes,
+        inferDomainTypes("workflow", confirmedOperationalData.events.map((event) => event.workflowType))
+      );
 
       return withAudit(
         {
           ...state,
           screen: "dashboard",
+          managedObjectTypes,
+          workflowTypes,
           entities: confirmedOperationalData.entities,
           events: confirmedOperationalData.events,
           relations: confirmedOperationalData.relations,

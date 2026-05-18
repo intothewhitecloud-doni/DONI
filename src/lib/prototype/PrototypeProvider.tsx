@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type PropsWithChildren } from "react";
-import type { CandidateType, LinkTarget, PrototypeState, Role, Screen, VoteChoice } from "../domain/types";
+import type { CandidateType, DomainTypeScope, LinkTarget, PrototypeState, Role, Screen, VoteChoice } from "../domain/types";
 import { advanceAnalysisJob, confirmCandidates, editCandidate, excludeCandidate, setCandidateType, startAnalysisJob } from "./commands/analysisCommands";
 import { loginWithCredentials, logout } from "./commands/authCommands";
 import { addSourceFiles, removeSourceFile, updateSourceFile, uploadSampleFiles } from "./commands/fileCommands";
@@ -16,6 +16,7 @@ import {
 } from "./commands/organizationCommands";
 import { recordOutcome } from "./commands/outcomeCommands";
 import { castVote, finalizeProposal } from "./commands/proposalCommands";
+import { addDomainType, deleteDomainType, updateDomainType } from "./commands/typeCommands";
 import { generateVerificationRecord } from "./commands/verificationCommands";
 import { createWorkspace, joinWorkspaceByInviteCode, leaveWorkspace, selectWorkspace } from "./commands/workspaceCommands";
 import { findDemoAccount } from "./authAccounts";
@@ -38,6 +39,9 @@ interface PrototypeCommands {
   updateWorkspaceMember(payload: { memberId: string; role: Role; eligibleVoter: boolean; title: string }): boolean;
   activateWorkspaceMember(memberId: string): boolean;
   deactivateWorkspaceMember(memberId: string): boolean;
+  addDomainType(scope: DomainTypeScope, label: string, color?: string): boolean;
+  updateDomainType(scope: DomainTypeScope, typeId: string, label: string, color?: string): boolean;
+  deleteDomainType(scope: DomainTypeScope, typeId: string): boolean;
   setRole(role: Role): void;
   addSourceFiles(files: Array<{ name: string; size: number; mimeType?: string; dataUrl?: string; textContent?: string; previewColumns?: string[]; previewRows?: string[][]; rowCount?: number }>): boolean;
   updateSourceFile(fileId: string, patch: { name: string; kind: string }): boolean;
@@ -153,6 +157,9 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
       updateWorkspaceMember: (payload) => updateWorkspaceMember(state, dispatch, payload),
       activateWorkspaceMember: (memberId) => activateWorkspaceMember(state, dispatch, memberId),
       deactivateWorkspaceMember: (memberId) => deactivateWorkspaceMember(state, dispatch, memberId),
+      addDomainType: (scope, label, color) => addDomainType(state, dispatch, scope, label, color),
+      updateDomainType: (scope, typeId, label, color) => updateDomainType(state, dispatch, scope, typeId, label, color),
+      deleteDomainType: (scope, typeId) => deleteDomainType(state, dispatch, scope, typeId),
       setRole: (role) => dispatch({ type: "SET_ROLE", role }),
       addSourceFiles: (files) => addSourceFiles(state, dispatch, files),
       updateSourceFile: (fileId, patch) => updateSourceFile(state, dispatch, fileId, patch),

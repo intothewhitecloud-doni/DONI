@@ -390,11 +390,11 @@ export function AnalysisScreen() {
           <SectionTitle
             eyebrow="데이터 보관함 > 인공지능 구조 분석"
             title="분석할 소스 데이터가 없습니다"
-            description="업무 파일을 추가하면 관리 대상과 edge, 지표 근거를 구성할 수 있습니다."
+            description="업무 파일을 추가하면 관리 대상과 연결 관계, 지표 근거를 구성할 수 있습니다."
           />
           <Card className="space-y-4">
             <p className="text-sm leading-6 text-slate-600">
-              원본 표 구조 읽기, 관리대상 후보 생성, 업무흐름 후보 생성, 관계 edge 구성, 지표 계산, 인사이트 근거 조합이 순서대로 진행됩니다.
+              원본 표 구조 읽기, 관리대상 후보 생성, 업무흐름 후보 생성, 연결 관계 구성, 지표 계산, 인사이트 근거 조합이 순서대로 진행됩니다.
             </p>
             <Button onClick={() => commands.navigate("vault")}>데이터 보관함으로 이동</Button>
           </Card>
@@ -417,7 +417,7 @@ export function AnalysisScreen() {
             <Badge tone={job?.status === "reviewing_ready" ? "success" : "info"}>{job?.progress ?? 0}%</Badge>
           </div>
           <Progress value={job?.progress ?? 0} />
-          <p className="text-sm text-slate-600">관리대상, 업무흐름, 관계 edge, 지표, 인사이트 근거를 같은 파일 근거로 연결합니다.</p>
+          <p className="text-sm text-slate-600">관리대상, 업무흐름, 연결 관계, 지표, 인사이트 근거를 같은 파일 근거로 연결합니다.</p>
         </Card>
       </div>
     </main>
@@ -615,11 +615,11 @@ export function ReviewScreen() {
                 </div>
                 {selected.edgePreview && (
                   <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
-                    <p className="text-xs font-bold text-blue-700">edge 미리보기</p>
+                    <p className="text-xs font-bold text-blue-700">연결 미리보기</p>
                     <p className="mt-2 font-semibold text-slate-950">
                       {selected.edgePreview.fromLabel} → {selected.edgePreview.toLabel}
                     </p>
-                    <p className="mt-1 text-sm text-slate-600">유형: {selected.edgePreview.relationType}</p>
+                    <p className="mt-1 text-sm text-slate-600">{selected.edgePreview.relationType}</p>
                     <p className="mt-1 text-sm text-slate-600">
                       연결 지표: {selected.edgePreview.metricLabels?.join(", ") ?? "아직 없음"}
                     </p>

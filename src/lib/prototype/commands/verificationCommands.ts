@@ -109,7 +109,7 @@ async function hashSelectionScope(state: PrototypeState): Promise<string> {
       name: event.name,
       objectId: event.objectId,
       occurredAt: event.occurredAt,
-      status: event.status
+      workflowType: event.workflowType
     })),
     evidence: sortById(state.evidence).map((evidence) => ({
       excerpt: evidence.excerpt,

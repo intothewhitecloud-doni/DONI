@@ -60,16 +60,16 @@ export type ManagedObjectGraphLayout = {
 
 const nodeWidth = 172;
 const nodeHeight = 76;
-const rowGap = 92;
-const managedObjectLayerGap = 178;
+const rowGap = 132;
+const managedObjectLayerGap = 240;
 const workflowOrder = ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
 
 const laneX: Record<ManagedObjectGraphLaneKind, number> = {
   category: 32,
-  managed_object: 232,
-  workflow: 590,
-  metric: 790,
-  insight: 990
+  managed_object: 120,
+  workflow: 520,
+  metric: 800,
+  insight: 1080
 };
 
 const laneOrder: Record<ManagedObjectGraphLaneKind, number> = {
@@ -125,7 +125,7 @@ export function buildManagedObjectGraphLayout(
 
   return {
     contentBounds: boundsForPositions(positionsByNodeId),
-    defaultViewport: { x: 24, y: 36, zoom: 0.9 },
+    defaultViewport: { x: 32, y: 42, zoom: 0.82 },
     edgePriorityByEdgeId,
     edgeRouteByEdgeId: edgeRoutes(detail.graphEdges),
     laneByNodeId,

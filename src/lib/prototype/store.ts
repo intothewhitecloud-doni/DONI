@@ -18,6 +18,8 @@ export function createInitialState(): PrototypeState {
     analysisJobs: [],
     evidence: [],
     candidates: [],
+    managedObjectTypes: [],
+    workflowTypes: [],
     entities: [],
     events: [],
     relations: [],

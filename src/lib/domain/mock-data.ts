@@ -4,10 +4,12 @@ import {
   sampleEvents,
   sampleEvidence,
   sampleInsights,
+  sampleManagedObjectTypes,
   sampleMetricDefinitions,
   sampleMetricValues,
   sampleRelations,
   sampleSourceFiles,
+  sampleWorkflowTypes,
   sampleWorkflowMetricBindings
 } from "./sample-analysis";
 import type { PrototypeState } from "./types";
@@ -86,6 +88,8 @@ export const initialPrototypeState: PrototypeState = {
   analysisJobs: [],
   evidence: sampleEvidence,
   candidates: sampleCandidates,
+  managedObjectTypes: sampleManagedObjectTypes,
+  workflowTypes: sampleWorkflowTypes,
   entities: sampleEntities,
   events: sampleEvents,
   relations: sampleRelations,

@@ -62,6 +62,15 @@ export type VerificationStatus = "pending" | "verified" | "failed";
 export type MetricChartType = "bar" | "line" | "time_series" | "pie" | "table";
 export type VerificationMethod = "local_hash" | "xrpl_ready" | "xrpl_confirmed";
 export type TrustCertificationStatus = "pending" | "certified" | "failed" | "not_requested";
+export type DomainTypeScope = "managed_object" | "workflow";
+export type DomainTypeColor = "blue" | "orange" | "pink" | "violet" | "emerald" | "slate";
+
+export interface DomainTypeDefinition {
+  id: string;
+  scope: DomainTypeScope;
+  label: string;
+  color: DomainTypeColor;
+}
 
 export interface User {
   id: string;
@@ -177,9 +186,9 @@ export interface EntityInstance {
 export interface EventRecord {
   id: string;
   objectId: string;
+  workflowType: string;
   name: string;
   occurredAt: string;
-  status: string;
   durationHours: number;
   evidenceIds: string[];
 }
@@ -344,6 +353,8 @@ export interface WorkspaceOperationalState {
   analysisJobs: AnalysisJob[];
   evidence: EvidenceReference[];
   candidates: ExtractionCandidate[];
+  managedObjectTypes: DomainTypeDefinition[];
+  workflowTypes: DomainTypeDefinition[];
   entities: EntityInstance[];
   events: EventRecord[];
   relations: Relation[];
@@ -414,6 +425,8 @@ export interface PrototypeState {
   analysisJobs: AnalysisJob[];
   evidence: EvidenceReference[];
   candidates: ExtractionCandidate[];
+  managedObjectTypes: DomainTypeDefinition[];
+  workflowTypes: DomainTypeDefinition[];
   entities: EntityInstance[];
   events: EventRecord[];
   relations: Relation[];

@@ -8,12 +8,14 @@ import {
   Position,
   ReactFlow,
   getSmoothStepPath,
+  useEdgesState,
+  useNodesState,
   type Edge,
   type EdgeProps,
   type Node
 } from "@xyflow/react";
 import type { CSSProperties, ReactNode } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Badge } from "../../components/ui/Badge";
 import {
   getManagedObjectGraphItemDetail,
@@ -57,7 +59,6 @@ const nodeLegend: Array<{
   label: string;
   description: string;
 }> = [
-  { type: "category", label: "범위", description: "현재 선택한 관리 대상 카테고리" },
   { type: "managed_object", label: "관리 대상", description: "영향관계 탐색의 중심 객체" },
   { type: "workflow", label: "업무흐름", description: "관리 대상과 연결된 업무 단계" },
   { type: "metric", label: "지표", description: "업무흐름을 측정하는 수치 기준" },
@@ -66,20 +67,28 @@ const nodeLegend: Array<{
 
 export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, selectedItemId }: KnowledgeGraphProps) {
   const graph = useMemo(() => buildFlowModel(detail, selectedItemId), [detail, selectedItemId]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(graph.nodes);
+  const [edges, setEdges] = useEdgesState<FlowEdge>(graph.edges);
   const edgeTypes = useMemo(() => ({ knowledge: KnowledgeEdge }), []);
   const selectedDetail = getManagedObjectGraphItemDetail(detail, selectedItemId);
+
+  useEffect(() => {
+    setNodes(graph.nodes);
+    setEdges(graph.edges);
+  }, [graph.edges, graph.nodes, setEdges, setNodes]);
 
   return (
     <div className="space-y-4">
       <div className="h-[560px] overflow-hidden rounded-md border border-slate-200 bg-white">
         <ReactFlow
-          key={detail.category?.id ?? "empty-graph"}
-          nodes={graph.nodes}
-          edges={graph.edges}
+          key={detail.defaultGraphItemId ?? "empty-graph"}
+          nodes={nodes}
+          edges={edges}
           defaultViewport={graph.layout.defaultViewport}
           minZoom={0.35}
           maxZoom={1.35}
-          nodesDraggable={false}
+          onNodesChange={onNodesChange}
+          nodesDraggable
           nodesConnectable={false}
           edgesReconnectable={false}
           elementsSelectable
@@ -102,9 +111,10 @@ export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, select
       <div className="grid gap-3 xl:grid-cols-[1fr_1.35fr]">
         <div className="rounded-md border border-slate-200 bg-white p-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-bold uppercase text-slate-500">노드 유형</p>
+            <p className="text-xs font-bold text-slate-500">엔터티 유형</p>
             <Badge tone="neutral">{nodeLegend.length}개</Badge>
           </div>
+          <p className="mt-2 text-xs leading-5 text-slate-500">엔터티는 드래그로 잠시 옮겨 볼 수 있으며 위치는 저장되지 않습니다.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
             {nodeLegend.map((item) => (
               <div key={item.type} className="flex gap-3 rounded-md border border-slate-100 bg-slate-50 p-3">
@@ -168,7 +178,7 @@ function GraphDetailPanel({
   if (!detail) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-4">
-        <p className="text-sm text-slate-600">그래프 노드나 연결을 선택하면 상세 정보가 표시됩니다.</p>
+        <p className="text-sm text-slate-600">그래프 엔터티나 연결을 선택하면 상세 정보가 표시됩니다.</p>
       </div>
     );
   }
@@ -179,7 +189,7 @@ function GraphDetailPanel({
   return (
     <div className="rounded-md border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={detail.kind === "edge" ? "info" : "neutral"}>{detail.kind === "edge" ? "연결" : "노드"}</Badge>
+        <Badge tone={detail.kind === "edge" ? "info" : "neutral"}>{detail.kind === "edge" ? "연결" : "엔터티"}</Badge>
         <Badge tone="neutral">{detail.subtitle}</Badge>
         {detail.badges.map((badge) => (
           <Badge key={badge} tone="info">{badge}</Badge>

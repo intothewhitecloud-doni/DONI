@@ -1,8 +1,8 @@
 import type { PropsWithChildren } from "react";
 
-type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "orange" | "pink" | "violet" | "emerald";
+export type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info" | "orange" | "pink" | "violet" | "emerald";
 
-const toneClass: Record<Tone, string> = {
+const toneClass: Record<BadgeTone, string> = {
   neutral: "border-hairline bg-surface-card text-ink",
   success: "border-success/30 bg-success/10 text-success",
   warning: "border-warning/30 bg-warning/10 text-warning",
@@ -14,7 +14,7 @@ const toneClass: Record<Tone, string> = {
   emerald: "border-badge-emerald/30 bg-badge-emerald/10 text-badge-emerald"
 };
 
-export function Badge({ children, tone = "neutral" }: PropsWithChildren<{ tone?: Tone }>) {
+export function Badge({ children, tone = "neutral" }: PropsWithChildren<{ tone?: BadgeTone }>) {
   return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClass[tone]}`}>{children}</span>;
 }
 

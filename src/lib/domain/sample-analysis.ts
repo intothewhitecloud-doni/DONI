@@ -1,6 +1,7 @@
 import type {
   AIInsight,
   CandidateType,
+  DomainTypeDefinition,
   EntityInstance,
   EventRecord,
   ExtractionCandidate,
@@ -48,6 +49,19 @@ export type SampleResultScenario = {
 const now = "2026-05-07T09:00:00.000Z";
 export const canonicalSampleAnalysisSourceId = "public-sample-2026-05-11";
 
+export const sampleManagedObjectTypes: DomainTypeDefinition[] = [
+  { id: "managed-type-customer", scope: "managed_object", label: "고객군", color: "blue" },
+  { id: "managed-type-supplier", scope: "managed_object", label: "공급사", color: "emerald" },
+  { id: "managed-type-product", scope: "managed_object", label: "상품군", color: "violet" }
+];
+
+export const sampleWorkflowTypes: DomainTypeDefinition[] = [
+  { id: "workflow-type-received", scope: "workflow", label: "접수", color: "blue" },
+  { id: "workflow-type-delayed", scope: "workflow", label: "지연", color: "orange" },
+  { id: "workflow-type-increase", scope: "workflow", label: "증가", color: "pink" },
+  { id: "workflow-type-review", scope: "workflow", label: "검토", color: "violet" }
+];
+
 export const sampleSourceFiles: SourceFile[] = [
   {
     id: "source-orders",
@@ -57,10 +71,10 @@ export const sampleSourceFiles: SourceFile[] = [
     status: "ready",
     previewColumns: ["주문ID", "상품군", "고객군", "공급사", "배송상태", "출고대기시간", "클레임유형"],
     previewRows: [
-      ["O-1001", "P-42", "핵심 고객군", "공급업체 A사", "지연", "42시간", "배송 지연"],
-      ["O-1002", "P-42", "핵심 고객군", "공급업체 A사", "지연", "38시간", "배송 지연"],
-      ["O-1003", "P-08", "일반 고객군", "공급업체 A사", "정상", "24시간", "-"],
-      ["O-1004", "P-42", "핵심 고객군", "공급업체 A사", "지연", "41시간", "보상 요청"]
+      ["O-1001", "P-42", "고객A", "공급업체 A사", "지연", "42시간", "배송 지연"],
+      ["O-1002", "P-42", "고객A", "공급업체 A사", "지연", "38시간", "배송 지연"],
+      ["O-1003", "P-08", "고객B", "공급업체 A사", "정상", "24시간", "-"],
+      ["O-1004", "P-17", "고객C", "공급업체 B사", "검토", "18시간", "보상 요청"]
     ]
   },
   {
@@ -104,9 +118,9 @@ export const sampleEvidence: EvidenceReference[] = [
     rowNumbers: [4, 6, 8, 10],
     columns: ["고객군", "상품군", "클레임유형", "보상요청"],
     confidence: 0.88,
-    label: "핵심 고객군 클레임 근거",
+    label: "고객A 클레임 근거",
     location: "주문_배송_클레임.xlsx / 클레임 시트 4,6,8,10행",
-    excerpt: "핵심 고객군의 P-42 주문에서 배송 지연 이후 클레임과 보상 요청이 함께 발생했습니다."
+    excerpt: "고객A의 P-42 주문에서 배송 지연 이후 클레임과 보상 요청이 함께 발생했습니다."
   },
   {
     id: "evidence-margin",
@@ -140,8 +154,8 @@ export const sampleCandidates: ExtractionCandidate[] = [
   {
     id: "candidate-customer",
     type: "managed_object",
-    title: "핵심 고객군",
-    description: "P-42 배송 지연 이후 클레임과 보상 요청이 집중되는 고객군입니다.",
+    title: "고객A",
+    description: "P-42 배송 지연 이후 클레임과 보상 요청이 집중되는 고객 인스턴스입니다.",
     confidence: 0.92,
     status: "needs_review",
     evidenceIds: ["evidence-claims", "evidence-orders-delay"]
@@ -185,7 +199,7 @@ export const sampleCandidates: ExtractionCandidate[] = [
   {
     id: "candidate-relation",
     type: "relation",
-    title: "공급업체 A사 -> P-42 공급 edge",
+    title: "공급업체 A사 → P-42 공급 연결",
     description: "공급업체 A사가 P-42 상품군을 공급하는 구조 관계이며 납품준수율과 마진 지표의 해석 기준입니다.",
     confidence: 0.9,
     status: "needs_review",
@@ -200,14 +214,14 @@ export const sampleCandidates: ExtractionCandidate[] = [
   {
     id: "candidate-relation-customer-claim",
     type: "relation",
-    title: "클레임 접수 -> 핵심 고객군 edge",
-    description: "클레임 접수 업무흐름이 핵심 고객군의 클레임률과 보상 요청 증가로 연결됩니다.",
+    title: "클레임 접수 → 고객A 연결",
+    description: "클레임 접수 업무흐름이 고객A의 클레임률과 보상 요청 증가로 연결됩니다.",
     confidence: 0.86,
     status: "needs_review",
     evidenceIds: ["evidence-claims", "evidence-orders-delay"],
     edgePreview: {
       fromLabel: "클레임 접수",
-      toLabel: "핵심 고객군",
+      toLabel: "고객A",
       relationType: "클레임 접수 대상",
       metricLabels: ["클레임률", "주문 처리 시간"]
     }
@@ -234,7 +248,7 @@ export const sampleCandidates: ExtractionCandidate[] = [
     id: "candidate-metric-claim",
     type: "metric",
     title: "P-42 클레임률",
-    description: "P-42 주문 중 클레임으로 접수된 비율과 핵심 고객군의 반복 발생률입니다.",
+    description: "P-42 주문 중 클레임으로 접수된 비율과 고객A의 반복 발생률입니다.",
     confidence: 0.88,
     status: "needs_review",
     evidenceIds: ["evidence-claims"]
@@ -245,14 +259,40 @@ export const sampleEntities: EntityInstance[] = [
   {
     id: "entity-customer-core",
     kind: "고객군",
-    name: "핵심 고객군",
+    name: "고객A",
     owner: "영업 운영팀",
     status: "주의",
-    summary: "P-42 배송 지연 이후 클레임률 100% 표본 신호가 감지된 반복 구매 고객군",
+    summary: "P-42 배송 지연 이후 클레임률 100% 표본 신호가 감지된 반복 구매 고객",
     metricIds: ["metric-claim-rate", "metric-delay-time"],
     relationIds: ["relation-customer-claim"],
     eventIds: ["event-claim", "event-compensation"],
     insightIds: ["insight-customer-claims", "insight-product-margin"],
+    decisionIds: []
+  },
+  {
+    id: "entity-customer-b",
+    kind: "고객군",
+    name: "고객B",
+    owner: "영업 운영팀",
+    status: "정상",
+    summary: "P-08 정밀 부품 세트를 반복 구매하지만 최근 클레임은 없는 비교 고객",
+    metricIds: ["metric-claim-rate"],
+    relationIds: [],
+    eventIds: [],
+    insightIds: [],
+    decisionIds: []
+  },
+  {
+    id: "entity-customer-c",
+    kind: "고객군",
+    name: "고객C",
+    owner: "고객지원팀",
+    status: "검토 필요",
+    summary: "P-17 표준 제어 모듈 보상 요청이 발생한 고객",
+    metricIds: ["metric-claim-rate"],
+    relationIds: ["relation-customer-c-product"],
+    eventIds: ["event-compensation"],
+    insightIds: ["insight-customer-claims"],
     decisionIds: []
   },
   {
@@ -269,6 +309,19 @@ export const sampleEntities: EntityInstance[] = [
     decisionIds: []
   },
   {
+    id: "entity-supplier-b",
+    kind: "공급사",
+    name: "공급업체 B사",
+    owner: "구매팀",
+    status: "정상",
+    summary: "P-17 표준 제어 모듈을 공급하며 납품준수율이 안정적인 비교 공급사",
+    metricIds: ["metric-delay-time", "metric-margin"],
+    relationIds: ["relation-supplier-b-product"],
+    eventIds: [],
+    insightIds: [],
+    decisionIds: []
+  },
+  {
     id: "entity-low-margin",
     kind: "상품군",
     name: "P-42 산업용 센서 패키지",
@@ -280,6 +333,32 @@ export const sampleEntities: EntityInstance[] = [
     eventIds: ["event-order", "event-outbound", "event-delivery"],
     insightIds: ["insight-product-margin"],
     decisionIds: []
+  },
+  {
+    id: "entity-product-control",
+    kind: "상품군",
+    name: "P-17 표준 제어 모듈",
+    owner: "상품 운영팀",
+    status: "정상",
+    summary: "마진율과 납품준수율이 안정적이어서 P-42와 비교 기준이 되는 상품군",
+    metricIds: ["metric-margin", "metric-delay-time"],
+    relationIds: ["relation-supplier-b-product", "relation-customer-c-product"],
+    eventIds: [],
+    insightIds: [],
+    decisionIds: []
+  },
+  {
+    id: "entity-product-precision",
+    kind: "상품군",
+    name: "P-08 정밀 부품 세트",
+    owner: "상품 운영팀",
+    status: "관찰",
+    summary: "공급업체 A사가 함께 공급하지만 지연 영향은 낮은 보조 상품군",
+    metricIds: ["metric-margin"],
+    relationIds: ["relation-supplier-a-precision"],
+    eventIds: [],
+    insightIds: [],
+    decisionIds: []
   }
 ];
 
@@ -287,45 +366,45 @@ export const sampleEvents: EventRecord[] = [
   {
     id: "event-order",
     objectId: "entity-low-margin",
+    workflowType: "접수",
     name: "주문 접수",
     occurredAt: "2026-05-05T23:40:00.000Z",
-    status: "접수",
     durationHours: 0.6,
     evidenceIds: ["evidence-orders-delay"]
   },
   {
     id: "event-outbound",
     objectId: "entity-low-margin",
+    workflowType: "지연",
     name: "출고 처리",
     occurredAt: "2026-05-06T02:30:00.000Z",
-    status: "지연",
     durationHours: 36.8,
     evidenceIds: ["evidence-orders-delay", "evidence-supplier"]
   },
   {
     id: "event-delivery",
     objectId: "entity-low-margin",
+    workflowType: "지연",
     name: "배송 상태 확인",
     occurredAt: "2026-05-06T05:10:00.000Z",
-    status: "지연",
     durationHours: 18.4,
     evidenceIds: ["evidence-orders-delay"]
   },
   {
     id: "event-claim",
     objectId: "entity-customer-core",
+    workflowType: "증가",
     name: "클레임 접수",
     occurredAt: "2026-05-06T07:15:00.000Z",
-    status: "증가",
     durationHours: 18,
     evidenceIds: ["evidence-claims", "evidence-orders-delay"]
   },
   {
     id: "event-compensation",
     objectId: "entity-customer-core",
+    workflowType: "검토",
     name: "보상 처리",
     occurredAt: "2026-05-06T09:00:00.000Z",
-    status: "검토",
     durationHours: 6,
     evidenceIds: ["evidence-claims"]
   }
@@ -354,11 +433,53 @@ export const sampleRelations: Relation[] = [
     relationKind: "impact",
     confidence: 0.86,
     strength: "strong",
-    description: "클레임 접수 흐름이 핵심 고객군의 보상 요청과 반복 문의로 연결됩니다.",
+    description: "클레임 접수 흐름이 고객A의 보상 요청과 반복 문의로 연결됩니다.",
     impact: "클레임률 상승과 핵심 고객 이탈 위험 증가",
     status: "관찰 필요",
     evidenceIds: ["evidence-claims", "evidence-orders-delay"],
     metricIds: ["metric-claim-rate", "metric-delay-time"]
+  },
+  {
+    id: "relation-supplier-b-product",
+    fromId: "entity-supplier-b",
+    toId: "entity-product-control",
+    type: "공급/납품 구조",
+    relationKind: "structural",
+    confidence: 0.82,
+    strength: "medium",
+    description: "공급업체 B사는 P-17 표준 제어 모듈 공급을 담당하며 안정적인 비교 기준을 제공합니다.",
+    impact: "P-42 공급 리스크를 비교하고 대체 조달 가능성을 판단하는 기준",
+    status: "비교 기준",
+    evidenceIds: ["evidence-supplier", "evidence-margin"],
+    metricIds: ["metric-delay-time", "metric-margin"]
+  },
+  {
+    id: "relation-supplier-a-precision",
+    fromId: "entity-supplier-a",
+    toId: "entity-product-precision",
+    type: "공급/납품 구조",
+    relationKind: "structural",
+    confidence: 0.78,
+    strength: "medium",
+    description: "공급업체 A사는 P-08 정밀 부품 세트도 공급하지만 지연 영향은 P-42보다 낮습니다.",
+    impact: "공급사 리스크가 특정 상품군에 집중되는지 비교 가능",
+    status: "관찰",
+    evidenceIds: ["evidence-supplier"],
+    metricIds: ["metric-margin"]
+  },
+  {
+    id: "relation-customer-c-product",
+    fromId: "entity-customer-c",
+    toId: "entity-product-control",
+    type: "구매/보상 연결",
+    relationKind: "impact",
+    confidence: 0.74,
+    strength: "weak",
+    description: "고객C의 보상 검토 요청이 P-17 표준 제어 모듈 주문과 연결됩니다.",
+    impact: "주요 지연 이슈와 구분되는 고객 응대 기준 확인",
+    status: "관찰",
+    evidenceIds: ["evidence-claims"],
+    metricIds: ["metric-claim-rate"]
   }
 ];
 
@@ -368,21 +489,21 @@ export const sampleMetricDefinitions: MetricDefinition[] = [
     name: "평균 마진율",
     unit: "%",
     formula: "평균((매출 - 원가 - 반품비용 - 매출*할인율) / 매출)",
-    relatedObjectIds: ["entity-low-margin", "entity-supplier-a"]
+    relatedObjectIds: ["entity-low-margin", "entity-product-control", "entity-product-precision", "entity-supplier-a", "entity-supplier-b"]
   },
   {
     id: "metric-delay-time",
     name: "주문 처리 시간",
     unit: "시간",
     formula: "P-42 주문의 출고 완료 시각 - 주문 접수 시각 평균",
-    relatedObjectIds: ["entity-supplier-a", "entity-low-margin", "entity-customer-core"]
+    relatedObjectIds: ["entity-supplier-a", "entity-supplier-b", "entity-low-margin", "entity-product-control", "entity-customer-core"]
   },
   {
     id: "metric-claim-rate",
     name: "클레임률",
     unit: "%",
     formula: "P-42 클레임 건수 / P-42 주문 건수",
-    relatedObjectIds: ["entity-customer-core", "entity-low-margin"]
+    relatedObjectIds: ["entity-customer-core", "entity-customer-b", "entity-customer-c", "entity-low-margin", "entity-product-control"]
   }
 ];
 
@@ -443,7 +564,7 @@ export const sampleMetricValues: MetricValue[] = [
     chartType: "time_series",
     series: [
       { label: "일반 고객군", value: 0 },
-      { label: "핵심 고객군", value: 100 },
+      { label: "고객A", value: 100 },
       { label: "P-08", value: 0 },
       { label: "P-42", value: 100 }
     ],
@@ -453,7 +574,7 @@ export const sampleMetricValues: MetricValue[] = [
       claimRows: 4,
       p42ClaimRows: 4,
       p42OrderRows: 4,
-      customerSegment: "핵심 고객군"
+      customerSegment: "고객A"
     }
   }
 ];
@@ -493,9 +614,9 @@ export const sampleWorkflowMetricBindings: WorkflowMetricBinding[] = [
 
 export const sampleCandidateOperationalMap = {
   entityIds: {
-    "candidate-customer": ["entity-customer-core"],
-    "candidate-supplier": ["entity-supplier-a"],
-    "candidate-product-group": ["entity-low-margin"]
+    "candidate-customer": ["entity-customer-core", "entity-customer-b", "entity-customer-c"],
+    "candidate-supplier": ["entity-supplier-a", "entity-supplier-b"],
+    "candidate-product-group": ["entity-low-margin", "entity-product-control", "entity-product-precision"]
   },
   eventIds: {
     "candidate-flow": ["event-order", "event-outbound", "event-delivery"],
@@ -540,13 +661,13 @@ export const sampleResultScenarios: SampleResultScenario[] = [
     id: "customer",
     managedCandidateId: "candidate-customer",
     insightId: "insight-customer-claims",
-    title: "핵심 고객군 클레임 반복과 보상 비용 증가",
+    title: "고객A 클레임 반복과 보상 비용 증가",
     severity: "high",
-    detected: "핵심 고객군의 P-42 주문에서 배송 지연 이후 클레임률 100% 표본 신호가 감지되었습니다.",
+    detected: "고객A의 P-42 주문에서 배송 지연 이후 클레임률 100% 표본 신호가 감지되었습니다.",
     reason: "반복 구매 고객군에서 배송 지연과 보상 요청이 함께 나타나 이탈 위험과 대응 비용이 동시에 커집니다.",
-    likelyCauses: ["P-42 배송 지연", "보상 요청이 핵심 고객군에 집중", "고객 안내 기준의 일관성 부족"],
-    recommendedActions: ["핵심 고객군에 선제 안내를 발송합니다.", "보상 기준을 고객군 영향도에 맞춰 조정합니다.", "클레임 처리 흐름의 병목 시간을 주 단위로 추적합니다."],
-    supportSummary: ["클레임률 100%는 P-42 주문과 핵심 고객군 근거 행에서 계산되었습니다.", "클레임 접수 edge 신뢰도 86%가 고객군 영향과 보상 요청을 연결합니다."],
+    likelyCauses: ["P-42 배송 지연", "보상 요청이 고객A에 집중", "고객 안내 기준의 일관성 부족"],
+    recommendedActions: ["고객A에 선제 안내를 발송합니다.", "보상 기준을 고객군 영향도에 맞춰 조정합니다.", "클레임 처리 흐름의 병목 시간을 주 단위로 추적합니다."],
+    supportSummary: ["클레임률 100%는 P-42 주문과 고객A 근거 행에서 계산되었습니다.", "클레임 접수 연결 신뢰도 86%가 고객군 영향과 보상 요청을 연결합니다."],
     relatedMetricIds: ["metric-claim-rate", "metric-delay-time"],
     relatedObjectIds: ["entity-customer-core"],
     relatedEventIds: ["event-claim", "event-compensation"],
@@ -554,15 +675,15 @@ export const sampleResultScenarios: SampleResultScenario[] = [
     evidenceIds: ["evidence-claims", "evidence-orders-delay"],
     proposal: {
       id: "proposal-customer-care",
-      title: "핵심 고객군 선제 안내 및 보상 기준 조정안",
-      summary: "P-42 지연 영향을 받은 핵심 고객군에 선제 안내와 보상 기준을 먼저 적용합니다.",
+      title: "고객A 선제 안내 및 보상 기준 조정안",
+      summary: "P-42 지연 영향을 받은 고객A에 선제 안내와 보상 기준을 먼저 적용합니다.",
       expectedImpact: "클레임률 상승 폭을 낮추고 반복 구매 고객군의 이탈 위험을 줄이는 것이 목표입니다.",
       comment: "고객군 영향도가 높으므로 안내와 보상 기준을 함께 조정하는 편이 적절합니다."
     },
     dashboard: {
       chartType: "time_series",
-      chartTitle: "핵심 고객군 클레임률",
-      chartDescription: "핵심 고객군의 P-42 클레임률과 처리 시간을 기간 흐름으로 비교합니다."
+      chartTitle: "고객A 클레임률",
+      chartDescription: "고객A의 P-42 클레임률과 처리 시간을 기간 흐름으로 비교합니다."
     }
   },
   {
@@ -575,7 +696,7 @@ export const sampleResultScenarios: SampleResultScenario[] = [
     reason: "공급 지연은 상품군 비용과 고객 응대 부담을 동시에 밀어 올릴 수 있습니다.",
     likelyCauses: ["공급업체 A사의 평균 출고 대기 시간 증가", "P-42 공급 의존도 집중", "긴급 출고 대응 기준 부족"],
     recommendedActions: ["공급업체 A사의 납품 조건을 재협의합니다.", "대체 공급 가능 상품군을 우선 확인합니다.", "출고 지연 기준을 초과한 주문을 별도 추적합니다."],
-    supportSummary: ["공급/납품 구조 edge 신뢰도 90%가 공급사와 P-42를 연결합니다.", "주문 처리 시간과 납품준수율이 같은 공급사 행에서 함께 악화되었습니다."],
+    supportSummary: ["공급/납품 구조 연결 신뢰도 90%가 공급사와 P-42를 연결합니다.", "주문 처리 시간과 납품준수율이 같은 공급사 행에서 함께 악화되었습니다."],
     relatedMetricIds: ["metric-delay-time", "metric-margin"],
     relatedObjectIds: ["entity-supplier-a"],
     relatedEventIds: ["event-order", "event-outbound", "event-delivery"],
@@ -602,9 +723,9 @@ export const sampleResultScenarios: SampleResultScenario[] = [
     severity: "high",
     detected: "P-42 평균마진율은 13.6%로 낮고 주문 지연률 80%, 클레임률 100%가 함께 나타났습니다.",
     reason: "상품군 수익성이 낮아지는 동시에 보상 비용과 고객 응대 부담이 커져 운영 조정이 필요합니다.",
-    likelyCauses: ["P-42 할인율 6%대와 반품비용 증가", "공급업체 A사 납품준수율 저하", "핵심 고객군의 반복 클레임"],
+    likelyCauses: ["P-42 할인율 6%대와 반품비용 증가", "공급업체 A사 납품준수율 저하", "고객A의 반복 클레임"],
     recommendedActions: ["P-42 할인 정책을 조정합니다.", "반품 비용이 높은 주문을 별도 점검합니다.", "공급사 의존도가 높은 품목의 대체 조달 가능성을 확인합니다."],
-    supportSummary: ["평균마진율, 주문 처리 시간, 클레임률 3개 지표가 모두 P-42에 연결됩니다.", "공급 edge와 서비스 edge가 각각 비용 압박과 고객 영향 경로를 설명합니다."],
+    supportSummary: ["평균마진율, 주문 처리 시간, 클레임률 3개 지표가 모두 P-42에 연결됩니다.", "공급 연결과 서비스 연결이 각각 비용 압박과 고객 영향 경로를 설명합니다."],
     relatedMetricIds: ["metric-margin", "metric-claim-rate"],
     relatedObjectIds: ["entity-low-margin"],
     relatedEventIds: ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"],

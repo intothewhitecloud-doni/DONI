@@ -143,8 +143,8 @@ export function InsightDetailScreen() {
           <div className="grid gap-3 md:grid-cols-2">
             <LinkedInsightGroup title="연결 지표" items={linkedMetricItems} />
             <LinkedInsightGroup title="관리 대상" items={linkedObjects.map((object) => `${object.kind} · ${object.name}`)} />
-            <LinkedInsightGroup title="업무 이벤트" items={linkedEvents.map((event) => `${event.name} · ${event.status}`)} />
-            <LinkedInsightGroup title="연결 edge" items={linkedRelationItems} />
+            <LinkedInsightGroup title="업무 이벤트" items={linkedEvents.map((event) => `${event.name} · ${event.workflowType || "미지정"}`)} />
+            <LinkedInsightGroup title="연결 관계" items={linkedRelationItems} />
           </div>
           {canCreateProposal && (
             <Button onClick={() => commands.createProposalFromInsight(insight.id)}>

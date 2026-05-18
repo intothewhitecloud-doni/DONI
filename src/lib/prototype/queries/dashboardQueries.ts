@@ -5,6 +5,7 @@ import {
   proposalIdForInsight,
   type DashboardChartType
 } from "../../domain/result-scenarios";
+import { displayTypeLabel } from "../../domain/type-catalog";
 import type { LinkTarget, PrototypeState } from "../../domain/types";
 import { currentWorkspaceData } from "../selectors";
 
@@ -53,7 +54,7 @@ export type DashboardRecentFlowItem = {
 export function getDashboardView(state: PrototypeState) {
   const data = currentWorkspaceData(state);
   const warningMetricValues = data.metricValues.filter((value) => value.status !== "normal");
-  const delayedEvents = data.events.filter((event) => event.status !== "정상");
+  const delayedEvents = data.events.filter((event) => ["지연", "증가", "검토"].includes(displayTypeLabel(event.workflowType)));
   const mainInsight = data.insights.find((insight) => insight.id === data.activeInsightId) ?? data.insights[0];
   const suggestedProposal = mainInsight
     ? data.proposals.find((proposal) => proposal.insightId === mainInsight.id) ?? {
@@ -111,8 +112,8 @@ export function getDashboardView(state: PrototypeState) {
       id: event.id,
       title: event.name,
       description: `소요 시간 ${event.durationHours}시간`,
-      badge: event.status,
-      tone: event.status === "지연" ? "warning" : event.status === "증가" ? "danger" : "info"
+      badge: displayTypeLabel(event.workflowType),
+      tone: event.workflowType === "지연" ? "warning" : event.workflowType === "증가" ? "danger" : "info"
     })),
     activeDecisionItems: buildDecisionItems(data.proposals, data.decisions),
     primaryChart: {

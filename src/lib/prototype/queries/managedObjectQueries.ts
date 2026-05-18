@@ -1,9 +1,10 @@
 import type { EntityInstance, EventRecord, MetricDefinition, MetricValue, PrototypeState, Relation } from "../../domain/types";
+import { displayTypeLabel, domainTypeId, normalizeTypeLabel } from "../../domain/type-catalog";
 import { currentWorkspaceData } from "../selectors";
 
 type WorkspaceData = ReturnType<typeof currentWorkspaceData>;
 
-export type ManagedObjectCategoryId = "category-customer" | "category-supplier" | "category-product";
+export type ManagedObjectCategoryId = string;
 
 export type ManagedObjectCategory = {
   id: ManagedObjectCategoryId;
@@ -82,29 +83,29 @@ export type ManagedObjectDetail = {
   defaultGraphItemId?: string;
 };
 
-const categoryDefinitions: Array<Omit<ManagedObjectCategory, "instanceCount" | "statusLabel" | "tone">> = [
-  {
-    id: "category-customer",
-    kind: "고객군",
-    label: "고객군",
-    description: "고객군별 클레임, 보상 요청, 이탈 위험을 추적하는 관리 기준입니다.",
-    summary: "고객 영향과 대응 우선순위를 판단하는 상위 관리 대상"
-  },
-  {
-    id: "category-supplier",
-    kind: "공급사",
-    label: "공급사",
-    description: "납품준수율, 출고 대기, 공급 집중도를 추적하는 관리 기준입니다.",
-    summary: "공급 지연과 비용 압박의 원천을 확인하는 상위 관리 대상"
-  },
-  {
-    id: "category-product",
-    kind: "상품군",
-    label: "상품군",
-    description: "상품별 마진, 주문 지연, 클레임 발생을 묶어 보는 관리 기준입니다.",
-    summary: "수익성과 운영 리스크를 함께 판단하는 상위 관리 대상"
-  }
-];
+function categoryDefinitions(data: WorkspaceData): Array<Omit<ManagedObjectCategory, "instanceCount" | "statusLabel" | "tone">> {
+  const definitions = data.managedObjectTypes.map((type) => ({
+    id: type.id,
+    kind: type.label,
+    label: type.label,
+    description: `${type.label} 유형으로 분류된 관리 대상입니다.`,
+    summary: "관리자가 정의한 유형 기준"
+  }));
+  const knownLabels = new Set(definitions.map((definition) => normalizeTypeLabel(definition.kind)));
+  const inferred = data.entities
+    .map((entity) => displayTypeLabel(entity.kind))
+    .filter((label) => !knownLabels.has(normalizeTypeLabel(label)))
+    .filter((label, index, labels) => labels.findIndex((item) => normalizeTypeLabel(item) === normalizeTypeLabel(label)) === index)
+    .map((label) => ({
+      id: label === "미지정" ? "managed-type-unspecified" : domainTypeId("managed_object", label, definitions.map((definition) => definition.id)),
+      kind: label === "미지정" ? "" : label,
+      label,
+      description: label === "미지정" ? "유형이 삭제되었거나 지정되지 않은 관리 대상입니다." : `${label} 유형으로 분류된 관리 대상입니다.`,
+      summary: label === "미지정" ? "유형 미지정 관리 대상" : "분석 결과에서 발견된 유형"
+    }));
+
+  return [...definitions, ...inferred];
+}
 
 export const managedObjectGraphLegend: ManagedObjectGraphLegendItem[] = [
   {
@@ -145,7 +146,7 @@ export function getManagedObjectView(state: PrototypeState, focusId?: string) {
   const data = currentWorkspaceData(state);
   const categories = buildManagedObjectCategories(data);
   const activeCategoryId = resolveActiveCategoryId(data.entities, categories, focusId);
-  const detail = buildManagedObjectDetail(state, activeCategoryId);
+  const detail = buildManagedObjectDetail(state, activeCategoryId, focusId);
 
   return {
     categories,
@@ -197,9 +198,9 @@ export function getManagedObjectGraphItemDetail(detail: ManagedObjectDetail, ite
 }
 
 function buildManagedObjectCategories(data: WorkspaceData): ManagedObjectCategory[] {
-  return categoryDefinitions
+  return categoryDefinitions(data)
     .map((definition): ManagedObjectCategory | undefined => {
-      const instances = data.entities.filter((entity) => entity.kind === definition.kind);
+      const instances = data.entities.filter((entity) => displayTypeLabel(entity.kind) === definition.label);
       if (instances.length === 0) {
         return undefined;
       }
@@ -225,7 +226,9 @@ function resolveActiveCategoryId(
   }
 
   const focusedEntity = focusId ? entities.find((entity) => entity.id === focusId) : undefined;
-  const focusedCategory = focusedEntity ? categoryDefinitions.find((category) => category.kind === focusedEntity.kind) : undefined;
+  const focusedCategory = focusedEntity
+    ? categories.find((category) => category.label === displayTypeLabel(focusedEntity.kind))
+    : undefined;
   if (focusedCategory && categories.some((category) => category.id === focusedCategory.id)) {
     return focusedCategory.id;
   }
@@ -233,16 +236,21 @@ function resolveActiveCategoryId(
   return categories[0]?.id ?? "";
 }
 
-function buildManagedObjectDetail(state: PrototypeState, categoryId?: string): ManagedObjectDetail {
+function buildManagedObjectDetail(state: PrototypeState, categoryId?: string, focusId?: string): ManagedObjectDetail {
   const data = currentWorkspaceData(state);
   const categories = buildManagedObjectCategories(data);
   const category = categories.find((item) => item.id === categoryId);
+  const focusedEntity =
+    (focusId ? data.entities.find((entity) => entity.id === focusId) : undefined) ??
+    (category ? data.entities.find((entity) => displayTypeLabel(entity.kind) === category.label) : undefined) ??
+    data.entities[0];
 
-  if (!category) {
+  if (!focusedEntity) {
     return emptyManagedObjectDetail();
   }
 
-  const instances = data.entities.filter((entity) => entity.kind === category.kind);
+  const detailCategory = categories.find((item) => item.label === displayTypeLabel(focusedEntity.kind)) ?? category;
+  const instances = [focusedEntity];
   const instanceIds = new Set(instances.map((entity) => entity.id));
   const insights = data.insights.filter(
     (insight) =>
@@ -270,7 +278,6 @@ function buildManagedObjectDetail(state: PrototypeState, categoryId?: string): M
     }));
   const decisions = data.decisions.filter((decision) => instances.some((entity) => entity.decisionIds.includes(decision.id)));
   const graphModel = buildGraphModel({
-    category,
     data,
     events,
     insights,
@@ -280,7 +287,7 @@ function buildManagedObjectDetail(state: PrototypeState, categoryId?: string): M
   });
 
   return {
-    category,
+    category: detailCategory,
     instances,
     events,
     relations,
@@ -290,7 +297,7 @@ function buildManagedObjectDetail(state: PrototypeState, categoryId?: string): M
     graphNodes: graphModel.nodes,
     graphEdges: graphModel.edges,
     graphLegend: managedObjectGraphLegend,
-    defaultGraphItemId: resolveDefaultGraphItemId(graphModel)
+    defaultGraphItemId: resolveDefaultGraphItemId(graphModel, focusedEntity.id)
   };
 }
 
@@ -380,7 +387,6 @@ function collectMetricIds(
 }
 
 function buildGraphModel({
-  category,
   data,
   events,
   insights,
@@ -388,7 +394,6 @@ function buildGraphModel({
   metrics,
   relations
 }: {
-  category: ManagedObjectCategory;
   data: WorkspaceData;
   events: EventRecord[];
   insights: PrototypeState["insights"];
@@ -432,7 +437,7 @@ function buildGraphModel({
     return {
       id: entityId,
       label: entity?.name ?? knownNodeLabel(entityId),
-      caption: entity?.kind ?? knownObjectKind(entityId),
+      caption: entity ? displayTypeLabel(entity.kind) : knownObjectKind(entityId),
       type: "managed_object",
       tone: instanceIds.has(entityId) ? "primary" : "neutral"
     } satisfies ManagedObjectGraphNode;
@@ -442,9 +447,9 @@ function buildGraphModel({
       ({
         id: event.id,
         label: event.name,
-        caption: event.status,
+        caption: displayTypeLabel(event.workflowType),
         type: "workflow",
-        tone: event.status === "지연" || event.status === "증가" ? "warning" : "info"
+        tone: event.workflowType === "지연" || event.workflowType === "증가" ? "warning" : "info"
       }) satisfies ManagedObjectGraphNode
   );
   const metricNodes = metrics.map(
@@ -468,13 +473,6 @@ function buildGraphModel({
       }) satisfies ManagedObjectGraphNode
   );
   const nodes = uniqueNodes([
-    {
-      id: category.id,
-      label: category.label,
-      caption: "관리 대상 카테고리",
-      type: "category",
-      tone: "primary"
-    },
     ...entityNodes,
     ...eventNodes,
     ...metricNodes,
@@ -483,17 +481,6 @@ function buildGraphModel({
 
   const nodeIds = new Set(nodes.map((node) => node.id));
   const edges: ManagedObjectGraphEdge[] = [];
-
-  for (const instance of instances) {
-    edges.push({
-      id: `edge-${category.id}-${instance.id}`,
-      fromId: category.id,
-      toId: instance.id,
-      label: "포함",
-      edgeType: "managed_object_structural",
-      kind: "managed_object_structural"
-    });
-  }
 
   for (const relation of relations) {
     if (!nodeIds.has(relation.fromId) || !nodeIds.has(relation.toId)) {
@@ -606,7 +593,7 @@ function buildGraphModel({
   };
 }
 
-function resolveDefaultGraphItemId(graphModel: { edges: ManagedObjectGraphEdge[]; nodes: ManagedObjectGraphNode[] }): string | undefined {
+function resolveDefaultGraphItemId(graphModel: { edges: ManagedObjectGraphEdge[]; nodes: ManagedObjectGraphNode[] }, rootNodeId?: string): string | undefined {
   const nodeById = new Map(graphModel.nodes.map((node) => [node.id, node]));
   const influenceEdge = graphModel.edges.find((edge) => {
     const from = nodeById.get(edge.fromId);
@@ -615,6 +602,7 @@ function resolveDefaultGraphItemId(graphModel: { edges: ManagedObjectGraphEdge[]
   });
 
   return (
+    (rootNodeId && nodeById.has(rootNodeId) ? rootNodeId : undefined) ??
     influenceEdge?.id ??
     graphModel.edges.find((edge) => edge.edgeType === "managed_object_structural")?.id ??
     graphModel.edges[0]?.id ??
@@ -696,7 +684,7 @@ function nodeBody(detail: ManagedObjectDetail, node: ManagedObjectGraphNode): st
 
 function nodeTypeLabel(type: ManagedObjectGraphNodeType): string {
   const labels: Record<ManagedObjectGraphNodeType, string> = {
-    category: "카테고리",
+    category: "유형",
     managed_object: "관리 대상",
     workflow: "업무 흐름",
     metric: "지표",
@@ -721,8 +709,13 @@ function isEventId(id: string): boolean {
 function knownObjectKind(objectId: string): string {
   const labels: Record<string, string> = {
     "entity-customer-core": "고객군",
+    "entity-customer-b": "고객군",
+    "entity-customer-c": "고객군",
     "entity-low-margin": "상품군",
-    "entity-supplier-a": "공급사"
+    "entity-product-control": "상품군",
+    "entity-product-precision": "상품군",
+    "entity-supplier-a": "공급사",
+    "entity-supplier-b": "공급사"
   };
 
   return labels[objectId] ?? "연결 대상";
@@ -730,9 +723,14 @@ function knownObjectKind(objectId: string): string {
 
 function knownNodeLabel(nodeId: string): string {
   const labels: Record<string, string> = {
-    "entity-customer-core": "핵심 고객군",
+    "entity-customer-core": "고객A",
+    "entity-customer-b": "고객B",
+    "entity-customer-c": "고객C",
     "entity-low-margin": "P-42 산업용 센서 패키지",
+    "entity-product-control": "P-17 표준 제어 모듈",
+    "entity-product-precision": "P-08 정밀 부품 세트",
     "entity-supplier-a": "공급업체 A사",
+    "entity-supplier-b": "공급업체 B사",
     "event-claim": "클레임 접수",
     "event-compensation": "보상 처리",
     "event-delivery": "배송 상태 확인",
