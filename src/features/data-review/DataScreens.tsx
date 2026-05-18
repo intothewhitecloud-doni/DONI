@@ -887,11 +887,12 @@ export function ManagedObjectsScreen() {
               </div>
               <Button
                 aria-label="관리대상 유형 관리 열기"
-                className="h-9 w-9 px-0"
+                className="h-9 gap-2 px-3"
                 variant="secondary"
                 onClick={() => setShowTypeManager(true)}
               >
                 <SettingsIcon />
+                <span>유형</span>
               </Button>
             </div>
             <div className="grid gap-3">
@@ -1344,11 +1345,12 @@ export function WorkflowScreen() {
             </div>
             <Button
               aria-label="업무흐름 유형 관리 열기"
-              className="h-9 w-9 px-0"
+              className="h-9 gap-2 px-3"
               variant="secondary"
               onClick={() => setShowTypeManager(true)}
             >
               <SettingsIcon />
+              <span>유형</span>
             </Button>
           </div>
           <div className="grid gap-3">
