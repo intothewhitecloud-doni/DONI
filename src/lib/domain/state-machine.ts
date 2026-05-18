@@ -250,10 +250,59 @@ function normalizeWorkspaceData(data: WorkspaceOperationalState, workspace: Work
     company: { ...empty.company, ...data.company },
     managedObjectTypes: normalizeDomainTypeCatalog(data.managedObjectTypes ?? inferDomainTypes("managed_object", data.entities.map((entity) => entity.kind)), "managed_object"),
     workflowTypes: normalizeDomainTypeCatalog(data.workflowTypes ?? inferDomainTypes("workflow", data.events.map((event) => event.workflowType)), "workflow"),
+    metricValues: normalizeMetricValues(data.metricValues ?? []),
     workflowMetricBindings: data.workflowMetricBindings ?? [],
     selection: data.selection,
     scope: data.scope
   };
+}
+
+function normalizeMetricValues(metricValues: WorkspaceOperationalState["metricValues"]): WorkspaceOperationalState["metricValues"] {
+  return metricValues.map((metricValue) => {
+    if (isLegacyClaimRateTimeSeries(metricValue)) {
+      const preparedClaimRate = preparedData.metricValues.find((item) => item.id === metricValue.id);
+
+      return {
+        ...metricValue,
+        basis: { ...metricValue.basis, ...preparedClaimRate?.basis },
+        series: structuredClone(preparedClaimRate?.series ?? metricValue.series)
+      };
+    }
+
+    if (metricValue.chartType !== "time_series") {
+      return metricValue;
+    }
+
+    return {
+      ...metricValue,
+      series: sortMetricSeriesPoints(metricValue.series)
+    };
+  });
+}
+
+function isLegacyClaimRateTimeSeries(metricValue: WorkspaceOperationalState["metricValues"][number]): boolean {
+  const legacyLabels = ["일반 고객군", "고객A", "P-08", "P-42"];
+
+  return (
+    metricValue.id === "metric-value-claim" &&
+    metricValue.metricId === "metric-claim-rate" &&
+    metricValue.chartType === "time_series" &&
+    metricValue.series.length === legacyLabels.length &&
+    metricValue.series.every((point, index) => !point.observedAt && point.label === legacyLabels[index])
+  );
+}
+
+function sortMetricSeriesPoints(points: WorkspaceOperationalState["metricValues"][number]["series"]) {
+  return [...points].sort((left, right) => {
+    const leftTime = left.observedAt ? Date.parse(left.observedAt) : Number.NaN;
+    const rightTime = right.observedAt ? Date.parse(right.observedAt) : Number.NaN;
+
+    if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime)) {
+      return leftTime - rightTime;
+    }
+
+    return left.label.localeCompare(right.label);
+  });
 }
 
 function ensureWorkspaceDataById(state: PrototypeState): Record<string, WorkspaceOperationalState> {

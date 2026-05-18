@@ -13,6 +13,7 @@ import {
   storageKeyForUser,
   storageKeyForWorkspaceData
 } from "./persistence";
+import { sampleMetricValues } from "../domain/sample-analysis";
 import { createInitialState } from "./store";
 import { reducer, type PrototypeAction } from "../domain/state-machine";
 
@@ -165,6 +166,51 @@ test("preferred workspace restore requires active membership", () => {
 
   assert.ok(loaded);
   assert.equal(loaded.session.workspaceId, "workspace-next-manufacturing");
+});
+
+test("restored legacy claim-rate time series is migrated to dated weekly points", () => {
+  const storage = new MemoryStorage();
+  installStorage(storage);
+  const state = loggedInState();
+  const workspaceId = "workspace-next-manufacturing";
+  const currentClaimRate = sampleMetricValues.find((metricValue) => metricValue.id === "metric-value-claim");
+  if (!currentClaimRate) {
+    assert.fail("클레임률 샘플 지표가 필요합니다.");
+  }
+  const legacyClaimRate = {
+    ...structuredClone(currentClaimRate),
+    basis: {
+      claimRows: 4,
+      customerSegment: "고객A",
+      p42ClaimRows: 4,
+      p42OrderRows: 4
+    },
+    series: [
+      { label: "일반 고객군", value: 0 },
+      { label: "고객A", value: 100 },
+      { label: "P-08", value: 0 },
+      { label: "P-42", value: 100 }
+    ]
+  };
+
+  saveUserState({
+    ...state,
+    workspaceDataById: {
+      ...state.workspaceDataById,
+      [workspaceId]: {
+        ...state.workspaceDataById[workspaceId],
+        metricValues: [legacyClaimRate]
+      }
+    }
+  });
+
+  const loaded = loadUserState("user-admin", createInitialState());
+  const restoredClaimRate = loaded?.metricValues.find((metricValue) => metricValue.id === "metric-value-claim");
+
+  assert.ok(restoredClaimRate);
+  assert.deepEqual(restoredClaimRate.series.map((point) => point.label), ["4/24", "5/1", "5/8", "5/15"]);
+  assert.equal(restoredClaimRate.series.every((point) => Boolean(point.observedAt)), true);
+  assert.equal(restoredClaimRate.basis?.timeWindow, "2026-04-24~2026-05-15");
 });
 
 test("restored login always starts at workspace selection", () => {
