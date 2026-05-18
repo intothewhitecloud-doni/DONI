@@ -1338,9 +1338,9 @@ export function WorkflowScreen() {
       <div className="grid items-start gap-5">
         <Card className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+            <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-slate-950">업무흐름 목록</h2>
-              <p className="mt-1 text-xs font-semibold text-slate-500">{filteredEvents.length}/{state.events.length}개</p>
+              <p className="text-xs font-semibold text-slate-500">({filteredEvents.length}/{state.events.length}개)</p>
             </div>
             <Button
               aria-label="업무흐름 유형 관리 열기"
