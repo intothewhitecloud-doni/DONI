@@ -683,7 +683,7 @@ export const sampleResultScenarios: SampleResultScenario[] = [
     dashboard: {
       chartType: "time_series",
       chartTitle: "고객A 클레임률",
-      chartDescription: "고객A의 P-42 클레임률과 처리 시간을 기간 흐름으로 비교합니다."
+      chartDescription: "고객A의 P-42 클레임률을 기간 흐름으로 확인합니다."
     }
   },
   {
@@ -740,8 +740,8 @@ export const sampleResultScenarios: SampleResultScenario[] = [
     },
     dashboard: {
       chartType: "bar",
-      chartTitle: "P-42 수익성 비교",
-      chartDescription: "P-42의 마진율, 클레임률, 납품준수율을 상품군 기준으로 나란히 비교합니다."
+      chartTitle: "P-42 마진율 비교",
+      chartDescription: "P-42 평균 마진율을 상품군 기준으로 비교합니다."
     }
   }
 ];
