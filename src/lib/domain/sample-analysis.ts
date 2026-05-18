@@ -256,6 +256,21 @@ export const sampleCandidates: ExtractionCandidate[] = [
     }
   },
   {
+    id: "candidate-relation-customer-c-p17",
+    type: "relation",
+    title: "고객C → P-17 보상 연결",
+    description: "고객C의 P-17 보상 요청을 구매 상품과 연결해 고객별 상세 그래프가 선택 루트에서 시작되도록 합니다.",
+    confidence: 0.74,
+    status: "needs_review",
+    evidenceIds: ["evidence-claims"],
+    edgePreview: {
+      fromLabel: "고객C",
+      toLabel: "P-17 표준 제어 모듈",
+      relationType: "구매/보상 연결",
+      metricLabels: ["클레임률"]
+    }
+  },
+  {
     id: "candidate-metric-margin",
     type: "metric",
     title: "P-42 평균마진율",
@@ -692,7 +707,8 @@ export const sampleCandidateOperationalMap = {
   relationIds: {
     "candidate-relation": ["relation-supplier-product"],
     "candidate-relation-customer-claim": ["relation-customer-claim"],
-    "candidate-relation-customer-b-p08": ["relation-customer-b-precision"]
+    "candidate-relation-customer-b-p08": ["relation-customer-b-precision"],
+    "candidate-relation-customer-c-p17": ["relation-customer-c-product"]
   },
   metricIds: {
     "candidate-metric-margin": ["metric-margin"],
@@ -704,7 +720,7 @@ export const sampleCandidateOperationalMap = {
 export const sampleRelatedCandidateIdsByManagedObject: Record<string, Partial<Record<CandidateType, string[]>>> = {
   "candidate-customer": {
     workflow_event: ["candidate-claim-flow", "candidate-flow"],
-    relation: ["candidate-relation-customer-claim", "candidate-relation-customer-b-p08"],
+    relation: ["candidate-relation-customer-claim", "candidate-relation-customer-b-p08", "candidate-relation-customer-c-p17"],
     metric: ["candidate-metric-claim", "candidate-metric-delay"]
   },
   "candidate-supplier": {
@@ -714,7 +730,7 @@ export const sampleRelatedCandidateIdsByManagedObject: Record<string, Partial<Re
   },
   "candidate-product-group": {
     workflow_event: ["candidate-flow", "candidate-claim-flow"],
-    relation: ["candidate-relation", "candidate-relation-customer-claim", "candidate-relation-customer-b-p08"],
+    relation: ["candidate-relation", "candidate-relation-customer-claim", "candidate-relation-customer-b-p08", "candidate-relation-customer-c-p17"],
     metric: ["candidate-metric-margin", "candidate-metric-claim"]
   }
 };

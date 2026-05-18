@@ -145,7 +145,7 @@ export const managedObjectGraphLegend: ManagedObjectGraphLegendItem[] = [
   }
 ];
 
-const workflowSequence = ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
+const workflowSequence = ["event-order", "event-order-p08", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
 
 export function getManagedObjectView(state: PrototypeState, focusId?: string, options: ManagedObjectViewOptions = {}) {
   const data = currentWorkspaceData(state);
@@ -262,6 +262,7 @@ function buildManagedObjectDetail(
   const detailCategory = categories.find((item) => item.label === displayTypeLabel(focusedEntity.kind)) ?? category;
   const instances = [focusedEntity];
   const instanceIds = new Set(instances.map((entity) => entity.id));
+  const directInstanceRelationIds = new Set(instances.flatMap((entity) => entity.relationIds));
   const visibleEntityIds = new Set(options.visibleEntityIds?.filter((entityId) => data.entities.some((entity) => entity.id === entityId)) ?? []);
   if (visibleEntityIds.size > 0) {
     visibleEntityIds.add(focusedEntity.id);
@@ -269,7 +270,7 @@ function buildManagedObjectDetail(
   const insights = data.insights.filter(
     (insight) =>
       insight.relatedObjectIds.some((objectId) => instanceIds.has(objectId)) ||
-      insight.relatedMetricIds.some((metricId) => instances.some((entity) => entity.metricIds.includes(metricId)))
+      insight.relatedRelationIds.some((relationId) => directInstanceRelationIds.has(relationId))
   );
   const workflowEventIds = collectWorkflowEventIds(data, instances, insights);
   const relationIdsFromInsights = new Set(insights.flatMap((insight) => insight.relatedRelationIds));
@@ -423,6 +424,7 @@ function buildGraphModel({
   visibleEntityIds?: Set<string>;
 }): { nodes: ManagedObjectGraphNode[]; edges: ManagedObjectGraphEdge[] } {
   const instanceIds = new Set(instances.map((entity) => entity.id));
+  const rootEventIds = new Set(instances.flatMap((entity) => entity.eventIds));
   const eventIds = new Set(events.map((event) => event.id));
   const metricIds = new Set(metrics.map((metric) => metric.definition.id));
   const insightIds = new Set(insights.map((insight) => insight.id));
@@ -441,21 +443,20 @@ function buildGraphModel({
       addVisibleEntityId(relation.toId);
     }
   }
+  const directRelatedEntityIds = new Set(Array.from(relatedEntityIds).filter((entityId) => !instanceIds.has(entityId)));
 
   for (const event of events) {
-    if (isEntityId(event.objectId)) {
+    if (instanceIds.has(event.objectId) || directRelatedEntityIds.has(event.objectId)) {
       addVisibleEntityId(event.objectId);
     }
   }
 
   for (const binding of data.workflowMetricBindings) {
     if (eventIds.has(binding.eventId) && metricIds.has(binding.metricId)) {
-      binding.sourceManagedObjectIds.forEach(addVisibleEntityId);
+      binding.sourceManagedObjectIds
+        .filter((objectId) => instanceIds.has(objectId) || directRelatedEntityIds.has(objectId))
+        .forEach(addVisibleEntityId);
     }
-  }
-
-  for (const metric of metrics) {
-    metric.definition.relatedObjectIds.forEach(addVisibleEntityId);
   }
 
   const entityNodes = Array.from(relatedEntityIds).map((entityId) => {
@@ -543,6 +544,22 @@ function buildGraphModel({
         kind: "managed_object_workflow",
         evidenceIds: event.evidenceIds
       });
+    } else if (rootEventIds.has(event.id) && nodeIds.has(event.id)) {
+      for (const rootId of instanceIds) {
+        if (!nodeIds.has(rootId)) {
+          continue;
+        }
+
+        edges.push({
+          id: `edge-workflow-assigned-${rootId}-${event.id}`,
+          fromId: rootId,
+          toId: event.id,
+          label: "업무 연결",
+          edgeType: "managed_object_workflow",
+          kind: "managed_object_workflow",
+          evidenceIds: event.evidenceIds
+        });
+      }
     }
   }
 
@@ -614,13 +631,31 @@ function buildGraphModel({
     }
   }
 
-  const graphEdges = uniqueEdges(edges).filter((edge) => nodeIds.has(edge.fromId) && nodeIds.has(edge.toId));
+  const graphEdges = filterRootReachableEdges(uniqueEdges(edges).filter((edge) => nodeIds.has(edge.fromId) && nodeIds.has(edge.toId)), instanceIds);
   const connectedNodeIds = new Set(graphEdges.flatMap((edge) => [edge.fromId, edge.toId]));
 
   return {
     nodes: nodes.filter((node) => connectedNodeIds.has(node.id)),
     edges: graphEdges
   };
+}
+
+function filterRootReachableEdges(edges: ManagedObjectGraphEdge[], rootIds: Set<string>): ManagedObjectGraphEdge[] {
+  const reachableIds = new Set(rootIds);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const edge of edges) {
+      if (reachableIds.has(edge.fromId) && !reachableIds.has(edge.toId)) {
+        reachableIds.add(edge.toId);
+        changed = true;
+      }
+    }
+  }
+
+  return edges.filter((edge) => reachableIds.has(edge.fromId) && reachableIds.has(edge.toId));
 }
 
 function resolveDefaultGraphItemId(graphModel: { edges: ManagedObjectGraphEdge[]; nodes: ManagedObjectGraphNode[] }, rootNodeId?: string): string | undefined {

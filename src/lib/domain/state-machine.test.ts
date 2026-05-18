@@ -851,6 +851,7 @@ test("managed object view exposes focused object detail and typed graph links", 
           "candidate-relation",
           "candidate-relation-customer-claim",
           "candidate-relation-customer-b-p08",
+          "candidate-relation-customer-c-p17",
           "candidate-metric-delay",
           "candidate-metric-margin",
           "candidate-metric-claim"
@@ -932,6 +933,27 @@ test("managed object view exposes focused object detail and typed graph links", 
     ),
     true
   );
+  assert.equal(customerBView.detail.graphNodes.some((node) => node.id === "entity-supplier-a"), false);
+  assert.equal(customerBView.detail.graphNodes.some((node) => node.id === "entity-low-margin"), false);
+  assert.equal(
+    customerBView.detail.graphEdges.every((edge) => edge.fromId !== "entity-supplier-a" && edge.toId !== "entity-supplier-a"),
+    true
+  );
+
+  const customerCView = getManagedObjectView(confirmed, "entity-customer-c");
+  assert.equal(customerCView.detail.rootNodeId, "entity-customer-c");
+  assert.equal(customerCView.detail.graphNodes.some((node) => node.id === "entity-customer-c"), true);
+  assert.equal(
+    customerCView.detail.graphEdges.some(
+      (edge) =>
+        edge.id === "edge-relation-customer-c-product" &&
+        edge.fromId === "entity-customer-c" &&
+        edge.toId === "entity-product-control"
+    ),
+    true
+  );
+  assert.equal(customerCView.detail.graphNodes.some((node) => node.id === "entity-customer-core"), false);
+  assert.equal(customerCView.detail.graphNodes.some((node) => node.id === "entity-supplier-b"), false);
 
   const isolatedEntity = {
     id: "entity-isolated-customer",
