@@ -586,14 +586,16 @@ export function ReviewScreen() {
                     } ${selected?.id === candidate.id ? "ring-2 ring-blue-100" : ""}`}
                     onClick={() => toggleCandidate(candidate)}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                      <div className="min-w-0">
                         <h2 className="font-bold text-slate-950">{candidate.title}</h2>
                         <p className="mt-1 text-sm text-slate-600">{candidate.description}</p>
                       </div>
-                      <Badge tone={isIncluded ? "success" : "neutral"}>
-                        {isIncluded ? (candidate.type === "managed_object" ? "선택됨" : "포함됨") : "제외 예정"}
-                      </Badge>
+                      <span className="justify-self-start whitespace-nowrap sm:justify-self-end">
+                        <Badge tone={isIncluded ? "success" : "neutral"}>
+                          {isIncluded ? (candidate.type === "managed_object" ? "선택됨" : "포함됨") : "제외 예정"}
+                        </Badge>
+                      </span>
                     </div>
                   </button>
                 );
