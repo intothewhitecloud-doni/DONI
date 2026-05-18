@@ -71,6 +71,7 @@ export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, select
   const [edges, setEdges] = useEdgesState<FlowEdge>(graph.edges);
   const edgeTypes = useMemo(() => ({ knowledge: KnowledgeEdge }), []);
   const selectedDetail = getManagedObjectGraphItemDetail(detail, selectedItemId);
+  const hasGraphConnections = detail.graphNodes.length > 0 && detail.graphEdges.length > 0;
   const graphInstanceKey = `${detail.rootNodeId ?? detail.defaultGraphItemId ?? "empty-graph"}:${detail.graphNodes.map((node) => node.id).join("|")}:${detail.graphEdges.map((edge) => edge.id).join("|")}`;
 
   useEffect(() => {
@@ -81,32 +82,43 @@ export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, select
   return (
     <div className="space-y-4">
       <div className="h-[560px] overflow-hidden rounded-md border border-slate-200 bg-white">
-        <ReactFlow
-          key={graphInstanceKey}
-          nodes={nodes}
-          edges={edges}
-          defaultViewport={graph.layout.defaultViewport}
-          minZoom={0.35}
-          maxZoom={1.35}
-          onNodesChange={onNodesChange}
-          nodesDraggable
-          nodesConnectable={false}
-          edgesReconnectable={false}
-          elementsSelectable
-          onNodeClick={(event, node) => {
-            event.stopPropagation();
-            onSelectItem(node.id);
-          }}
-          onEdgeClick={(event, edge) => {
-            event.stopPropagation();
-            onSelectItem(edge.id);
-          }}
-          edgeTypes={edgeTypes}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background color="#e2e8f0" gap={28} size={1} />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+        {hasGraphConnections ? (
+          <ReactFlow
+            key={graphInstanceKey}
+            nodes={nodes}
+            edges={edges}
+            defaultViewport={graph.layout.defaultViewport}
+            minZoom={0.35}
+            maxZoom={1.35}
+            onNodesChange={onNodesChange}
+            nodesDraggable
+            nodesConnectable={false}
+            edgesReconnectable={false}
+            elementsSelectable
+            onNodeClick={(event, node) => {
+              event.stopPropagation();
+              onSelectItem(node.id);
+            }}
+            onEdgeClick={(event, edge) => {
+              event.stopPropagation();
+              onSelectItem(edge.id);
+            }}
+            edgeTypes={edgeTypes}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background color="#e2e8f0" gap={28} size={1} />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        ) : (
+          <div className="flex h-full items-center justify-center bg-slate-50 px-6 text-center">
+            <div className="max-w-sm rounded-lg border border-dashed border-slate-300 bg-white p-6 shadow-sm">
+              <p className="text-sm font-bold text-slate-900">연결 관계 없음</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                선택한 관리 대상과 연결된 엔터티, 업무흐름, 지표, 인사이트가 없습니다. 관계가 생성되면 루트를 기준으로 좌에서 우로 표시됩니다.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1fr_1.35fr]">

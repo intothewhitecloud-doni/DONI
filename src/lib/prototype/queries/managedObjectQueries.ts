@@ -614,9 +614,12 @@ function buildGraphModel({
     }
   }
 
+  const graphEdges = uniqueEdges(edges).filter((edge) => nodeIds.has(edge.fromId) && nodeIds.has(edge.toId));
+  const connectedNodeIds = new Set(graphEdges.flatMap((edge) => [edge.fromId, edge.toId]));
+
   return {
-    nodes,
-    edges: uniqueEdges(edges).filter((edge) => nodeIds.has(edge.fromId) && nodeIds.has(edge.toId))
+    nodes: nodes.filter((node) => connectedNodeIds.has(node.id)),
+    edges: graphEdges
   };
 }
 
@@ -800,6 +803,7 @@ function knownNodeLabel(nodeId: string): string {
     "event-compensation": "보상 처리",
     "event-delivery": "배송 상태 확인",
     "event-order": "주문 접수",
+    "event-order-p08": "P-08 주문 접수",
     "event-outbound": "출고 처리"
   };
 

@@ -147,6 +147,20 @@ export const sampleEvidence: EvidenceReference[] = [
     label: "공급업체 A사 공급 관계 근거",
     location: "상품별_마진_공급사.csv / 공급업체 A사 행",
     excerpt: "공급업체 A사는 P-42와 P-08을 공급하며 P-42의 납품준수율은 70~72%로 다른 공급사보다 낮습니다."
+  },
+  {
+    id: "evidence-customer-b-p08",
+    sourceFileId: "source-orders",
+    sourceKind: "canonical_sample",
+    analysisSourceId: canonicalSampleAnalysisSourceId,
+    sourceName: "주문_배송_클레임.xlsx",
+    sheetName: "주문_배송_클레임",
+    rowNumbers: [4],
+    columns: ["고객군", "상품군", "공급사", "배송상태", "출고대기시간", "클레임유형"],
+    confidence: 0.86,
+    label: "고객B P-08 주문 근거",
+    location: "주문_배송_클레임.xlsx / 주문_배송_클레임 시트 4행",
+    excerpt: "고객B는 P-08 정밀 부품 세트를 공급업체 A사로부터 정상 배송 상태로 구매했으며 클레임은 기록되지 않았습니다."
   }
 ];
 
@@ -227,6 +241,21 @@ export const sampleCandidates: ExtractionCandidate[] = [
     }
   },
   {
+    id: "candidate-relation-customer-b-p08",
+    type: "relation",
+    title: "고객B → P-08 구매 연결",
+    description: "고객B의 P-08 정상 주문을 비교 관계로 연결해 고객군 그래프가 실제 구매 대상과 업무흐름으로 이어지도록 합니다.",
+    confidence: 0.8,
+    status: "needs_review",
+    evidenceIds: ["evidence-customer-b-p08", "evidence-orders-delay"],
+    edgePreview: {
+      fromLabel: "고객B",
+      toLabel: "P-08 정밀 부품 세트",
+      relationType: "구매/비교 연결",
+      metricLabels: ["클레임률", "주문 처리 시간"]
+    }
+  },
+  {
     id: "candidate-metric-margin",
     type: "metric",
     title: "P-42 평균마진율",
@@ -276,9 +305,9 @@ export const sampleEntities: EntityInstance[] = [
     owner: "영업 운영팀",
     status: "정상",
     summary: "P-08 정밀 부품 세트를 반복 구매하지만 최근 클레임은 없는 비교 고객",
-    metricIds: ["metric-claim-rate"],
-    relationIds: [],
-    eventIds: [],
+    metricIds: ["metric-claim-rate", "metric-delay-time"],
+    relationIds: ["relation-customer-b-precision"],
+    eventIds: ["event-order-p08"],
     insightIds: [],
     decisionIds: []
   },
@@ -354,9 +383,9 @@ export const sampleEntities: EntityInstance[] = [
     owner: "상품 운영팀",
     status: "관찰",
     summary: "공급업체 A사가 함께 공급하지만 지연 영향은 낮은 보조 상품군",
-    metricIds: ["metric-margin"],
-    relationIds: ["relation-supplier-a-precision"],
-    eventIds: [],
+    metricIds: ["metric-margin", "metric-delay-time", "metric-claim-rate"],
+    relationIds: ["relation-supplier-a-precision", "relation-customer-b-precision"],
+    eventIds: ["event-order-p08"],
     insightIds: [],
     decisionIds: []
   }
@@ -371,6 +400,15 @@ export const sampleEvents: EventRecord[] = [
     occurredAt: "2026-05-05T23:40:00.000Z",
     durationHours: 0.6,
     evidenceIds: ["evidence-orders-delay"]
+  },
+  {
+    id: "event-order-p08",
+    objectId: "entity-product-precision",
+    workflowType: "접수",
+    name: "P-08 주문 접수",
+    occurredAt: "2026-05-05T21:30:00.000Z",
+    durationHours: 0.4,
+    evidenceIds: ["evidence-customer-b-p08"]
   },
   {
     id: "event-outbound",
@@ -468,6 +506,20 @@ export const sampleRelations: Relation[] = [
     metricIds: ["metric-margin"]
   },
   {
+    id: "relation-customer-b-precision",
+    fromId: "entity-customer-b",
+    toId: "entity-product-precision",
+    type: "구매/비교 연결",
+    relationKind: "structural",
+    confidence: 0.8,
+    strength: "medium",
+    description: "고객B는 P-08 정밀 부품 세트를 정상 배송 상태로 구매해 고객A/P-42 지연 사례와 비교되는 기준을 제공합니다.",
+    impact: "클레임이 없는 고객군과 보조 상품군의 정상 흐름을 함께 비교 가능",
+    status: "비교 기준",
+    evidenceIds: ["evidence-customer-b-p08"],
+    metricIds: ["metric-claim-rate", "metric-delay-time"]
+  },
+  {
     id: "relation-customer-c-product",
     fromId: "entity-customer-c",
     toId: "entity-product-control",
@@ -496,7 +548,15 @@ export const sampleMetricDefinitions: MetricDefinition[] = [
     name: "주문 처리 시간",
     unit: "시간",
     formula: "P-42 주문의 출고 완료 시각 - 주문 접수 시각 평균",
-    relatedObjectIds: ["entity-supplier-a", "entity-supplier-b", "entity-low-margin", "entity-product-control", "entity-customer-core"]
+    relatedObjectIds: [
+      "entity-supplier-a",
+      "entity-supplier-b",
+      "entity-low-margin",
+      "entity-product-control",
+      "entity-product-precision",
+      "entity-customer-core",
+      "entity-customer-b"
+    ]
   },
   {
     id: "metric-claim-rate",
@@ -588,6 +648,12 @@ export const sampleWorkflowMetricBindings: WorkflowMetricBinding[] = [
     sourceManagedObjectIds: ["entity-low-margin"]
   },
   {
+    id: "binding-customer-b-p08-order",
+    eventId: "event-order-p08",
+    metricId: "metric-delay-time",
+    sourceManagedObjectIds: ["entity-customer-b", "entity-product-precision"]
+  },
+  {
     id: "binding-outbound-delay",
     eventId: "event-outbound",
     metricId: "metric-delay-time",
@@ -620,12 +686,13 @@ export const sampleCandidateOperationalMap = {
     "candidate-product-group": ["entity-low-margin", "entity-product-control", "entity-product-precision"]
   },
   eventIds: {
-    "candidate-flow": ["event-order", "event-outbound", "event-delivery"],
+    "candidate-flow": ["event-order", "event-order-p08", "event-outbound", "event-delivery"],
     "candidate-claim-flow": ["event-claim", "event-compensation"]
   },
   relationIds: {
     "candidate-relation": ["relation-supplier-product"],
-    "candidate-relation-customer-claim": ["relation-customer-claim"]
+    "candidate-relation-customer-claim": ["relation-customer-claim"],
+    "candidate-relation-customer-b-p08": ["relation-customer-b-precision"]
   },
   metricIds: {
     "candidate-metric-margin": ["metric-margin"],
@@ -637,7 +704,7 @@ export const sampleCandidateOperationalMap = {
 export const sampleRelatedCandidateIdsByManagedObject: Record<string, Partial<Record<CandidateType, string[]>>> = {
   "candidate-customer": {
     workflow_event: ["candidate-claim-flow", "candidate-flow"],
-    relation: ["candidate-relation-customer-claim"],
+    relation: ["candidate-relation-customer-claim", "candidate-relation-customer-b-p08"],
     metric: ["candidate-metric-claim", "candidate-metric-delay"]
   },
   "candidate-supplier": {
@@ -647,7 +714,7 @@ export const sampleRelatedCandidateIdsByManagedObject: Record<string, Partial<Re
   },
   "candidate-product-group": {
     workflow_event: ["candidate-flow", "candidate-claim-flow"],
-    relation: ["candidate-relation", "candidate-relation-customer-claim"],
+    relation: ["candidate-relation", "candidate-relation-customer-claim", "candidate-relation-customer-b-p08"],
     metric: ["candidate-metric-margin", "candidate-metric-claim"]
   }
 };

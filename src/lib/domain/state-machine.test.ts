@@ -662,6 +662,7 @@ test("confirm selected candidates keeps multiple managed objects and filters rel
           "candidate-claim-flow",
           "candidate-relation",
           "candidate-relation-customer-claim",
+          "candidate-relation-customer-b-p08",
           "candidate-metric-delay",
           "candidate-metric-claim"
         ]
@@ -675,7 +676,14 @@ test("confirm selected candidates keeps multiple managed objects and filters rel
   assert.deepEqual(confirmed.selection?.selectedManagedCandidateIds, ["candidate-customer", "candidate-supplier"]);
   assert.deepEqual(confirmed.scope?.candidateProvenance["candidate-flow"], ["candidate-customer", "candidate-supplier"]);
   assert.deepEqual(confirmed.entities.map((entity) => entity.kind), ["고객군", "고객군", "고객군", "공급사", "공급사"]);
-  assert.deepEqual(confirmed.events.map((event) => event.id), ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"]);
+  assert.deepEqual(confirmed.events.map((event) => event.id), [
+    "event-order",
+    "event-order-p08",
+    "event-outbound",
+    "event-delivery",
+    "event-claim",
+    "event-compensation"
+  ]);
   assert.deepEqual(confirmed.metricDefinitions.map((metric) => metric.id), ["metric-delay-time", "metric-claim-rate"]);
   const claimSeries = confirmed.metricValues.find((metricValue) => metricValue.metricId === "metric-claim-rate")?.series ?? [];
   assert.deepEqual(claimSeries.map((point) => point.label), ["4/24", "5/1", "5/8", "5/15"]);
@@ -684,7 +692,7 @@ test("confirm selected candidates keeps multiple managed objects and filters rel
     claimSeries.every((point, index, series) => index === 0 || Date.parse(String(series[index - 1].observedAt)) <= Date.parse(String(point.observedAt))),
     true
   );
-  assert.equal(confirmed.workflowMetricBindings.length, 4);
+  assert.equal(confirmed.workflowMetricBindings.length, 5);
   assert.equal(confirmed.candidates.find((candidate) => candidate.id === "candidate-customer")?.status, "confirmed");
   assert.equal(confirmed.candidates.find((candidate) => candidate.id === "candidate-supplier")?.status, "confirmed");
   assert.equal(confirmed.candidates.find((candidate) => candidate.id === "candidate-product-group")?.status, "excluded");
@@ -814,7 +822,7 @@ test("dashboard view exposes selection-based chart contracts and link targets", 
   assert.equal(view.primaryChart.type, "bar");
   assert.deepEqual(view.primaryChartWidgets.map((widget) => widget.id), ["metric-margin"]);
   assert.equal(view.metricWidgets[0].target.screen, "metrics");
-  assert.equal(view.recentFlows.length, 5);
+  assert.equal(view.recentFlows.length, 6);
   assert.equal(view.recentFlows.some((flow) => flow.title === "클레임 접수"), true);
   assert.equal(flowTarget.screen, "workflow");
   assert.equal(focused.screen, "workflow");
@@ -842,6 +850,7 @@ test("managed object view exposes focused object detail and typed graph links", 
           "candidate-claim-flow",
           "candidate-relation",
           "candidate-relation-customer-claim",
+          "candidate-relation-customer-b-p08",
           "candidate-metric-delay",
           "candidate-metric-margin",
           "candidate-metric-claim"
@@ -904,6 +913,58 @@ test("managed object view exposes focused object detail and typed graph links", 
     true
   );
   assert.equal(customerRootView.detail.graphEdges.some((edge) => edge.toId === "entity-customer-core"), false);
+
+  const customerBView = getManagedObjectView(confirmed, "entity-customer-b");
+  assert.equal(customerBView.detail.rootNodeId, "entity-customer-b");
+  assert.equal(customerBView.detail.graphNodes.some((node) => node.id === "entity-customer-b"), true);
+  assert.equal(
+    customerBView.detail.graphEdges.some(
+      (edge) =>
+        edge.id === "edge-relation-customer-b-precision" &&
+        edge.fromId === "entity-customer-b" &&
+        edge.toId === "entity-product-precision"
+    ),
+    true
+  );
+  assert.equal(
+    customerBView.detail.graphEdges.some(
+      (edge) => edge.id === "edge-workflow-source-entity-customer-b-event-order-p08" && edge.fromId === "entity-customer-b"
+    ),
+    true
+  );
+
+  const isolatedEntity = {
+    id: "entity-isolated-customer",
+    kind: "고객군",
+    name: "연결 없는 고객",
+    owner: "영업 운영팀",
+    status: "정상",
+    summary: "관계와 업무흐름이 아직 생성되지 않은 관리 대상",
+    metricIds: [],
+    relationIds: [],
+    eventIds: [],
+    insightIds: [],
+    decisionIds: []
+  };
+  const confirmedWorkspaceData = currentWorkspaceData(confirmed);
+  const isolatedView = getManagedObjectView(
+    {
+      ...confirmed,
+      entities: [...confirmed.entities, isolatedEntity],
+      workspaceDataById: {
+        ...confirmed.workspaceDataById,
+        [confirmed.session.workspaceId]: {
+          ...confirmedWorkspaceData,
+          entities: [...confirmedWorkspaceData.entities, isolatedEntity]
+        }
+      }
+    },
+    "entity-isolated-customer"
+  );
+  assert.equal(isolatedView.detail.rootNodeId, "entity-isolated-customer");
+  assert.deepEqual(isolatedView.detail.graphNodes, []);
+  assert.deepEqual(isolatedView.detail.graphEdges, []);
+  assert.equal(isolatedView.detail.defaultGraphItemId, undefined);
 });
 
 test("managed object type updates propagate as category labels and deletion falls back to unspecified", () => {
