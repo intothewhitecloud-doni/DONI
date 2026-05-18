@@ -6,10 +6,16 @@ import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
 import { Popup } from "../../components/ui/Popup";
 import { Progress } from "../../components/ui/Progress";
-import { relatedCandidateIdsByManagedObject, workflowsHaveSelectedMetrics } from "../../lib/domain/result-scenarios";
+import { workflowsHaveSelectedMetrics } from "../../lib/domain/result-scenarios";
 import type { CandidateType, EvidenceReference, ExtractionCandidate } from "../../lib/domain/types";
 import { shouldBlockWorkspaceLeaveForSoleAdmin, willDeleteWorkspaceOnLeave } from "../../lib/domain/state-machine";
 import { demoAccounts } from "../../lib/prototype/authAccounts";
+import {
+  buildCandidateSelectionDefaults,
+  emptyCandidateSelection,
+  rowsForReviewStep,
+  type CandidateSelectionMap
+} from "../../lib/prototype/candidateReviewSelection";
 import { can, roleLabel } from "../../lib/prototype/permissions";
 import { accessibleWorkspaces, evidenceById } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
@@ -19,8 +25,6 @@ type ReviewStep = {
   label: string;
   description: string;
 };
-
-type CandidateSelectionMap = Record<CandidateType, string[]>;
 
 const reviewSteps: ReviewStep[] = [
   {
@@ -44,13 +48,6 @@ const reviewSteps: ReviewStep[] = [
     description: "대시보드와 의사결정 안건에 반영할 지표를 선택합니다."
   }
 ];
-
-const emptyCandidateSelection: CandidateSelectionMap = {
-  managed_object: [],
-  workflow_event: [],
-  relation: [],
-  metric: []
-};
 
 const homeHighlights = [
   { label: "관리 대상과 업무 이벤트 정의", title: "업무 구조 정리" },
@@ -439,7 +436,7 @@ export function ReviewScreen() {
     [activeStep.type, selectedManagedCandidateIds, state.candidates]
   );
   const [selectedId, setSelectedId] = useState(rows[0]?.id ?? "");
-  const selected = useMemo(() => rows.find((candidate) => candidate.id === selectedId) ?? rows[0], [rows, selectedId]);
+  const selected = useMemo(() => rows.find((candidate) => candidate.id === selectedId), [rows, selectedId]);
   const [editingCandidateId, setEditingCandidateId] = useState("");
   const [editDraft, setEditDraft] = useState({
     description: "",
@@ -456,11 +453,15 @@ export function ReviewScreen() {
   }, [selectionInitialized, state.candidates]);
 
   useEffect(() => {
-    if (!selectedId || rows.some((candidate) => candidate.id === selectedId)) {
+    const nextSelectedId = rows[0]?.id ?? "";
+    if (!selectedId && nextSelectedId) {
+      setSelectedId(nextSelectedId);
       return;
     }
 
-    setSelectedId(rows[0]?.id ?? "");
+    if (selectedId && !rows.some((candidate) => candidate.id === selectedId)) {
+      setSelectedId(nextSelectedId);
+    }
   }, [rows, selectedId]);
 
   useEffect(() => {
@@ -514,7 +515,11 @@ export function ReviewScreen() {
     }
   }
 
-  function toggleCandidate(candidate: ExtractionCandidate) {
+  function focusCandidate(candidate: ExtractionCandidate) {
+    setSelectedId(candidate.id);
+  }
+
+  function toggleCandidateInclusion(candidate: ExtractionCandidate) {
     setSelectedId(candidate.id);
 
     if (candidate.type === "managed_object") {
@@ -579,25 +584,33 @@ export function ReviewScreen() {
               rows.map((candidate) => {
                 const isIncluded = candidateSelection[candidate.type].includes(candidate.id);
                 return (
-                  <button
+                  <div
                     key={candidate.id}
                     className={`w-full rounded-md border p-4 text-left transition ${
                       isIncluded ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"
                     } ${selected?.id === candidate.id ? "ring-2 ring-blue-100" : ""}`}
-                    onClick={() => toggleCandidate(candidate)}
                   >
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                      <div className="min-w-0">
+                      <button
+                        className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        type="button"
+                        onClick={() => focusCandidate(candidate)}
+                      >
                         <h2 className="font-bold text-slate-950">{candidate.title}</h2>
                         <p className="mt-1 text-sm text-slate-600">{candidate.description}</p>
-                      </div>
-                      <span className="justify-self-start whitespace-nowrap sm:justify-self-end">
-                        <Badge tone={isIncluded ? "success" : "neutral"}>
-                          {isIncluded ? (candidate.type === "managed_object" ? "선택됨" : "포함됨") : "제외 예정"}
-                        </Badge>
-                      </span>
+                      </button>
+                      <button
+                        aria-pressed={isIncluded}
+                        className={`inline-flex items-center justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:justify-self-end ${
+                          isIncluded ? "border-success/30 bg-success/10 text-success" : "border-hairline bg-surface-card text-ink"
+                        }`}
+                        type="button"
+                        onClick={() => toggleCandidateInclusion(candidate)}
+                      >
+                        {isIncluded ? (candidate.type === "managed_object" ? "선택됨" : "포함됨") : "제외 예정"}
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             ) : (
@@ -703,22 +716,6 @@ export function ReviewScreen() {
   );
 }
 
-function rowsForReviewStep(candidates: ExtractionCandidate[], candidateType: CandidateType, managedCandidateIds: string[]): ExtractionCandidate[] {
-  const rows = candidates.filter((candidate) => candidate.type === candidateType && candidate.status !== "excluded");
-  if (candidateType === "managed_object") {
-    return rows;
-  }
-
-  if (managedCandidateIds.length === 0) {
-    return [];
-  }
-
-  const relatedIds = Array.from(
-    new Set(managedCandidateIds.flatMap((managedCandidateId) => relatedCandidateIdsByManagedObject[managedCandidateId]?.[candidateType] ?? []))
-  );
-  return rows.filter((candidate) => relatedIds.includes(candidate.id));
-}
-
 function formatReviewEvidenceSource(evidence: EvidenceReference): string {
   const sourceKind = evidence.sourceKind === "canonical_sample" ? "보관 파일" : "업로드 파일";
   const rows = evidence.rowNumbers && evidence.rowNumbers.length > 0 ? `${evidence.rowNumbers.join(", ")}행` : undefined;
@@ -726,30 +723,6 @@ function formatReviewEvidenceSource(evidence: EvidenceReference): string {
   const confidence = typeof evidence.confidence === "number" ? `신뢰도 ${Math.round(evidence.confidence * 100)}%` : undefined;
 
   return [sourceKind, evidence.sourceName ?? evidence.location, evidence.sheetName, rows, columns, confidence].filter(Boolean).join(" · ");
-}
-
-function buildCandidateSelectionDefaults(
-  candidates: ExtractionCandidate[],
-  current: CandidateSelectionMap = emptyCandidateSelection,
-  manualExcludedCandidateIds: string[] = []
-): CandidateSelectionMap {
-  const managedRows = rowsForReviewStep(candidates, "managed_object", []);
-  const manualExclusions = new Set(manualExcludedCandidateIds);
-  const selectedManagedCandidateIds = current.managed_object.filter((candidateId) => managedRows.some((candidate) => candidate.id === candidateId));
-  const managedCandidateIds = selectedManagedCandidateIds.length > 0 ? selectedManagedCandidateIds : managedRows.map((candidate) => candidate.id);
-  const next: CandidateSelectionMap = {
-    managed_object: managedCandidateIds,
-    workflow_event: [],
-    relation: [],
-    metric: []
-  };
-
-  (["workflow_event", "relation", "metric"] as CandidateType[]).forEach((candidateType) => {
-    const rows = rowsForReviewStep(candidates, candidateType, managedCandidateIds);
-    next[candidateType] = rows.map((candidate) => candidate.id).filter((candidateId) => !manualExclusions.has(candidateId));
-  });
-
-  return next;
 }
 
 function selectedCandidateIdsFromSelection(selection: CandidateSelectionMap): string[] {
