@@ -790,7 +790,10 @@ export function ManagedObjectsScreen() {
     state.entities.find((entity) => entity.id === focusedObjectId) ??
     filteredObjects[0] ??
     state.entities[0];
-  const view = getManagedObjectView(state, selectedObject?.id ?? activeObjectId ?? focusedObjectId);
+  const visibleObjectIds = useMemo(() => filteredObjects.map((entity) => entity.id), [filteredObjects]);
+  const view = getManagedObjectView(state, selectedObject?.id ?? activeObjectId ?? focusedObjectId, {
+    visibleEntityIds: visibleObjectIds
+  });
 
   useEffect(() => {
     if (focusedObjectId) {

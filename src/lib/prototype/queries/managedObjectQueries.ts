@@ -69,6 +69,7 @@ export type ManagedObjectGraphItemDetail = {
 export type ManagedObjectDetail = {
   category?: ManagedObjectCategory;
   instances: EntityInstance[];
+  rootNodeId?: string;
   events: PrototypeState["events"];
   relations: PrototypeState["relations"];
   metrics: Array<{
@@ -81,6 +82,10 @@ export type ManagedObjectDetail = {
   graphEdges: ManagedObjectGraphEdge[];
   graphLegend: ManagedObjectGraphLegendItem[];
   defaultGraphItemId?: string;
+};
+
+export type ManagedObjectViewOptions = {
+  visibleEntityIds?: string[];
 };
 
 function categoryDefinitions(data: WorkspaceData): Array<Omit<ManagedObjectCategory, "instanceCount" | "statusLabel" | "tone">> {
@@ -142,11 +147,11 @@ export const managedObjectGraphLegend: ManagedObjectGraphLegendItem[] = [
 
 const workflowSequence = ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
 
-export function getManagedObjectView(state: PrototypeState, focusId?: string) {
+export function getManagedObjectView(state: PrototypeState, focusId?: string, options: ManagedObjectViewOptions = {}) {
   const data = currentWorkspaceData(state);
   const categories = buildManagedObjectCategories(data);
   const activeCategoryId = resolveActiveCategoryId(data.entities, categories, focusId);
-  const detail = buildManagedObjectDetail(state, activeCategoryId, focusId);
+  const detail = buildManagedObjectDetail(state, activeCategoryId, focusId, options);
 
   return {
     categories,
@@ -236,7 +241,12 @@ function resolveActiveCategoryId(
   return categories[0]?.id ?? "";
 }
 
-function buildManagedObjectDetail(state: PrototypeState, categoryId?: string, focusId?: string): ManagedObjectDetail {
+function buildManagedObjectDetail(
+  state: PrototypeState,
+  categoryId?: string,
+  focusId?: string,
+  options: ManagedObjectViewOptions = {}
+): ManagedObjectDetail {
   const data = currentWorkspaceData(state);
   const categories = buildManagedObjectCategories(data);
   const category = categories.find((item) => item.id === categoryId);
@@ -252,6 +262,10 @@ function buildManagedObjectDetail(state: PrototypeState, categoryId?: string, fo
   const detailCategory = categories.find((item) => item.label === displayTypeLabel(focusedEntity.kind)) ?? category;
   const instances = [focusedEntity];
   const instanceIds = new Set(instances.map((entity) => entity.id));
+  const visibleEntityIds = new Set(options.visibleEntityIds?.filter((entityId) => data.entities.some((entity) => entity.id === entityId)) ?? []);
+  if (visibleEntityIds.size > 0) {
+    visibleEntityIds.add(focusedEntity.id);
+  }
   const insights = data.insights.filter(
     (insight) =>
       insight.relatedObjectIds.some((objectId) => instanceIds.has(objectId)) ||
@@ -259,15 +273,17 @@ function buildManagedObjectDetail(state: PrototypeState, categoryId?: string, fo
   );
   const workflowEventIds = collectWorkflowEventIds(data, instances, insights);
   const relationIdsFromInsights = new Set(insights.flatMap((insight) => insight.relatedRelationIds));
-  const relations = data.relations.filter(
-    (relation) =>
-      instanceIds.has(relation.fromId) ||
-      instanceIds.has(relation.toId) ||
-      workflowEventIds.has(relation.fromId) ||
-      workflowEventIds.has(relation.toId) ||
-      instances.some((entity) => entity.relationIds.includes(relation.id)) ||
-      relationIdsFromInsights.has(relation.id)
-  );
+  const relations = data.relations
+    .filter(
+      (relation) =>
+        instanceIds.has(relation.fromId) ||
+        instanceIds.has(relation.toId) ||
+        workflowEventIds.has(relation.fromId) ||
+        workflowEventIds.has(relation.toId) ||
+        instances.some((entity) => entity.relationIds.includes(relation.id)) ||
+        relationIdsFromInsights.has(relation.id)
+    )
+    .filter((relation) => relationMatchesVisibleEntityFilter(relation, instanceIds, visibleEntityIds.size > 0 ? visibleEntityIds : undefined));
   const events = orderedEvents(data.events.filter((event) => workflowEventIds.has(event.id)));
   const metricIds = collectMetricIds(data, instances, events, insights, relations);
   const metrics = data.metricDefinitions
@@ -283,12 +299,14 @@ function buildManagedObjectDetail(state: PrototypeState, categoryId?: string, fo
     insights,
     instances,
     metrics,
-    relations
+    relations,
+    visibleEntityIds: visibleEntityIds.size > 0 ? visibleEntityIds : undefined
   });
 
   return {
     category: detailCategory,
     instances,
+    rootNodeId: focusedEntity.id,
     events,
     relations,
     metrics,
@@ -305,6 +323,7 @@ function emptyManagedObjectDetail(): ManagedObjectDetail {
   return {
     category: undefined,
     instances: [],
+    rootNodeId: undefined,
     events: [],
     relations: [],
     metrics: [],
@@ -392,7 +411,8 @@ function buildGraphModel({
   insights,
   instances,
   metrics,
-  relations
+  relations,
+  visibleEntityIds
 }: {
   data: WorkspaceData;
   events: EventRecord[];
@@ -400,36 +420,42 @@ function buildGraphModel({
   instances: EntityInstance[];
   metrics: Array<{ definition: MetricDefinition; value?: MetricValue }>;
   relations: Relation[];
+  visibleEntityIds?: Set<string>;
 }): { nodes: ManagedObjectGraphNode[]; edges: ManagedObjectGraphEdge[] } {
   const instanceIds = new Set(instances.map((entity) => entity.id));
   const eventIds = new Set(events.map((event) => event.id));
   const metricIds = new Set(metrics.map((metric) => metric.definition.id));
   const insightIds = new Set(insights.map((insight) => insight.id));
   const relatedEntityIds = new Set<string>(instanceIds);
+  const addVisibleEntityId = (entityId: string) => {
+    if (instanceIds.has(entityId) || !visibleEntityIds || visibleEntityIds.has(entityId)) {
+      relatedEntityIds.add(entityId);
+    }
+  };
 
   for (const relation of relations) {
     if (isEntityId(relation.fromId)) {
-      relatedEntityIds.add(relation.fromId);
+      addVisibleEntityId(relation.fromId);
     }
     if (isEntityId(relation.toId)) {
-      relatedEntityIds.add(relation.toId);
+      addVisibleEntityId(relation.toId);
     }
   }
 
   for (const event of events) {
     if (isEntityId(event.objectId)) {
-      relatedEntityIds.add(event.objectId);
+      addVisibleEntityId(event.objectId);
     }
   }
 
   for (const binding of data.workflowMetricBindings) {
     if (eventIds.has(binding.eventId) && metricIds.has(binding.metricId)) {
-      binding.sourceManagedObjectIds.forEach((objectId) => relatedEntityIds.add(objectId));
+      binding.sourceManagedObjectIds.forEach(addVisibleEntityId);
     }
   }
 
   for (const metric of metrics) {
-    metric.definition.relatedObjectIds.forEach((objectId) => relatedEntityIds.add(objectId));
+    metric.definition.relatedObjectIds.forEach(addVisibleEntityId);
   }
 
   const entityNodes = Array.from(relatedEntityIds).map((entityId) => {
@@ -488,10 +514,11 @@ function buildGraphModel({
     }
 
     const edgeType = relationEdgeType(relation);
+    const orientedRelation = orientRelationFromRoot(relation, instanceIds);
     edges.push({
       id: `edge-${relation.id}`,
-      fromId: relation.fromId,
-      toId: relation.toId,
+      fromId: orientedRelation.fromId,
+      toId: orientedRelation.toId,
       label: relation.type,
       edgeType,
       kind: edgeType,
@@ -609,6 +636,44 @@ function resolveDefaultGraphItemId(graphModel: { edges: ManagedObjectGraphEdge[]
     graphModel.nodes.find((node) => node.type === "managed_object")?.id ??
     graphModel.nodes[0]?.id
   );
+}
+
+function relationMatchesVisibleEntityFilter(
+  relation: Relation,
+  rootEntityIds: Set<string>,
+  visibleEntityIds?: Set<string>
+): boolean {
+  if (!isEntityId(relation.fromId) || !isEntityId(relation.toId)) {
+    return true;
+  }
+
+  const rootIsFrom = rootEntityIds.has(relation.fromId);
+  const rootIsTo = rootEntityIds.has(relation.toId);
+  if (!rootIsFrom && !rootIsTo) {
+    return false;
+  }
+
+  if (!visibleEntityIds) {
+    return true;
+  }
+
+  const relatedEntityId = rootIsFrom ? relation.toId : relation.fromId;
+  return visibleEntityIds.has(relatedEntityId);
+}
+
+function orientRelationFromRoot(relation: Relation, rootEntityIds: Set<string>): Pick<Relation, "fromId" | "toId"> {
+  if (!isEntityId(relation.fromId) || !isEntityId(relation.toId) || rootEntityIds.has(relation.fromId)) {
+    return relation;
+  }
+
+  if (rootEntityIds.has(relation.toId)) {
+    return {
+      fromId: relation.toId,
+      toId: relation.fromId
+    };
+  }
+
+  return relation;
 }
 
 function relationEdgeType(relation: Relation): ManagedObjectGraphEdgeType {

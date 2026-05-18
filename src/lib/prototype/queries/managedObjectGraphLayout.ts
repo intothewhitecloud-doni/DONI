@@ -60,16 +60,16 @@ export type ManagedObjectGraphLayout = {
 
 const nodeWidth = 172;
 const nodeHeight = 76;
-const rowGap = 132;
-const managedObjectLayerGap = 240;
+const rowGap = 148;
+const managedObjectLayerGap = 280;
 const workflowOrder = ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
 
 const laneX: Record<ManagedObjectGraphLaneKind, number> = {
   category: 32,
-  managed_object: 120,
-  workflow: 520,
-  metric: 800,
-  insight: 1080
+  managed_object: 48,
+  workflow: 640,
+  metric: 940,
+  insight: 1240
 };
 
 const laneOrder: Record<ManagedObjectGraphLaneKind, number> = {
@@ -89,13 +89,13 @@ const laneBaseY: Record<ManagedObjectGraphLaneKind, number> = {
 };
 
 export function buildManagedObjectGraphLayout(
-  detail: Pick<ManagedObjectDetail, "graphEdges" | "graphLegend" | "graphNodes">
+  detail: Pick<ManagedObjectDetail, "graphEdges" | "graphLegend" | "graphNodes" | "rootNodeId">
 ): ManagedObjectGraphLayout {
   const positionsByNodeId: Record<string, ManagedObjectGraphPoint> = {};
   const laneByNodeId: Record<string, ManagedObjectGraphLaneMeta> = {};
   const edgePriorityByEdgeId: Record<string, ManagedObjectGraphEdgeVisual> = {};
   const nodeById = new Map(detail.graphNodes.map((node) => [node.id, node]));
-  const managedLayers = managedObjectLayers(detail.graphNodes, detail.graphEdges);
+  const managedLayers = managedObjectLayers(detail.graphNodes, detail.graphEdges, detail.rootNodeId);
   const laneGroups = groupNodesByLane(detail.graphNodes);
 
   for (const laneKind of Object.keys(laneGroups) as ManagedObjectGraphLaneKind[]) {
@@ -125,7 +125,7 @@ export function buildManagedObjectGraphLayout(
 
   return {
     contentBounds: boundsForPositions(positionsByNodeId),
-    defaultViewport: { x: 32, y: 42, zoom: 0.82 },
+    defaultViewport: { x: 34, y: 42, zoom: 0.72 },
     edgePriorityByEdgeId,
     edgeRouteByEdgeId: edgeRoutes(detail.graphEdges),
     laneByNodeId,
@@ -149,9 +149,9 @@ export function classifyEdgePriority(
   return "downstream";
 }
 
-function managedObjectLayers(nodes: ManagedObjectGraphNode[], edges: ManagedObjectGraphEdge[]): Map<string, number> {
+function managedObjectLayers(nodes: ManagedObjectGraphNode[], edges: ManagedObjectGraphEdge[], rootNodeId?: string): Map<string, number> {
   const managedIds = new Set(nodes.filter((node) => node.type === "managed_object").map((node) => node.id));
-  const layers = new Map(Array.from(managedIds).map((id) => [id, 0]));
+  const layers = new Map(Array.from(managedIds).map((id) => [id, rootNodeId && id !== rootNodeId ? 1 : 0]));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const primaryEdges = edges.filter((edge) => classifyEdgePriority(edge, nodeById.get(edge.fromId), nodeById.get(edge.toId)) === "primaryInfluence");
 
@@ -159,6 +159,10 @@ function managedObjectLayers(nodes: ManagedObjectGraphNode[], edges: ManagedObje
     let changed = false;
 
     for (const edge of primaryEdges) {
+      if (rootNodeId && edge.toId === rootNodeId) {
+        continue;
+      }
+
       const fromLayer = layers.get(edge.fromId) ?? 0;
       const targetLayer = Math.min(fromLayer + 1, 1);
       if ((layers.get(edge.toId) ?? 0) < targetLayer) {

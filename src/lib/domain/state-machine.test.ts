@@ -827,11 +827,13 @@ test("managed object view exposes focused object detail and typed graph links", 
         selectedCandidateIds: [
           "candidate-customer",
           "candidate-supplier",
+          "candidate-product-group",
           "candidate-flow",
           "candidate-claim-flow",
           "candidate-relation",
           "candidate-relation-customer-claim",
           "candidate-metric-delay",
+          "candidate-metric-margin",
           "candidate-metric-claim"
         ]
       },
@@ -843,10 +845,11 @@ test("managed object view exposes focused object detail and typed graph links", 
   const view = getManagedObjectView(confirmed, "entity-supplier-a");
   const relationDetail = getManagedObjectGraphItemDetail(view.detail, "edge-relation-supplier-product");
 
-  assert.deepEqual(view.categories.map((category) => category.label), ["고객군", "공급사"]);
+  assert.deepEqual(view.categories.map((category) => category.label), ["고객군", "공급사", "상품군"]);
   assert.equal(view.categories.find((category) => category.id === view.activeCategoryId)?.label, "공급사");
   assert.equal(view.detail.category?.label, "공급사");
   assert.equal(view.detail.instances.length, 1);
+  assert.equal(view.detail.rootNodeId, "entity-supplier-a");
   assert.equal(view.detail.instances.some((instance) => instance.id === "entity-supplier-a"), true);
   assert.equal(view.detail.events.some((event) => event.id === "event-outbound"), true);
   assert.equal(view.detail.metrics.some(({ definition }) => definition.id === "metric-delay-time"), true);
@@ -871,6 +874,17 @@ test("managed object view exposes focused object detail and typed graph links", 
   );
   assert.equal(relationDetail?.kind, "edge");
   assert.equal(relationDetail?.subtitle, "관리대상 간 구조");
+
+  const filteredView = getManagedObjectView(confirmed, "entity-supplier-a", { visibleEntityIds: ["entity-supplier-a"] });
+  assert.equal(filteredView.detail.rootNodeId, "entity-supplier-a");
+  assert.equal(filteredView.detail.graphNodes.some((node) => node.id === "entity-low-margin"), false);
+  assert.equal(filteredView.detail.graphEdges.some((edge) => edge.id === "edge-relation-supplier-product"), false);
+
+  const visibleRelationView = getManagedObjectView(confirmed, "entity-supplier-a", {
+    visibleEntityIds: ["entity-supplier-a", "entity-low-margin"]
+  });
+  assert.equal(visibleRelationView.detail.graphNodes.some((node) => node.id === "entity-low-margin"), true);
+  assert.equal(visibleRelationView.detail.graphEdges.some((edge) => edge.id === "edge-relation-supplier-product"), true);
 });
 
 test("managed object type updates propagate as category labels and deletion falls back to unspecified", () => {

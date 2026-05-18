@@ -72,7 +72,8 @@ function layout(): ManagedObjectGraphLayout {
   return buildManagedObjectGraphLayout({
     graphEdges,
     graphLegend: managedObjectGraphLegend,
-    graphNodes
+    graphNodes,
+    rootNodeId: "entity-customer-core"
   });
 }
 
@@ -91,6 +92,7 @@ test("managed object graph layout keeps semantic lane ordering compact", () => {
   assert.equal(result.laneByNodeId["event-order"].kind, "workflow");
   assert.equal(result.laneByNodeId["metric-delay-time"].kind, "metric");
   assert.equal(result.laneByNodeId["insight-delay-risk"].kind, "insight");
+  assert.equal(result.positionsByNodeId["entity-customer-core"].x < result.positionsByNodeId["entity-supplier-a"].x, true);
   assert.equal(
     result.laneByNodeId["entity-customer-core"].order < result.laneByNodeId["event-order"].order &&
       result.laneByNodeId["event-order"].order < result.laneByNodeId["metric-delay-time"].order &&
@@ -117,7 +119,7 @@ test("managed object graph layout exposes a readable desktop first-paint budget"
   const objectX = result.positionsByNodeId["entity-customer-core"].x * viewport.zoom + viewport.x;
   const workflowX = result.positionsByNodeId["event-order"].x * viewport.zoom + viewport.x;
 
-  assert.equal(viewport.zoom >= 0.8, true);
+  assert.equal(viewport.zoom >= 0.7, true);
   assert.equal(objectX >= 0, true);
   assert.equal(workflowX > objectX, true);
   assert.equal(workflowX < graphPanelBudgetWidth, true);

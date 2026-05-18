@@ -71,6 +71,7 @@ export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, select
   const [edges, setEdges] = useEdgesState<FlowEdge>(graph.edges);
   const edgeTypes = useMemo(() => ({ knowledge: KnowledgeEdge }), []);
   const selectedDetail = getManagedObjectGraphItemDetail(detail, selectedItemId);
+  const graphInstanceKey = `${detail.rootNodeId ?? detail.defaultGraphItemId ?? "empty-graph"}:${detail.graphNodes.map((node) => node.id).join("|")}:${detail.graphEdges.map((edge) => edge.id).join("|")}`;
 
   useEffect(() => {
     setNodes(graph.nodes);
@@ -81,7 +82,7 @@ export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, select
     <div className="space-y-4">
       <div className="h-[560px] overflow-hidden rounded-md border border-slate-200 bg-white">
         <ReactFlow
-          key={detail.defaultGraphItemId ?? "empty-graph"}
+          key={graphInstanceKey}
           nodes={nodes}
           edges={edges}
           defaultViewport={graph.layout.defaultViewport}
