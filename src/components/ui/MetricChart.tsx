@@ -110,16 +110,17 @@ function MetricLineChart({
   variant: "line" | "time_series";
 }) {
   const orderedPoints = variant === "time_series" ? [...points].sort(compareTimeSeriesPoints) : points;
-  const maxValue = maxPointValue(points);
+  const maxValue = maxPointValue(orderedPoints);
   const colors = chartColors[status];
-  const width = 240;
-  const height = compact ? 96 : 112;
-  const paddingX = compact ? 16 : 18;
-  const paddingTop = compact ? 18 : 20;
-  const paddingBottom = compact ? 22 : 24;
+  const width = compact ? 280 : 420;
+  const height = compact ? 118 : 152;
+  const paddingX = compact ? 24 : 34;
+  const paddingTop = compact ? 22 : 26;
+  const paddingBottom = compact ? 32 : 38;
   const plotWidth = width - paddingX * 2;
   const plotHeight = height - paddingTop - paddingBottom;
   const bottomY = paddingTop + plotHeight;
+  const xAxisLabelY = height - (compact ? 7 : 9);
   const coordinates = orderedPoints.map((point, index) => {
     const x = orderedPoints.length === 1 ? width / 2 : paddingX + (plotWidth * index) / (orderedPoints.length - 1);
     const y = paddingTop + (1 - point.value / maxValue) * plotHeight;
@@ -133,7 +134,7 @@ function MetricLineChart({
 
   return (
     <div className="mt-4">
-      <div className={compact ? "h-24" : "h-28"}>
+      <div className={compact ? "h-32" : "h-40"}>
         <svg aria-label={`${variant === "time_series" ? "시계열" : "선"} 그래프`} className="h-full w-full" role="img" viewBox={`0 0 ${width} ${height}`}>
           <line stroke="#cbd5e1" strokeWidth="1" x1={paddingX} x2={width - paddingX} y1={bottomY} y2={bottomY} />
           {variant === "time_series" && areaPoints && <polygon fill={colors.fill} points={areaPoints} />}
@@ -154,14 +155,25 @@ function MetricLineChart({
               </g>
             );
           })}
+          {coordinates.map((point, index) => {
+            const isFirst = index === 0;
+            const isLast = index === coordinates.length - 1;
+
+            return (
+              <text
+                key={`${id}-${point.label}-axis-label`}
+                fill="#475569"
+                fontSize={compact ? "10" : "11"}
+                fontWeight="700"
+                textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
+                x={point.x}
+                y={xAxisLabelY}
+              >
+                {point.label}
+              </text>
+            );
+          })}
         </svg>
-      </div>
-      <div className="mt-1 grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(1, points.length)}, minmax(0, 1fr))` }}>
-        {orderedPoints.map((point) => (
-          <p key={`${id}-${point.label}-label`} className="min-h-8 truncate text-center text-xs font-semibold leading-4 text-slate-600">
-            {point.label}
-          </p>
-        ))}
       </div>
     </div>
   );

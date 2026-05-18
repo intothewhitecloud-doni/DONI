@@ -128,7 +128,7 @@ export function DashboardScreen() {
           </div>
           <Badge tone="info">{chartTypeLabel(view.primaryChart.type)}</Badge>
         </div>
-        <div className={primaryWidget ? "grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.75fr)]" : "grid gap-3 md:grid-cols-3"}>
+        <div className={primaryWidget ? "space-y-4" : "grid gap-3 md:grid-cols-3"}>
           {view.primaryChartWidgets.map((widget) => (
             <div key={`${widget.id}-chart`} className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -209,29 +209,31 @@ function PrimaryChartContext({
   const statusLabel = widget.status === "critical" ? "위험" : widget.status === "warning" ? "주의" : "정상";
 
   return (
-    <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4">
+    <div className="rounded-md border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-slate-950">차트 요약</p>
         <Badge tone={widget.status === "critical" ? "danger" : widget.status === "warning" ? "warning" : "success"}>{statusLabel}</Badge>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryStat label="현재 값" value={formatMetricValue(currentPoint?.value, widget.unit)} />
         <SummaryStat label="이전 기준" value={formatMetricValue(previousValue, widget.unit)} />
         <SummaryStat label="변화" value={formatDelta(delta, widget.unit)} />
         {period && <SummaryStat label="관찰 기간" value={period} />}
       </div>
-      <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-        <p className="text-xs font-bold text-slate-500">연결 인사이트</p>
-        <p className="mt-2 text-sm font-semibold leading-5 text-slate-900">{insightTitle ?? "연결 인사이트 없음"}</p>
-      </div>
-      {supportSummary.length > 0 && (
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-bold text-slate-500">근거 조합</p>
-          <ul className="mt-2 space-y-1 text-sm leading-5 text-slate-700">
-            {supportSummary.slice(0, 2).map((summary) => <li key={summary}>{summary}</li>)}
-          </ul>
+          <p className="text-xs font-bold text-slate-500">연결 인사이트</p>
+          <p className="mt-2 text-sm font-semibold leading-5 text-slate-900">{insightTitle ?? "연결 인사이트 없음"}</p>
         </div>
-      )}
+        {supportSummary.length > 0 && (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-bold text-slate-500">근거 조합</p>
+            <ul className="mt-2 space-y-1 text-sm leading-5 text-slate-700">
+              {supportSummary.slice(0, 2).map((summary) => <li key={summary}>{summary}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
