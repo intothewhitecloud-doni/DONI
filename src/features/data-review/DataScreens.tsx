@@ -7,9 +7,7 @@ import { Card, SectionTitle } from "../../components/ui/Card";
 import { Popup } from "../../components/ui/Popup";
 import type { DomainTypeColor, DomainTypeDefinition, EvidenceReference, MetricValue, SourceFile } from "../../lib/domain/types";
 import {
-  DOMAIN_TYPE_COLORS,
   displayTypeLabel,
-  domainTypeColorDisplayLabel,
   domainTypeColorHex,
   normalizeHexColor,
   normalizeTypeColor
@@ -929,7 +927,7 @@ export function ManagedObjectsScreen() {
               />
             </div>
             {showTypeManager && (
-              <Popup eyebrow="유형 관리" size="lg" title="관리 대상 유형" tone="info" onClose={() => setShowTypeManager(false)}>
+              <Popup eyebrow="유형 관리" size="md" title="관리 대상 유형" tone="info" onClose={() => setShowTypeManager(false)}>
                 <DomainTypeManager
                   canManage={canManageTypes}
                   description="관리 대상 유형은 인스턴스를 나누는 필터 기준입니다. 삭제된 유형은 연결 데이터를 유지한 채 미지정으로 표시됩니다."
@@ -1084,9 +1082,9 @@ function DomainTypeManager({
   return (
     <div className="space-y-4">
       <p className="text-sm leading-6 text-slate-600">{description}</p>
-      <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-3 md:grid-cols-[1fr_220px_auto]">
+      <div className="grid gap-2 rounded-md border border-slate-200 bg-white p-2 md:grid-cols-[minmax(0,1fr)_148px_auto]">
         <input
-          className="min-w-0 rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-slate-100"
+          className="h-9 min-w-0 rounded-md border border-hairline bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-slate-100"
           disabled={!canManage}
           placeholder="새 유형 이름"
           value={draftLabel}
@@ -1099,11 +1097,11 @@ function DomainTypeManager({
       </div>
       <div className="space-y-2">
         {types.map((type) => (
-          <div key={type.id} className="rounded-md border border-slate-200 bg-white p-3">
+          <div key={type.id} className="rounded-md border border-slate-200 bg-white p-2">
             {editingId === type.id ? (
-              <div className="grid gap-2 md:grid-cols-[1fr_220px_auto]">
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_148px_auto]">
                 <input
-                  className="min-w-0 flex-1 rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  className="h-9 min-w-0 flex-1 rounded-md border border-hairline bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   value={editingLabel}
                   onChange={(event) => setEditingLabel(event.target.value)}
                 />
@@ -1118,9 +1116,9 @@ function DomainTypeManager({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <TypeBadge color={type.color} label={type.label} />
-                <div className="flex flex-wrap gap-2">
+                <div className="flex shrink-0 gap-2">
                   <IconButton disabled={!canManage} label={`${type.label} 수정`} variant="secondary" onClick={() => startEdit(type)}>
                     <PencilIcon />
                   </IconButton>
@@ -1154,59 +1152,60 @@ function TypeColorPicker({
 }) {
   const [hexDraft, setHexDraft] = useState(domainTypeColorHex(value));
   const normalizedHexDraft = normalizeHexColor(hexDraft);
+  const previewColor = normalizedHexDraft ?? domainTypeColorHex(value);
 
   useEffect(() => {
     setHexDraft(domainTypeColorHex(value));
   }, [value]);
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="유형 색상 팔레트">
-        {DOMAIN_TYPE_COLORS.map((color) => (
-          <button
-            key={color}
-            aria-checked={normalizeTypeColor(value) === color}
-            aria-label={`${domainTypeColorDisplayLabel(color)} 선택`}
-            className={`h-8 w-8 rounded-full border border-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-              normalizeTypeColor(value) === color ? "ring-2 ring-primary ring-offset-2" : ""
-            }`}
-            disabled={disabled}
-            role="radio"
-            style={{ backgroundColor: domainTypeColorHex(color) }}
-            type="button"
-            onClick={() => {
-              setHexDraft(domainTypeColorHex(color));
-              onChange(color);
-            }}
-          />
-        ))}
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="h-8 w-8 shrink-0 rounded-md border border-slate-200"
-          style={{ backgroundColor: normalizedHexDraft ?? domainTypeColorHex(value) }}
-        />
+    <div className="flex items-center gap-2">
+      <label
+        className={`relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 ${
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+        }`}
+        title="색상 팔레트 열기"
+      >
+        <span aria-hidden="true" className="h-6 w-6 rounded-full border border-black/10" style={{ backgroundColor: previewColor }} />
         <input
-          aria-label="HEX 색상 입력"
-          aria-invalid={Boolean(hexDraft.trim()) && !normalizedHexDraft}
-          className={`min-w-0 flex-1 rounded-md border bg-white px-3 py-2 font-mono text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-slate-100 ${
-            Boolean(hexDraft.trim()) && !normalizedHexDraft ? "border-rose-400" : "border-hairline"
-          }`}
+          aria-label="색상 팔레트 열기"
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           disabled={disabled}
-          inputMode="text"
-          placeholder="#2563eb"
-          value={hexDraft}
+          type="color"
+          value={previewColor}
           onChange={(event) => {
-            const nextValue = event.target.value;
-            setHexDraft(nextValue);
-            const normalized = normalizeHexColor(nextValue);
+            const normalized = normalizeHexColor(event.target.value);
             if (normalized) {
+              setHexDraft(normalized);
               onChange(normalized);
             }
           }}
         />
-      </div>
+      </label>
+      <input
+        aria-label="HEX 색상 입력"
+        aria-invalid={Boolean(hexDraft.trim()) && !normalizedHexDraft}
+        className={`h-9 min-w-0 flex-1 rounded-md border bg-white px-2 font-mono text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-slate-100 ${
+          Boolean(hexDraft.trim()) && !normalizedHexDraft ? "border-rose-400" : "border-hairline"
+        }`}
+        disabled={disabled}
+        inputMode="text"
+        placeholder="#2563eb"
+        value={hexDraft}
+        onBlur={() => {
+          if (!normalizeHexColor(hexDraft)) {
+            setHexDraft(domainTypeColorHex(value));
+          }
+        }}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          setHexDraft(nextValue);
+          const normalized = normalizeHexColor(nextValue);
+          if (normalized) {
+            onChange(normalized);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -1241,8 +1240,10 @@ function IconButton({
 
 function SettingsIcon() {
   return (
-    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h10M18 7h2M4 17h2M10 17h10M8 5v4M16 15v4" />
+    <svg aria-hidden="true" className="h-4 w-4 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+      <path strokeLinecap="round" d="M4 7h4M14 7h6M4 17h9M18 17h2" />
+      <circle cx="11" cy="7" r="3" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="17" r="3" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -1383,7 +1384,7 @@ export function WorkflowScreen() {
             />
           </div>
           {showTypeManager && (
-            <Popup eyebrow="유형 관리" size="lg" title="업무흐름 유형" tone="info" onClose={() => setShowTypeManager(false)}>
+            <Popup eyebrow="유형 관리" size="md" title="업무흐름 유형" tone="info" onClose={() => setShowTypeManager(false)}>
               <DomainTypeManager
                 canManage={canManageTypes}
                 description="업무흐름 유형은 이벤트를 묶는 관리용 범주 정보입니다. 삭제된 유형은 이벤트를 유지한 채 미지정으로 표시됩니다."
