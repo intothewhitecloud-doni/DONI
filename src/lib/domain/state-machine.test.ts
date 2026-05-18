@@ -887,6 +887,15 @@ test("managed object view exposes focused object detail and typed graph links", 
   });
   assert.equal(visibleRelationView.detail.graphNodes.some((node) => node.id === "entity-low-margin"), true);
   assert.equal(visibleRelationView.detail.graphEdges.some((edge) => edge.id === "edge-relation-supplier-product"), true);
+
+  const customerRootView = getManagedObjectView(confirmed, "entity-customer-core");
+  assert.equal(
+    customerRootView.detail.graphEdges.some(
+      (edge) => edge.id === "edge-relation-customer-claim" && edge.fromId === "entity-customer-core" && edge.toId === "event-claim"
+    ),
+    true
+  );
+  assert.equal(customerRootView.detail.graphEdges.some((edge) => edge.toId === "entity-customer-core"), false);
 });
 
 test("managed object type updates propagate as category labels and deletion falls back to unspecified", () => {

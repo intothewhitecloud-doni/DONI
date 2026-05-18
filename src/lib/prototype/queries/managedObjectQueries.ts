@@ -662,7 +662,7 @@ function relationMatchesVisibleEntityFilter(
 }
 
 function orientRelationFromRoot(relation: Relation, rootEntityIds: Set<string>): Pick<Relation, "fromId" | "toId"> {
-  if (!isEntityId(relation.fromId) || !isEntityId(relation.toId) || rootEntityIds.has(relation.fromId)) {
+  if (rootEntityIds.has(relation.fromId)) {
     return relation;
   }
 
