@@ -583,26 +583,39 @@ export function ReviewScreen() {
             {rows.length > 0 ? (
               rows.map((candidate) => {
                 const isIncluded = candidateSelection[candidate.type].includes(candidate.id);
+                const isActive = selected?.id === candidate.id;
                 return (
                   <div
                     key={candidate.id}
-                    className={`w-full rounded-md border p-4 text-left transition ${
-                      isIncluded ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"
-                    } ${selected?.id === candidate.id ? "ring-2 ring-blue-100" : ""}`}
+                    className={`relative w-full rounded-md border p-4 text-left transition ${
+                      isActive
+                        ? "border-brand-accent bg-canvas shadow-soft ring-2 ring-brand-accent ring-offset-2"
+                        : isIncluded
+                        ? "border-success/40 bg-success/10 shadow-sm"
+                        : "border-hairline-soft bg-white hover:border-hairline hover:bg-surface-soft"
+                    } ${isIncluded ? "border-l-4 border-l-success" : ""}`}
                   >
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                       <button
+                        aria-current={isActive ? "true" : undefined}
                         className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         type="button"
                         onClick={() => focusCandidate(candidate)}
                       >
-                        <h2 className="font-bold text-slate-950">{candidate.title}</h2>
-                        <p className="mt-1 text-sm text-slate-600">{candidate.description}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="font-bold text-slate-950">{candidate.title}</h2>
+                          {isActive && (
+                            <span className="rounded-full border border-brand-accent bg-brand-accent px-2 py-0.5 text-[11px] font-bold leading-4 text-white">
+                              수정 대상
+                            </span>
+                          )}
+                        </div>
+                        <p className={`mt-1 text-sm ${isActive ? "text-slate-700" : "text-slate-600"}`}>{candidate.description}</p>
                       </button>
                       <button
                         aria-pressed={isIncluded}
                         className={`inline-flex items-center justify-self-start whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:justify-self-end ${
-                          isIncluded ? "border-success/30 bg-success/10 text-success" : "border-hairline bg-surface-card text-ink"
+                          isIncluded ? "border-success bg-success text-white shadow-sm" : "border-hairline bg-surface-card text-ink hover:border-muted"
                         }`}
                         type="button"
                         onClick={() => toggleCandidateInclusion(candidate)}
