@@ -14,6 +14,7 @@ import { getDashboardView } from "../prototype/queries/dashboardQueries";
 import { getManagedObjectGraphItemDetail, getManagedObjectView } from "../prototype/queries/managedObjectQueries";
 import { createInitialState } from "../prototype/store";
 import { currentWorkspaceData, reducer, SOLE_ADMIN_LEAVE_BLOCKED_MESSAGE, type PrototypeAction } from "./state-machine";
+import { displayTypeLabel, normalizeDomainTypeCatalog, normalizeTypeColor } from "./type-catalog";
 
 function audited(state: ReturnType<typeof createInitialState>, action: PrototypeAction, label: string, targetType: string, targetId: string): PrototypeAction {
   return { ...action, ...commandMeta(state, label, targetType, targetId, `${label} 테스트`) };
@@ -46,6 +47,21 @@ test("upload creates uploaded files, analysis job, and audit trail", () => {
   assert.equal(analyzed.evidence.every((evidence) => evidence.analysisSourceId === "public-sample-2026-05-11"), true);
   assert.equal(analyzed.evidence.some((evidence) => evidence.rowNumbers && evidence.rowNumbers.length > 0), true);
   assert.equal(analyzed.auditLogs.some((log) => log.action === "인공지능 분석 시작"), true);
+});
+
+test("domain type catalog normalizes legacy and invalid colors", () => {
+  const normalized = normalizeDomainTypeCatalog(
+    [
+      { id: "managed-type-legacy", scope: "managed_object", label: "고객군" } as never,
+      { id: "managed-type-invalid", scope: "managed_object", label: "공급사", color: "rainbow" } as never
+    ],
+    "managed_object"
+  );
+
+  assert.equal(normalized[0]?.color, "blue");
+  assert.equal(normalized[1]?.color, "slate");
+  assert.equal(normalizeTypeColor("emerald"), "emerald");
+  assert.equal(normalizeTypeColor("not-a-token"), "slate");
 });
 
 test("role is selected by login account and logout returns to login", () => {
@@ -148,7 +164,7 @@ test("data vault can update and remove added files", () => {
   assert.equal(removed.sourceFiles.length, 0);
 });
 
-test("analyzed files can be removed and invalidate previous analysis outputs", () => {
+test("analyzed files can be removed without deleting the confirmed operating frame", () => {
   const initial = createInitialState();
   const added = reducer(
     initial,
@@ -186,12 +202,25 @@ test("analyzed files can be removed and invalidate previous analysis outputs", (
   assert.equal(analyzed.evidence.every((evidence) => evidence.sourceFileId !== "source-analyzed-orders"), true);
   assert.equal(analyzed.analysisJobs.length, 1);
   assert.equal(analyzed.candidates.length > 0, true);
+  const confirmed = reducer(
+    analyzed,
+    audited(analyzed, { type: "CONFIRM_CANDIDATES" }, "데이터 구조 확정", "workspace", analyzed.session.workspaceId)
+  );
+  const removedAfterConfirm = reducer(
+    confirmed,
+    audited(confirmed, { type: "REMOVE_SOURCE_FILE", fileId: "source-analyzed-orders" }, "파일 제거", "source_file", "source-analyzed-orders")
+  );
+
   assert.equal(removed.sourceFiles.length, 0);
-  assert.equal(removed.analysisJobs.length, 0);
-  assert.equal(removed.candidates.length, 0);
+  assert.equal(removed.analysisJobs.length, 1);
+  assert.equal(removed.candidates.length > 0, true);
   assert.equal(removed.entities.length, 0);
-  assert.equal(removed.insights.length, 0);
-  assert.equal(removed.proposals.length, 0);
+  assert.equal(removedAfterConfirm.sourceFiles.length, 0);
+  assert.equal(removedAfterConfirm.entities.length, confirmed.entities.length);
+  assert.equal(removedAfterConfirm.events.length, confirmed.events.length);
+  assert.equal(removedAfterConfirm.relations.length, confirmed.relations.length);
+  assert.equal(removedAfterConfirm.metricDefinitions.length, confirmed.metricDefinitions.length);
+  assert.equal(removedAfterConfirm.insights.length, confirmed.insights.length);
 });
 
 test("existing member workspace selection enters dashboard without company setup", () => {
@@ -643,7 +672,7 @@ test("confirm selected candidates keeps multiple managed objects and filters rel
 
   assert.deepEqual(confirmed.selection?.selectedManagedCandidateIds, ["candidate-customer", "candidate-supplier"]);
   assert.deepEqual(confirmed.scope?.candidateProvenance["candidate-flow"], ["candidate-customer", "candidate-supplier"]);
-  assert.deepEqual(confirmed.entities.map((entity) => entity.kind), ["고객군", "공급사"]);
+  assert.deepEqual(confirmed.entities.map((entity) => entity.kind), ["고객군", "고객군", "고객군", "공급사", "공급사"]);
   assert.deepEqual(confirmed.events.map((event) => event.id), ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"]);
   assert.deepEqual(confirmed.metricDefinitions.map((metric) => metric.id), ["metric-delay-time", "metric-claim-rate"]);
   assert.equal(confirmed.workflowMetricBindings.length, 4);
@@ -782,7 +811,7 @@ test("dashboard view exposes selection-based chart contracts and link targets", 
   assert.equal(focused.navigationFocus?.focusId, undefined);
 });
 
-test("managed object view exposes category detail and typed graph links", () => {
+test("managed object view exposes focused object detail and typed graph links", () => {
   const initial = createInitialState();
   const uploaded = reducer(initial, audited(initial, { type: "UPLOAD_SAMPLE_FILES" }, "소스 데이터 업로드", "source_file", "source-orders"));
   const analyzed = reducer(uploaded, {
@@ -815,12 +844,15 @@ test("managed object view exposes category detail and typed graph links", () => 
   const relationDetail = getManagedObjectGraphItemDetail(view.detail, "edge-relation-supplier-product");
 
   assert.deepEqual(view.categories.map((category) => category.label), ["고객군", "공급사"]);
-  assert.equal(view.activeCategoryId, "category-supplier");
+  assert.equal(view.categories.find((category) => category.id === view.activeCategoryId)?.label, "공급사");
   assert.equal(view.detail.category?.label, "공급사");
+  assert.equal(view.detail.instances.length, 1);
   assert.equal(view.detail.instances.some((instance) => instance.id === "entity-supplier-a"), true);
   assert.equal(view.detail.events.some((event) => event.id === "event-outbound"), true);
   assert.equal(view.detail.metrics.some(({ definition }) => definition.id === "metric-delay-time"), true);
-  assert.equal(view.detail.defaultGraphItemId, "edge-relation-supplier-product");
+  assert.equal(view.detail.defaultGraphItemId, "entity-supplier-a");
+  assert.equal(view.detail.graphNodes.some((node) => node.type === "category"), false);
+  assert.equal(view.detail.graphEdges.some((edge) => edge.label === "포함"), false);
   assert.deepEqual(
     view.detail.graphLegend.map((item) => item.edgeType),
     ["managed_object_structural", "managed_object_workflow", "workflow_sequence", "workflow_metric", "metric_insight"]
@@ -839,6 +871,99 @@ test("managed object view exposes category detail and typed graph links", () => 
   );
   assert.equal(relationDetail?.kind, "edge");
   assert.equal(relationDetail?.subtitle, "관리대상 간 구조");
+});
+
+test("managed object type updates propagate as category labels and deletion falls back to unspecified", () => {
+  const initial = createInitialState();
+  const uploaded = reducer(initial, audited(initial, { type: "UPLOAD_SAMPLE_FILES" }, "소스 데이터 업로드", "source_file", "source-orders"));
+  const analyzed = reducer(uploaded, {
+    type: "START_ANALYSIS",
+    ...commandMeta(uploaded, "인공지능 분석 시작", "analysis_job", "analysis-job-main", "분석 시작 테스트")
+  });
+  const confirmed = reducer(
+    analyzed,
+    audited(analyzed, { type: "CONFIRM_CANDIDATES" }, "데이터 구조 확정", "workspace", analyzed.session.workspaceId)
+  );
+  const customerTypeId = confirmed.managedObjectTypes.find((type) => type.label === "고객군")?.id;
+  assert.ok(customerTypeId);
+
+  const renamed = reducer(
+    confirmed,
+    audited(
+      confirmed,
+      { type: "UPDATE_DOMAIN_TYPE", scope: "managed_object", typeId: customerTypeId, label: "고객 세그먼트", color: "pink" },
+      "관리대상 유형 수정",
+      "domain_type",
+      customerTypeId
+    )
+  );
+  const renamedView = getManagedObjectView(renamed, "entity-customer-core");
+
+  assert.equal(renamed.entities.find((entity) => entity.id === "entity-customer-core")?.kind, "고객 세그먼트");
+  assert.equal(renamedView.detail.category?.label, "고객 세그먼트");
+  assert.equal(renamed.managedObjectTypes.find((type) => type.id === customerTypeId)?.color, "pink");
+
+  const deleted = reducer(
+    renamed,
+    audited(
+      renamed,
+      { type: "DELETE_DOMAIN_TYPE", scope: "managed_object", typeId: customerTypeId },
+      "관리대상 유형 삭제",
+      "domain_type",
+      customerTypeId
+    )
+  );
+  const deletedEntity = deleted.entities.find((entity) => entity.id === "entity-customer-core");
+  const deletedView = getManagedObjectView(deleted, "entity-customer-core");
+
+  assert.ok(deletedEntity);
+  assert.equal(displayTypeLabel(deletedEntity.kind), "미지정");
+  assert.equal(deletedView.detail.category?.label, "미지정");
+  assert.equal(deletedView.detail.instances.some((entity) => entity.id === "entity-customer-core"), true);
+});
+
+test("workflow type updates propagate to events and deletion keeps events as unspecified", () => {
+  const initial = createInitialState();
+  const uploaded = reducer(initial, audited(initial, { type: "UPLOAD_SAMPLE_FILES" }, "소스 데이터 업로드", "source_file", "source-orders"));
+  const analyzed = reducer(uploaded, {
+    type: "START_ANALYSIS",
+    ...commandMeta(uploaded, "인공지능 분석 시작", "analysis_job", "analysis-job-main", "분석 시작 테스트")
+  });
+  const confirmed = reducer(
+    analyzed,
+    audited(analyzed, { type: "CONFIRM_CANDIDATES" }, "데이터 구조 확정", "workspace", analyzed.session.workspaceId)
+  );
+  const workflowTypeId = confirmed.workflowTypes.find((type) => type.label === "증가")?.id;
+  assert.ok(workflowTypeId);
+
+  const renamed = reducer(
+    confirmed,
+    audited(
+      confirmed,
+      { type: "UPDATE_DOMAIN_TYPE", scope: "workflow", typeId: workflowTypeId, label: "고객 응대", color: "emerald" },
+      "업무흐름 유형 수정",
+      "domain_type",
+      workflowTypeId
+    )
+  );
+  assert.equal(renamed.events.find((event) => event.id === "event-claim")?.workflowType, "고객 응대");
+  assert.equal(renamed.events.find((event) => event.id === "event-compensation")?.workflowType, "검토");
+  assert.equal(renamed.workflowTypes.find((type) => type.id === workflowTypeId)?.color, "emerald");
+
+  const deleted = reducer(
+    renamed,
+    audited(
+      renamed,
+      { type: "DELETE_DOMAIN_TYPE", scope: "workflow", typeId: workflowTypeId },
+      "업무흐름 유형 삭제",
+      "domain_type",
+      workflowTypeId
+    )
+  );
+
+  assert.equal(deleted.events.some((event) => event.id === "event-claim"), true);
+  assert.equal(displayTypeLabel(deleted.events.find((event) => event.id === "event-claim")?.workflowType), "미지정");
+  assert.equal(displayTypeLabel(deleted.events.find((event) => event.id === "event-compensation")?.workflowType), "검토");
 });
 
 test("candidate edit keeps the exact submitted title and description", () => {

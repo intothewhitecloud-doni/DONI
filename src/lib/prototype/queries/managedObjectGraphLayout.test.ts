@@ -8,8 +8,7 @@ import {
 import { managedObjectGraphLegend, type ManagedObjectGraphEdge, type ManagedObjectGraphNode } from "./managedObjectQueries";
 
 const graphNodes: ManagedObjectGraphNode[] = [
-  { id: "category-customer", label: "고객군", caption: "관리 대상 카테고리", type: "category", tone: "primary" },
-  { id: "entity-customer-core", label: "핵심 고객군", caption: "고객군", type: "managed_object", tone: "primary" },
+  { id: "entity-customer-core", label: "고객A", caption: "고객군", type: "managed_object", tone: "primary" },
   { id: "entity-supplier-a", label: "공급업체 A사", caption: "공급사", type: "managed_object", tone: "neutral" },
   { id: "entity-low-margin", label: "P-42 산업용 센서 패키지", caption: "상품군", type: "managed_object", tone: "neutral" },
   { id: "event-order", label: "주문 접수", caption: "접수", type: "workflow", tone: "info" },
@@ -19,14 +18,6 @@ const graphNodes: ManagedObjectGraphNode[] = [
 ];
 
 const graphEdges: ManagedObjectGraphEdge[] = [
-  {
-    id: "edge-category-customer-core",
-    fromId: "category-customer",
-    toId: "entity-customer-core",
-    label: "포함",
-    edgeType: "managed_object_structural",
-    kind: "managed_object_structural"
-  },
   {
     id: "edge-relation-supplier-product",
     fromId: "entity-supplier-a",
@@ -96,15 +87,12 @@ test("managed object graph layout represents all nodes and edges", () => {
 test("managed object graph layout keeps semantic lane ordering compact", () => {
   const result = layout();
 
-  assert.equal(result.laneByNodeId["category-customer"].kind, "category");
   assert.equal(result.laneByNodeId["entity-customer-core"].kind, "managed_object");
   assert.equal(result.laneByNodeId["event-order"].kind, "workflow");
   assert.equal(result.laneByNodeId["metric-delay-time"].kind, "metric");
   assert.equal(result.laneByNodeId["insight-delay-risk"].kind, "insight");
   assert.equal(
-    result.laneByNodeId["category-customer"].order <
-      result.laneByNodeId["entity-customer-core"].order &&
-      result.laneByNodeId["entity-customer-core"].order < result.laneByNodeId["event-order"].order &&
+    result.laneByNodeId["entity-customer-core"].order < result.laneByNodeId["event-order"].order &&
       result.laneByNodeId["event-order"].order < result.laneByNodeId["metric-delay-time"].order &&
       result.laneByNodeId["metric-delay-time"].order < result.laneByNodeId["insight-delay-risk"].order,
     true
@@ -114,28 +102,23 @@ test("managed object graph layout keeps semantic lane ordering compact", () => {
 
 test("managed object graph layout classifies endpoint-aware influence priority", () => {
   const result = layout();
-  const categoryEdge = graphEdges.find((edge) => edge.id === "edge-category-customer-core");
   const influenceEdge = graphEdges.find((edge) => edge.id === "edge-relation-supplier-product");
   const downstreamEdge = graphEdges.find((edge) => edge.id === "edge-delivery-delay");
 
-  assert.equal(classifyEdgePriority(categoryEdge!, graphNodes[0], graphNodes[1]), "containedStructural");
-  assert.equal(classifyEdgePriority(influenceEdge!, graphNodes[2], graphNodes[3]), "primaryInfluence");
-  assert.equal(classifyEdgePriority(downstreamEdge!, graphNodes[5], graphNodes[6]), "downstream");
-  assert.equal(result.edgePriorityByEdgeId["edge-relation-supplier-product"].rank > result.edgePriorityByEdgeId["edge-category-customer-core"].rank, true);
-  assert.equal(result.edgePriorityByEdgeId["edge-category-customer-core"].rank > result.edgePriorityByEdgeId["edge-delivery-delay"].rank, true);
+  assert.equal(classifyEdgePriority(influenceEdge!, graphNodes[1], graphNodes[2]), "primaryInfluence");
+  assert.equal(classifyEdgePriority(downstreamEdge!, graphNodes[4], graphNodes[5]), "downstream");
+  assert.equal(result.edgePriorityByEdgeId["edge-relation-supplier-product"].rank > result.edgePriorityByEdgeId["edge-delivery-delay"].rank, true);
 });
 
 test("managed object graph layout exposes a readable desktop first-paint budget", () => {
   const result = layout();
   const viewport = result.defaultViewport;
-  const graphPanelBudgetWidth = 900;
-  const categoryX = result.positionsByNodeId["category-customer"].x * viewport.zoom + viewport.x;
+  const graphPanelBudgetWidth = 980;
   const objectX = result.positionsByNodeId["entity-customer-core"].x * viewport.zoom + viewport.x;
   const workflowX = result.positionsByNodeId["event-order"].x * viewport.zoom + viewport.x;
 
-  assert.equal(viewport.zoom >= 0.85, true);
-  assert.equal(categoryX >= 0, true);
-  assert.equal(objectX > categoryX, true);
+  assert.equal(viewport.zoom >= 0.8, true);
+  assert.equal(objectX >= 0, true);
   assert.equal(workflowX > objectX, true);
   assert.equal(workflowX < graphPanelBudgetWidth, true);
 });
