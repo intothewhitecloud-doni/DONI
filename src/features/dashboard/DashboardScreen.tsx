@@ -14,6 +14,7 @@ export function DashboardScreen() {
   const hasDefinitions = state.entities.length > 0 && state.events.length > 0;
   const canUploadSource = can(state.session.role, "source:upload");
   const canOpenInsightDetail = can(state.session.role, "insight:proposal");
+  const primaryWidget = view.primaryChartWidgets.length === 1 ? view.primaryChartWidgets[0] : undefined;
 
   if (!hasDefinitions) {
     return (
@@ -127,7 +128,7 @@ export function DashboardScreen() {
           </div>
           <Badge tone="info">{chartTypeLabel(view.primaryChart.type)}</Badge>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className={primaryWidget ? "grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.75fr)]" : "grid gap-3 md:grid-cols-3"}>
           {view.primaryChartWidgets.map((widget) => (
             <div key={`${widget.id}-chart`} className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -136,9 +137,16 @@ export function DashboardScreen() {
                   {widget.status === "critical" ? "위험" : widget.status === "warning" ? "주의" : "정상"}
                 </Badge>
               </div>
-              <MetricMiniChart widget={widget} />
+              <MetricMiniChart compact={!primaryWidget} widget={widget} />
             </div>
           ))}
+          {primaryWidget && (
+            <PrimaryChartContext
+              insightTitle={view.mainInsight?.title}
+              supportSummary={view.mainInsight?.supportSummary ?? []}
+              widget={primaryWidget}
+            />
+          )}
         </div>
       </Card>
       {view.activeDecisionItems.length > 0 && (
@@ -175,11 +183,112 @@ function chartTypeLabel(type: string): string {
 }
 
 function MetricMiniChart({
+  compact = true,
   widget
 }: {
+  compact?: boolean;
   widget: ReturnType<typeof getDashboardView>["metricWidgets"][number];
 }) {
-  return <MetricChart compact chartType={widget.chartType} id={widget.id} points={widget.points} status={widget.status} unit={widget.unit} />;
+  return <MetricChart compact={compact} chartType={widget.chartType} id={widget.id} points={widget.points} status={widget.status} unit={widget.unit} />;
+}
+
+function PrimaryChartContext({
+  insightTitle,
+  supportSummary,
+  widget
+}: {
+  insightTitle?: string;
+  supportSummary: string[];
+  widget: ReturnType<typeof getDashboardView>["metricWidgets"][number];
+}) {
+  const summaryPoints = widget.chartType === "time_series" ? sortSeriesPoints(widget.points) : widget.points;
+  const currentPoint = summaryPoints.at(-1);
+  const previousValue = currentPoint?.previousValue ?? summaryPoints[0]?.value;
+  const delta = currentPoint && previousValue !== undefined ? currentPoint.value - previousValue : undefined;
+  const period = widget.chartType === "time_series" ? formatSeriesPeriod(summaryPoints) : undefined;
+  const statusLabel = widget.status === "critical" ? "위험" : widget.status === "warning" ? "주의" : "정상";
+
+  return (
+    <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold text-slate-950">차트 요약</p>
+        <Badge tone={widget.status === "critical" ? "danger" : widget.status === "warning" ? "warning" : "success"}>{statusLabel}</Badge>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+        <SummaryStat label="현재 값" value={formatMetricValue(currentPoint?.value, widget.unit)} />
+        <SummaryStat label="이전 기준" value={formatMetricValue(previousValue, widget.unit)} />
+        <SummaryStat label="변화" value={formatDelta(delta, widget.unit)} />
+        {period && <SummaryStat label="관찰 기간" value={period} />}
+      </div>
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+        <p className="text-xs font-bold text-slate-500">연결 인사이트</p>
+        <p className="mt-2 text-sm font-semibold leading-5 text-slate-900">{insightTitle ?? "연결 인사이트 없음"}</p>
+      </div>
+      {supportSummary.length > 0 && (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-bold text-slate-500">근거 조합</p>
+          <ul className="mt-2 space-y-1 text-sm leading-5 text-slate-700">
+            {supportSummary.slice(0, 2).map((summary) => <li key={summary}>{summary}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-bold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function formatMetricValue(value: number | undefined, unit: string): string {
+  if (value === undefined) {
+    return "-";
+  }
+
+  return `${formatNumber(value)}${unit}`;
+}
+
+function formatDelta(delta: number | undefined, unit: string): string {
+  if (delta === undefined) {
+    return "-";
+  }
+
+  return `${delta > 0 ? "+" : ""}${formatNumber(delta)}${unit}`;
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatSeriesPeriod(points: ReturnType<typeof getDashboardView>["metricWidgets"][number]["points"]): string | undefined {
+  const datedPoints = sortSeriesPoints(points.filter((point) => point.observedAt));
+
+  if (datedPoints.length === 0) {
+    return undefined;
+  }
+
+  const first = datedPoints[0];
+  const last = datedPoints[datedPoints.length - 1];
+
+  return first.label === last.label ? first.label : `${first.label} ~ ${last.label}`;
+}
+
+function sortSeriesPoints(points: ReturnType<typeof getDashboardView>["metricWidgets"][number]["points"]) {
+  return [...points].sort((left, right) => {
+    const leftTime = left.observedAt ? Date.parse(left.observedAt) : Number.NaN;
+    const rightTime = right.observedAt ? Date.parse(right.observedAt) : Number.NaN;
+
+    if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime)) {
+      return leftTime - rightTime;
+    }
+
+    return left.label.localeCompare(right.label);
+  });
 }
 
 function MetricCard({ label, value, tone, delay = 0 }: { label: string; value: string; tone: "success" | "warning" | "danger" | "info"; delay?: number }) {
