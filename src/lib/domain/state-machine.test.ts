@@ -805,6 +805,7 @@ test("dashboard view exposes selection-based chart contracts and link targets", 
 
   assert.equal(view.mainInsight?.id, "insight-product-margin");
   assert.equal(view.primaryChart.type, "bar");
+  assert.deepEqual(view.primaryChartWidgets.map((widget) => widget.id), ["metric-margin"]);
   assert.equal(view.metricWidgets[0].target.screen, "metrics");
   assert.equal(view.recentFlows.length, 5);
   assert.equal(view.recentFlows.some((flow) => flow.title === "클레임 접수"), true);

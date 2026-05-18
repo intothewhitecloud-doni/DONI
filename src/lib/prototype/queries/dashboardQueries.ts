@@ -80,6 +80,8 @@ export function getDashboardView(state: PrototypeState) {
       target: { screen: "metrics", focusId: metric.id, label: `${metric.name} 보기` }
     };
   });
+  const primaryChartType = chartTypeForInsight(mainInsight?.id);
+  const primaryChartWidgets = selectPrimaryChartWidgets(metricWidgets, mainInsight?.relatedMetricIds ?? [], primaryChartType);
 
   return {
     summaryCards: [
@@ -107,6 +109,7 @@ export function getDashboardView(state: PrototypeState) {
     mainInsight,
     suggestedProposal,
     metricWidgets,
+    primaryChartWidgets,
     workflowListTarget: { screen: "workflow", label: "업무 흐름 목록 보기" } satisfies LinkTarget,
     recentFlows: data.events.map<DashboardRecentFlowItem>((event) => ({
       id: event.id,
@@ -119,9 +122,30 @@ export function getDashboardView(state: PrototypeState) {
     primaryChart: {
       title: chartTitleForInsight(mainInsight?.id),
       description: chartDescriptionForInsight(mainInsight?.id),
-      type: chartTypeForInsight(mainInsight?.id)
+      type: primaryChartType
     }
   };
+}
+
+function selectPrimaryChartWidgets(
+  widgets: DashboardMetricWidget[],
+  relatedMetricIds: string[],
+  chartType: DashboardChartType
+): DashboardMetricWidget[] {
+  const relatedWidgets = relatedMetricIds.length > 0
+    ? widgets.filter((widget) => relatedMetricIds.includes(widget.id))
+    : widgets;
+  const typeMatchedWidgets = relatedWidgets.filter((widget) => widget.chartType === chartType);
+
+  if (typeMatchedWidgets.length > 0) {
+    return typeMatchedWidgets;
+  }
+
+  if (relatedWidgets.length > 0) {
+    return relatedWidgets;
+  }
+
+  return widgets;
 }
 
 function buildDecisionItems(

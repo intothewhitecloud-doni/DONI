@@ -128,7 +128,7 @@ export function DashboardScreen() {
           <Badge tone="info">{chartTypeLabel(view.primaryChart.type)}</Badge>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
-          {view.metricWidgets.map((widget) => (
+          {view.primaryChartWidgets.map((widget) => (
             <div key={`${widget.id}-chart`} className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-bold text-slate-950">{widget.title}</p>
