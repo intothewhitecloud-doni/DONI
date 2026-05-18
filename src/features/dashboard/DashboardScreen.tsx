@@ -3,6 +3,7 @@
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
+import { MetricChart } from "../../components/ui/MetricChart";
 import { can } from "../../lib/prototype/permissions";
 import { getDashboardView } from "../../lib/prototype/queries/dashboardQueries";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
@@ -178,60 +179,7 @@ function MetricMiniChart({
 }: {
   widget: ReturnType<typeof getDashboardView>["metricWidgets"][number];
 }) {
-  const maxValue = Math.max(1, Math.max(...widget.points.map((point) => point.value)));
-  const color = widget.status === "critical" ? "bg-rose-500" : widget.status === "warning" ? "bg-amber-500" : "bg-blue-500";
-
-  if (widget.chartType === "pie") {
-    const current = widget.points.at(-1)?.value ?? 0;
-    const percent = Math.min(100, Math.max(0, (current / maxValue) * 100));
-
-    return (
-      <div className="mt-5 grid grid-cols-[96px_1fr] items-center gap-4">
-        <div
-          className="h-24 w-24 rounded-full border border-slate-200"
-          style={{ background: `conic-gradient(#2563eb ${percent * 3.6}deg, #e2e8f0 0deg)` }}
-        />
-        <div className="space-y-2 text-sm text-slate-600">
-          {widget.points.map((point) => <p key={`${widget.id}-${point.label}`}>{point.label}: {point.value}{widget.unit}</p>)}
-        </div>
-      </div>
-    );
-  }
-
-  if (widget.chartType === "line" || widget.chartType === "time_series") {
-    return (
-      <div className="mt-6 flex h-32 items-end gap-2">
-        {widget.points.map((point, index) => {
-          const heightPercent = Math.max(10, (point.value / maxValue) * 100);
-          const isCurrent = index === widget.points.length - 1;
-          return (
-            <div key={`${widget.id}-${point.label}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
-              <span className={`text-xs font-bold ${isCurrent ? "text-slate-900" : "text-slate-500"}`}>{point.value}{widget.unit}</span>
-              <div className={`w-full rounded-t-md ${isCurrent ? color : "bg-blue-200"} opacity-90`} style={{ height: `${heightPercent}%` }} />
-              <p className="mt-1 w-full truncate text-center text-xs font-semibold text-slate-600">{point.label}</p>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-6 flex h-32 items-end gap-2">
-      {widget.points.map((point, index) => {
-        const isCurrent = index === widget.points.length - 1;
-        const heightPercent = Math.max(10, (point.value / maxValue) * 100);
-
-        return (
-          <div key={`${widget.id}-${point.label}`} className="group flex h-full flex-1 flex-col items-center justify-end gap-1">
-            <span className={`text-xs font-bold ${isCurrent ? "text-slate-900" : "text-slate-500"}`}>{point.value}{widget.unit}</span>
-            <div className={`w-full rounded-t-md ${isCurrent ? color : "bg-slate-200"} opacity-90`} style={{ height: `${heightPercent}%` }} />
-            <p className="mt-1 w-full truncate text-center text-xs font-semibold text-slate-600">{point.label}</p>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <MetricChart compact chartType={widget.chartType} id={widget.id} points={widget.points} status={widget.status} unit={widget.unit} />;
 }
 
 function MetricCard({ label, value, tone, delay = 0 }: { label: string; value: string; tone: "success" | "warning" | "danger" | "info"; delay?: number }) {
