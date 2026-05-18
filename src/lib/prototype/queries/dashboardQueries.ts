@@ -20,6 +20,7 @@ export type DashboardSummaryCard = {
 export type DashboardChartPoint = {
   label: string;
   value: number;
+  observedAt?: string;
   previousValue?: number;
 };
 

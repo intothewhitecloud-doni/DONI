@@ -563,10 +563,10 @@ export const sampleMetricValues: MetricValue[] = [
     status: "critical",
     chartType: "time_series",
     series: [
-      { label: "일반 고객군", value: 0 },
-      { label: "고객A", value: 100 },
-      { label: "P-08", value: 0 },
-      { label: "P-42", value: 100 }
+      { label: "4/24", value: 25, observedAt: "2026-04-24T09:00:00.000Z" },
+      { label: "5/1", value: 50, observedAt: "2026-05-01T09:00:00.000Z" },
+      { label: "5/8", value: 75, observedAt: "2026-05-08T09:00:00.000Z" },
+      { label: "5/15", value: 100, observedAt: "2026-05-15T09:00:00.000Z" }
     ],
     calculatedAt: now,
     evidenceIds: ["evidence-claims"],
@@ -574,7 +574,8 @@ export const sampleMetricValues: MetricValue[] = [
       claimRows: 4,
       p42ClaimRows: 4,
       p42OrderRows: 4,
-      customerSegment: "고객A"
+      customerSegment: "고객A",
+      timeWindow: "2026-04-24~2026-05-15"
     }
   }
 ];
@@ -683,7 +684,7 @@ export const sampleResultScenarios: SampleResultScenario[] = [
     dashboard: {
       chartType: "time_series",
       chartTitle: "고객A 클레임률",
-      chartDescription: "고객A의 P-42 클레임률을 기간 흐름으로 확인합니다."
+      chartDescription: "고객A의 P-42 클레임률을 주간 흐름으로 확인합니다."
     }
   },
   {

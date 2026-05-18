@@ -677,6 +677,13 @@ test("confirm selected candidates keeps multiple managed objects and filters rel
   assert.deepEqual(confirmed.entities.map((entity) => entity.kind), ["고객군", "고객군", "고객군", "공급사", "공급사"]);
   assert.deepEqual(confirmed.events.map((event) => event.id), ["event-order", "event-outbound", "event-delivery", "event-claim", "event-compensation"]);
   assert.deepEqual(confirmed.metricDefinitions.map((metric) => metric.id), ["metric-delay-time", "metric-claim-rate"]);
+  const claimSeries = confirmed.metricValues.find((metricValue) => metricValue.metricId === "metric-claim-rate")?.series ?? [];
+  assert.deepEqual(claimSeries.map((point) => point.label), ["4/24", "5/1", "5/8", "5/15"]);
+  assert.equal(claimSeries.every((point) => Boolean(point.observedAt)), true);
+  assert.equal(
+    claimSeries.every((point, index, series) => index === 0 || Date.parse(String(series[index - 1].observedAt)) <= Date.parse(String(point.observedAt))),
+    true
+  );
   assert.equal(confirmed.workflowMetricBindings.length, 4);
   assert.equal(confirmed.candidates.find((candidate) => candidate.id === "candidate-customer")?.status, "confirmed");
   assert.equal(confirmed.candidates.find((candidate) => candidate.id === "candidate-supplier")?.status, "confirmed");

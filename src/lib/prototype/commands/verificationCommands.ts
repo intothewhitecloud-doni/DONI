@@ -133,7 +133,7 @@ async function hashSelectionScope(state: PrototypeState): Promise<string> {
       id: value.id,
       metricId: value.metricId,
       previousValue: value.previousValue,
-      series: [...(value.series ?? [])].sort((left, right) => left.label.localeCompare(right.label)),
+      series: [...(value.series ?? [])].sort(compareMetricSeriesPoints),
       status: value.status,
       trend: value.trend,
       value: value.value
@@ -164,4 +164,18 @@ async function hashSelectionScope(state: PrototypeState): Promise<string> {
 
 function sortById<T extends { id: string }>(items: T[]): T[] {
   return [...items].sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function compareMetricSeriesPoints(
+  left: PrototypeState["metricValues"][number]["series"][number],
+  right: PrototypeState["metricValues"][number]["series"][number]
+): number {
+  const leftTime = left.observedAt ? Date.parse(left.observedAt) : Number.NaN;
+  const rightTime = right.observedAt ? Date.parse(right.observedAt) : Number.NaN;
+
+  if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime)) {
+    return leftTime - rightTime;
+  }
+
+  return left.label.localeCompare(right.label);
 }

@@ -225,7 +225,7 @@ export interface MetricValue {
   trend: "up" | "down" | "flat";
   status: "normal" | "warning" | "critical";
   chartType: MetricChartType;
-  series: Array<{ label: string; value: number }>;
+  series: Array<{ label: string; value: number; observedAt?: string }>;
   calculatedAt: string;
   evidenceIds: string[];
   basis?: Record<string, number | string>;

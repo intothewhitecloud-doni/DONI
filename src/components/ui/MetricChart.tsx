@@ -3,6 +3,7 @@ import type { MetricChartType } from "../../lib/domain/types";
 export type MetricChartPoint = {
   label: string;
   value: number;
+  observedAt?: string;
 };
 
 type MetricChartStatus = "normal" | "warning" | "critical";
@@ -108,6 +109,7 @@ function MetricLineChart({
   unit: string;
   variant: "line" | "time_series";
 }) {
+  const orderedPoints = variant === "time_series" ? [...points].sort(compareTimeSeriesPoints) : points;
   const maxValue = maxPointValue(points);
   const colors = chartColors[status];
   const width = 240;
@@ -118,8 +120,8 @@ function MetricLineChart({
   const plotWidth = width - paddingX * 2;
   const plotHeight = height - paddingTop - paddingBottom;
   const bottomY = paddingTop + plotHeight;
-  const coordinates = points.map((point, index) => {
-    const x = points.length === 1 ? width / 2 : paddingX + (plotWidth * index) / (points.length - 1);
+  const coordinates = orderedPoints.map((point, index) => {
+    const x = orderedPoints.length === 1 ? width / 2 : paddingX + (plotWidth * index) / (orderedPoints.length - 1);
     const y = paddingTop + (1 - point.value / maxValue) * plotHeight;
 
     return { ...point, x, y };
@@ -155,7 +157,7 @@ function MetricLineChart({
         </svg>
       </div>
       <div className="mt-1 grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(1, points.length)}, minmax(0, 1fr))` }}>
-        {points.map((point) => (
+        {orderedPoints.map((point) => (
           <p key={`${id}-${point.label}-label`} className="min-h-8 truncate text-center text-xs font-semibold leading-4 text-slate-600">
             {point.label}
           </p>
@@ -186,4 +188,15 @@ function MetricPieChart({ points, status, unit }: { points: MetricChartPoint[]; 
 
 function maxPointValue(points: MetricChartPoint[]): number {
   return Math.max(1, ...points.map((point) => point.value));
+}
+
+function compareTimeSeriesPoints(left: MetricChartPoint, right: MetricChartPoint): number {
+  const leftTime = left.observedAt ? Date.parse(left.observedAt) : Number.NaN;
+  const rightTime = right.observedAt ? Date.parse(right.observedAt) : Number.NaN;
+
+  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) {
+    return left.label.localeCompare(right.label);
+  }
+
+  return leftTime - rightTime;
 }
