@@ -1084,19 +1084,20 @@ function DomainTypeManager({
   return (
     <div className="space-y-4">
       <p className="text-sm leading-6 text-slate-600">{description}</p>
-      <div className="grid gap-2 rounded-md border border-slate-200 bg-white p-2 md:grid-cols-[minmax(0,1fr)_148px_auto]">
-        <input
-          className="h-9 min-w-0 rounded-md border border-hairline bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-slate-100"
-          disabled={!canManage}
-          placeholder="새 유형 이름"
-          value={draftLabel}
-          onChange={(event) => setDraftLabel(event.target.value)}
-        />
-        <TypeColorPicker disabled={!canManage} value={draftColor} onChange={setDraftColor} />
-        <IconButton disabled={!canManage || !draftLabel.trim()} label="유형 추가" variant="primary" onClick={submitAdd}>
-          <PlusIcon />
-        </IconButton>
-      </div>
+      {canManage && (
+        <div className="grid gap-2 rounded-md border border-slate-200 bg-white p-2 md:grid-cols-[minmax(0,1fr)_148px_auto]">
+          <input
+            className="h-9 min-w-0 rounded-md border border-hairline bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            placeholder="새 유형 이름"
+            value={draftLabel}
+            onChange={(event) => setDraftLabel(event.target.value)}
+          />
+          <TypeColorPicker value={draftColor} onChange={setDraftColor} />
+          <IconButton disabled={!draftLabel.trim()} label="유형 추가" variant="primary" onClick={submitAdd}>
+            <PlusIcon />
+          </IconButton>
+        </div>
+      )}
       <div className="space-y-2">
         {types.map((type) => (
           <div key={type.id} className="rounded-md border border-slate-200 bg-white p-2">
@@ -1120,14 +1121,16 @@ function DomainTypeManager({
             ) : (
               <div className="flex items-center justify-between gap-2">
                 <TypeBadge color={type.color} label={type.label} />
-                <div className="flex shrink-0 gap-2">
-                  <IconButton disabled={!canManage} label={`${type.label} 수정`} variant="secondary" onClick={() => startEdit(type)}>
-                    <PencilIcon />
-                  </IconButton>
-                  <IconButton disabled={!canManage} label={`${type.label} 삭제`} variant="danger" onClick={() => onDelete(type.id)}>
-                    <TrashIcon />
-                  </IconButton>
-                </div>
+                {canManage && (
+                  <div className="flex shrink-0 gap-2">
+                    <IconButton label={`${type.label} 수정`} variant="secondary" onClick={() => startEdit(type)}>
+                      <PencilIcon />
+                    </IconButton>
+                    <IconButton label={`${type.label} 삭제`} variant="danger" onClick={() => onDelete(type.id)}>
+                      <TrashIcon />
+                    </IconButton>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1567,11 +1570,13 @@ function EmptyAnalysisState({
 }
 
 function LinkedList({ items, title }: { items: string[]; title: string }) {
+  const uniqueItems = Array.from(new Set(items));
+
   return (
     <div className="rounded-md border border-slate-200 bg-white p-3">
       <p className="text-xs font-bold text-slate-500">{title}</p>
       <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-600">
-        {items.length > 0 ? items.map((item) => <li key={item}>{item}</li>) : <li>연결 항목 없음</li>}
+        {uniqueItems.length > 0 ? uniqueItems.map((item) => <li key={item}>{item}</li>) : <li>연결 항목 없음</li>}
       </ul>
     </div>
   );

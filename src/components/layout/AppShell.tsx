@@ -7,15 +7,15 @@ import { DashboardScreen } from "../../features/dashboard/DashboardScreen";
 import { DataVaultScreen, ManagedObjectsScreen, MetricsScreen, WorkflowScreen } from "../../features/data-review/DataScreens";
 import { DecisionConfirmScreen, ProposalVoteScreen } from "../../features/decisions/DecisionScreens";
 import { InsightDetailScreen, InsightsScreen, ProposalCreateScreen } from "../../features/insights/InsightScreens";
-import { AnalysisScreen, HomeScreen, LoginScreen, ReviewScreen, WorkspaceScreen } from "../../features/onboarding/OnboardingScreens";
+import { AnalysisScreen, HomeScreen, LoginScreen, ReviewScreen, SignupScreen, WorkspaceScreen } from "../../features/onboarding/OnboardingScreens";
 import { OutcomeScreen, VerificationDetailScreen, VerificationListScreen } from "../../features/verification/VerificationScreens";
 import type { Screen } from "../../lib/domain/types";
 import { accessibleScreenForSession, activeSidebarScreen, sidebarItemsForRole } from "../../lib/prototype/navigation";
 import { roleLabel } from "../../lib/prototype/permissions";
-import { currentUser, currentWorkspace } from "../../lib/prototype/selectors";
+import { currentUser, currentWorkspace, hasActiveWorkspaceSession } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
-const publicScreens: Screen[] = ["home", "login", "workspace"];
+const publicScreens: Screen[] = ["home", "login", "signup", "workspace"];
 
 export function AppShell({ screen }: { screen: Screen }) {
   const { commands, state } = usePrototype();
@@ -23,7 +23,7 @@ export function AppShell({ screen }: { screen: Screen }) {
   const user = currentUser(state);
   const workspace = currentWorkspace(state);
   const visibleNavItems = sidebarItemsForRole(state.session.role);
-  const screenToRender = accessibleScreenForSession(state.session.loggedIn, state.session.role, screen);
+  const screenToRender = accessibleScreenForSession(state.session.loggedIn, state.session.role, screen, hasActiveWorkspaceSession(state));
   const activeScreen = activeSidebarScreen(screenToRender);
 
   useEffect(() => {
@@ -143,6 +143,8 @@ function renderScreen(screen: Screen) {
   switch (screen) {
     case "login":
       return <LoginScreen />;
+    case "signup":
+      return <SignupScreen />;
     case "home":
       return <HomeScreen />;
     case "workspace":

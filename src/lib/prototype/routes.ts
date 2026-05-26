@@ -3,6 +3,7 @@ import type { Screen } from "../domain/types";
 export const screenRoutes: Record<Screen, string> = {
   home: "/",
   login: "/login",
+  signup: "/signup",
   workspace: "/workspace",
   upload: "/upload",
   analysis: "/analysis",

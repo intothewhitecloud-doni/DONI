@@ -54,11 +54,13 @@ export type DashboardRecentFlowItem = {
 
 export function getDashboardView(state: PrototypeState) {
   const data = currentWorkspaceData(state);
+  const decisions = uniqueById(data.decisions);
+  const proposals = uniqueById(data.proposals);
   const warningMetricValues = data.metricValues.filter((value) => value.status !== "normal");
   const delayedEvents = data.events.filter((event) => ["지연", "증가", "검토"].includes(displayTypeLabel(event.workflowType)));
   const mainInsight = data.insights.find((insight) => insight.id === data.activeInsightId) ?? data.insights[0];
   const suggestedProposal = mainInsight
-    ? data.proposals.find((proposal) => proposal.insightId === mainInsight.id) ?? {
+    ? proposals.find((proposal) => proposal.insightId === mainInsight.id) ?? {
         id: proposalIdForInsight(mainInsight.id),
         title: `${mainInsight.title} 대응 안건`,
         summary: "인사이트 상세에서 안건을 생성하면 투표 흐름으로 이어집니다.",
@@ -103,8 +105,8 @@ export function getDashboardView(state: PrototypeState) {
       },
       {
         label: "의사결정",
-        value: `${data.decisions.length || data.proposals.length}건`,
-        tone: data.decisions.length > 0 ? "success" as const : "info" as const
+        value: `${decisions.length || proposals.length}건`,
+        tone: decisions.length > 0 ? "success" as const : "info" as const
       }
     ] satisfies DashboardSummaryCard[],
     mainInsight,
@@ -119,13 +121,26 @@ export function getDashboardView(state: PrototypeState) {
       badge: displayTypeLabel(event.workflowType),
       tone: event.workflowType === "지연" ? "warning" : event.workflowType === "증가" ? "danger" : "info"
     })),
-    activeDecisionItems: buildDecisionItems(data.proposals, data.decisions),
+    activeDecisionItems: buildDecisionItems(proposals, decisions),
     primaryChart: {
       title: chartTitleForInsight(mainInsight?.id),
       description: chartDescriptionForInsight(mainInsight?.id),
       type: primaryChartType
     }
   };
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seenIds = new Set<string>();
+
+  return items.filter((item) => {
+    if (seenIds.has(item.id)) {
+      return false;
+    }
+
+    seenIds.add(item.id);
+    return true;
+  });
 }
 
 function selectPrimaryChartWidgets(
@@ -153,17 +168,21 @@ function buildDecisionItems(
   proposals: PrototypeState["proposals"],
   decisions: PrototypeState["decisions"]
 ): DashboardLinkedItem[] {
-  const proposalItems = proposals.map<DashboardLinkedItem>((proposal) => ({
-    id: proposal.id,
-    title: proposal.title,
-    description: proposal.summary,
-    badge: proposal.status === "finalized" || proposal.status === "verified" ? "확정됨" : "투표 중",
-    tone: proposal.status === "finalized" || proposal.status === "verified" ? "success" : "info",
-    target: { screen: "proposalVote", focusId: proposal.id, label: `${proposal.title} 보기` }
-  }));
+  const decisionIds = new Set(decisions.map((decision) => decision.id));
+  const resolvedProposalRefs = new Set(decisions.flatMap((decision) => [decision.proposalId, decision.id]));
+  const proposalItems = proposals
+    .filter((proposal) => !resolvedProposalRefs.has(proposal.id) && (!proposal.decisionId || !decisionIds.has(proposal.decisionId)))
+    .map<DashboardLinkedItem>((proposal) => ({
+      id: `proposal:${proposal.id}`,
+      title: proposal.title,
+      description: proposal.summary,
+      badge: proposal.status === "finalized" || proposal.status === "verified" ? "확정됨" : "투표 중",
+      tone: proposal.status === "finalized" || proposal.status === "verified" ? "success" : "info",
+      target: { screen: "proposalVote", focusId: proposal.id, label: `${proposal.title} 보기` }
+    }));
 
   const decisionItems = decisions.map<DashboardLinkedItem>((decision) => ({
-    id: decision.id,
+    id: `decision:${decision.id}`,
     title: decision.title,
     description: decision.summary,
     badge: "확정",

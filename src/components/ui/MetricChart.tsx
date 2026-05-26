@@ -112,8 +112,8 @@ function MetricLineChart({
   const orderedPoints = variant === "time_series" ? [...points].sort(compareTimeSeriesPoints) : points;
   const maxValue = maxPointValue(orderedPoints);
   const colors = chartColors[status];
-  const width = compact ? 280 : 420;
-  const height = compact ? 118 : 152;
+  const width = compact ? 280 : 640;
+  const height = compact ? 118 : 188;
   const paddingX = compact ? 24 : 34;
   const paddingTop = compact ? 22 : 26;
   const paddingBottom = compact ? 32 : 38;
@@ -133,9 +133,15 @@ function MetricLineChart({
     : "";
 
   return (
-    <div className="mt-4">
-      <div className={compact ? "h-32" : "h-40"}>
-        <svg aria-label={`${variant === "time_series" ? "시계열" : "선"} 그래프`} className="h-full w-full" role="img" viewBox={`0 0 ${width} ${height}`}>
+    <div className="mt-4 w-full min-w-0">
+      <div className={`${compact ? "h-32" : "h-48"} w-full min-w-0 overflow-hidden`}>
+        <svg
+          aria-label={`${variant === "time_series" ? "시계열" : "선"} 그래프`}
+          className="block h-full w-full min-w-0"
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          viewBox={`0 0 ${width} ${height}`}
+        >
           <line stroke="#cbd5e1" strokeWidth="1" x1={paddingX} x2={width - paddingX} y1={bottomY} y2={bottomY} />
           {variant === "time_series" && areaPoints && <polygon fill={colors.fill} points={areaPoints} />}
           {variant === "time_series" && coordinates.map((point) => (

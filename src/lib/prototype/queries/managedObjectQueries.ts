@@ -293,7 +293,7 @@ function buildManagedObjectDetail(
       definition,
       value: data.metricValues.find((metricValue) => metricValue.metricId === definition.id)
     }));
-  const decisions = data.decisions.filter((decision) => instances.some((entity) => entity.decisionIds.includes(decision.id)));
+  const decisions = uniqueById(data.decisions.filter((decision) => instances.some((entity) => entity.decisionIds.includes(decision.id))));
   const graphModel = buildGraphModel({
     data,
     events,
@@ -744,6 +744,19 @@ function uniqueNodes(nodes: ManagedObjectGraphNode[]): ManagedObjectGraphNode[] 
     }
 
     seen.add(node.id);
+    return true;
+  });
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    if (seen.has(item.id)) {
+      return false;
+    }
+
+    seen.add(item.id);
     return true;
   });
 }

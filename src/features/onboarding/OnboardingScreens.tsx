@@ -8,7 +8,7 @@ import { Popup } from "../../components/ui/Popup";
 import { Progress } from "../../components/ui/Progress";
 import { workflowsHaveSelectedMetrics } from "../../lib/domain/result-scenarios";
 import type { CandidateType, EvidenceReference, ExtractionCandidate } from "../../lib/domain/types";
-import { shouldBlockWorkspaceLeaveForSoleAdmin, willDeleteWorkspaceOnLeave } from "../../lib/domain/state-machine";
+import { shouldBlockWorkspaceLeaveForSoleOwner, willDeleteWorkspaceOnLeave } from "../../lib/domain/state-machine";
 import { demoAccounts } from "../../lib/prototype/authAccounts";
 import {
   buildCandidateSelectionDefaults,
@@ -17,7 +17,8 @@ import {
   type CandidateSelectionMap
 } from "../../lib/prototype/candidateReviewSelection";
 import { can, roleLabel } from "../../lib/prototype/permissions";
-import { accessibleWorkspaces, evidenceById } from "../../lib/prototype/selectors";
+import { membershipStatusLabel } from "../../lib/prototype/policy";
+import { evidenceById, workspaceMembershipsForUser } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
 type ReviewStep = {
@@ -113,16 +114,16 @@ export function LoginScreen() {
         <Card className="space-y-4">
           <div>
             <h2 className="text-title-lg text-slate-950">로그인</h2>
-            <p className="mt-1 text-body-sm text-slate-500">아이디와 비밀번호를 입력해 접속합니다.</p>
+            <p className="mt-1 text-body-sm text-slate-500">이메일 또는 테스트 아이디와 비밀번호를 입력해 접속합니다.</p>
           </div>
           <label className="block text-sm font-semibold text-slate-700">
-            아이디
-            <input className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2" value={loginId} onChange={(event) => setLoginId(event.target.value)} />
+            이메일 또는 아이디
+            <input className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2" value={loginId} onChange={(event) => setLoginId(event.target.value)} />
           </label>
           <label className="block text-sm font-semibold text-slate-700">
             비밀번호
             <input
-              className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2"
+              className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -135,20 +136,21 @@ export function LoginScreen() {
           </label>
           {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
           <Button className="w-full" onClick={submit}>로그인</Button>
+          <Button className="w-full" variant="secondary" onClick={() => commands.navigate("signup")}>회원가입</Button>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-bold text-slate-500">넥스트 제조 그룹 테스트 계정</p>
             <div className="mt-3 grid gap-2 text-xs text-slate-700">
               {demoAccounts.map((account) => (
                 <button
                   key={account.loginId}
-                  className="grid grid-cols-[80px_1fr] rounded-md bg-white px-3 py-2 text-left transition hover:bg-blue-50"
+                  className="grid grid-cols-[128px_minmax(0,1fr)] rounded-md bg-white px-3 py-2 text-left transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   onClick={() => {
                     setLoginId(account.loginId);
                     setPassword(account.password);
                   }}
                 >
-                  <span className="font-bold text-slate-900">{roleLabel(account.role)}</span>
-                  <span>{account.loginId} / {account.password}</span>
+                  <span className="whitespace-nowrap font-bold text-slate-900">{roleLabel(account.role)}</span>
+                  <span className="whitespace-nowrap">{account.loginId} / {account.password}</span>
                 </button>
               ))}
             </div>
@@ -159,30 +161,110 @@ export function LoginScreen() {
   );
 }
 
-export function WorkspaceScreen() {
-  const { commands, state } = usePrototype();
-  const workspaces = accessibleWorkspaces(state);
-  const [inviteCode, setInviteCode] = useState("");
-  const [modal, setModal] = useState<"create" | "invite" | "">("");
-  const [leaveWorkspaceId, setLeaveWorkspaceId] = useState("");
-  const [newWorkspace, setNewWorkspace] = useState({
-    goal: "",
-    industry: "",
-    name: ""
+export function SignupScreen() {
+  const { commands } = usePrototype();
+  const [signup, setSignup] = useState({
+    code: "",
+    email: "",
+    name: "",
+    password: ""
   });
+  const [signupError, setSignupError] = useState("");
 
-  function createWorkspaceFromModal() {
-    if (!newWorkspace.name.trim() || !newWorkspace.industry.trim() || !newWorkspace.goal.trim()) {
+  const submitSignup = () => {
+    if (commands.signup(signup)) {
+      setSignupError("");
+      setSignup({ code: "", email: "", name: "", password: "" });
       return;
     }
 
-    if (commands.createWorkspace(newWorkspace)) {
+    setSignupError("회원가입 정보를 확인해 주세요.");
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-5 py-10">
+      <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1fr_460px]">
+        <div className="space-y-5">
+          <Badge tone="info">회원가입</Badge>
+          <h1 className="text-display-lg text-slate-950">계정을 먼저 만들고 필요한 워크스페이스에 참여하세요</h1>
+          <p className="text-body-md text-slate-600">
+            조직코드는 선택 입력입니다. 코드 없이 가입하면 계정만 생성되고, 코드가 있으면 승인 대기 상태의 워크스페이스 참여 신청이 함께 등록됩니다.
+          </p>
+          <Button variant="secondary" onClick={() => commands.navigate("login")}>로그인으로 돌아가기</Button>
+        </div>
+        <Card className="space-y-4">
+          <div>
+            <h2 className="text-title-lg text-slate-950">새 계정 만들기</h2>
+            <p className="mt-1 text-body-sm text-slate-500">이름, 이메일, 비밀번호는 필수이고 조직코드는 선택입니다.</p>
+          </div>
+          <label className="block text-sm font-semibold text-slate-700">
+            이름
+            <input className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2" value={signup.name} onChange={(event) => setSignup((current) => ({ ...current, name: event.target.value }))} />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">
+            이메일
+            <input className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2" type="email" value={signup.email} onChange={(event) => setSignup((current) => ({ ...current, email: event.target.value }))} />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">
+            비밀번호
+            <input
+              className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              type="password"
+              value={signup.password}
+              onChange={(event) => setSignup((current) => ({ ...current, password: event.target.value }))}
+            />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">
+            조직코드 <span className="text-xs font-medium text-slate-500">(선택)</span>
+            <input
+              className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              placeholder="예: DONI-1001"
+              value={signup.code}
+              onChange={(event) => setSignup((current) => ({ ...current, code: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  submitSignup();
+                }
+              }}
+            />
+          </label>
+          {signupError && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{signupError}</p>}
+          <Button
+            className="w-full"
+            disabled={!signup.email.trim() || !signup.name.trim() || !signup.password.trim()}
+            onClick={submitSignup}
+          >
+            회원가입
+          </Button>
+        </Card>
+      </div>
+    </main>
+  );
+}
+
+export function WorkspaceScreen() {
+  const { commands, state } = usePrototype();
+  const workspaceEntries = workspaceMembershipsForUser(state);
+  const [inviteCode, setInviteCode] = useState("");
+  const [modal, setModal] = useState<"create" | "invite" | "">("");
+  const [leaveWorkspaceId, setLeaveWorkspaceId] = useState("");
+  const [newWorkspace, setNewWorkspace] = useState({ name: "" });
+
+  function createWorkspaceFromModal() {
+    if (!newWorkspace.name.trim()) {
+      return;
+    }
+
+    if (commands.createWorkspace({ name: newWorkspace.name.trim() })) {
       setModal("");
-      setNewWorkspace({
-        goal: "",
-        industry: "",
-        name: ""
-      });
+      setNewWorkspace({ name: "" });
+    }
+  }
+
+  function requestWorkspaceParticipation() {
+    if (commands.joinWorkspaceByInviteCode(inviteCode)) {
+      setInviteCode("");
+      setModal("");
     }
   }
 
@@ -192,9 +274,9 @@ export function WorkspaceScreen() {
     }
   }
 
-  const workspaceToLeave = workspaces.find((workspace) => workspace.id === leaveWorkspaceId);
+  const workspaceToLeave = workspaceEntries.find((entry) => entry.workspace.id === leaveWorkspaceId)?.workspace;
   const leaveDeletesWorkspace = workspaceToLeave ? willDeleteWorkspaceOnLeave(state, workspaceToLeave.id) : false;
-  const leaveBlockedBySoleAdmin = workspaceToLeave ? shouldBlockWorkspaceLeaveForSoleAdmin(state, workspaceToLeave.id) : false;
+  const leaveBlockedBySoleOwner = workspaceToLeave ? shouldBlockWorkspaceLeaveForSoleOwner(state, workspaceToLeave.id) : false;
 
   function moveToOrganizationForSuccession() {
     if (!workspaceToLeave) {
@@ -214,37 +296,51 @@ export function WorkspaceScreen() {
           <SectionTitle
             eyebrow="워크스페이스"
             title="접속할 조직 워크스페이스를 선택하세요"
-            description="선택한 워크스페이스가 현재 사용자의 조직 경계가 됩니다. 새 조직은 별도로 만들 수 있습니다."
+            description="회원가입 직후에는 승인 상태를 확인할 수 있습니다. 승인 완료 전에는 워크스페이스 접속/나가기 버튼이 표시되지 않습니다."
           />
           <div className="flex flex-wrap gap-2">
-            {state.session.loggedIn && <Button variant="secondary" onClick={commands.logout}>로그아웃</Button>}
-            <Button variant="secondary" onClick={() => setModal("invite")}>초대 코드로 참여</Button>
-            <Button onClick={() => setModal("create")}>새 워크스페이스 만들기</Button>
+            {state.session.loggedIn ? <Button variant="secondary" onClick={commands.logout}>로그아웃</Button> : <Button variant="secondary" onClick={() => commands.navigate("login")}>로그인</Button>}
+            {state.session.loggedIn && <Button variant="secondary" onClick={() => setModal("invite")}>워크스페이스 참여하기</Button>}
+            {state.session.loggedIn && <Button onClick={() => setModal("create")}>새 워크스페이스 만들기</Button>}
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          {workspaces.length === 0 ? (
+          {workspaceEntries.length === 0 ? (
             <Card className="md:col-span-2">
               <div className="space-y-3">
                 <Badge tone="neutral">워크스페이스 없음</Badge>
                 <h2 className="text-xl font-bold text-slate-950">참여 중인 워크스페이스가 없습니다</h2>
-                <p className="text-sm leading-6 text-slate-600">새 워크스페이스를 만들거나 초대 코드로 참여해 조직 작업 공간을 시작하세요.</p>
+                <p className="text-sm leading-6 text-slate-600">조직코드가 있다면 워크스페이스 참여하기로 가입 신청을 등록하거나, 새 워크스페이스를 만들어 시작하세요.</p>
               </div>
             </Card>
           ) : (
-            workspaces.map((workspace) => (
-              <Card key={workspace.id}>
-                <div className="space-y-3">
-                  <Badge tone="info">{workspace.industry}</Badge>
-                  <h2 className="text-xl font-bold text-slate-950">{workspace.name}</h2>
-                  <p className="text-sm leading-6 text-slate-600">{workspace.decisionGoal}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => commands.selectWorkspace(workspace.id)}>이 워크스페이스로 접속</Button>
-                    <Button variant="danger" onClick={() => setLeaveWorkspaceId(workspace.id)}>나가기</Button>
+            workspaceEntries.map(({ member, workspace }) => {
+              const ownerActive = member.status === "active" && member.role === "owner";
+              return (
+                <Card key={workspace.id}>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone={ownerActive ? "info" : member.status === "active" ? "success" : member.status === "pending" ? "warning" : "neutral"}>
+                        {ownerActive ? "소유자" : membershipStatusLabel(member.status)}
+                      </Badge>
+                      <Badge tone="neutral">{roleLabel(member.role)}</Badge>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-950">{workspace.name}</h2>
+                    <p className="text-sm leading-6 text-slate-600">현재 가입 상태와 역할을 확인할 수 있습니다. 조직코드는 조직 관리 화면에서 확인합니다.</p>
+                    {member.status === "active" ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button onClick={() => commands.selectWorkspace(workspace.id)}>이 워크스페이스로 접속</Button>
+                        <Button variant="danger" onClick={() => setLeaveWorkspaceId(workspace.id)}>나가기</Button>
+                      </div>
+                    ) : (
+                      <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600">
+                        현재는 상태 조회만 가능하며 워크스페이스 접속/나가기 버튼은 표시되지 않습니다.
+                      </p>
+                    )}
                   </div>
-                </div>
-              </Card>
-            ))
+                </Card>
+              );
+            })
           )}
         </div>
       </div>
@@ -256,44 +352,21 @@ export function WorkspaceScreen() {
           footer={
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setModal("")}>취소</Button>
-              <Button
-                disabled={!newWorkspace.name.trim() || !newWorkspace.industry.trim() || !newWorkspace.goal.trim()}
-                onClick={createWorkspaceFromModal}
-              >
-                목록에 추가
-              </Button>
+              <Button disabled={!newWorkspace.name.trim()} onClick={createWorkspaceFromModal}>목록에 추가</Button>
             </div>
           }
         >
           <p className="text-sm leading-6 text-slate-600">
-            회사 맥락과 의사결정 목표를 입력하면 워크스페이스 목록에 추가됩니다. 접속할 조직은 목록에서 직접 선택합니다.
+            워크스페이스 이름만 입력하면 새 조직 공간이 만들어집니다. 직책은 승인 후 조직 관리에서 워크스페이스별로 지정합니다.
           </p>
           <div className="mt-5 space-y-4">
             <label className="block text-sm font-semibold text-slate-700">
-              회사명
+              워크스페이스명
               <input
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2"
+                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 placeholder="예: 신규 운영 조직"
                 value={newWorkspace.name}
-                onChange={(event) => setNewWorkspace((current) => ({ ...current, name: event.target.value }))}
-              />
-            </label>
-            <label className="block text-sm font-semibold text-slate-700">
-              산업
-              <input
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2"
-                placeholder="예: 제조 및 유통"
-                value={newWorkspace.industry}
-                onChange={(event) => setNewWorkspace((current) => ({ ...current, industry: event.target.value }))}
-              />
-            </label>
-            <label className="block text-sm font-semibold text-slate-700">
-              의사결정 목표
-              <textarea
-                className="mt-2 min-h-24 w-full rounded-md border border-slate-200 px-3 py-2"
-                placeholder="예: 저마진 상품을 줄이고 공급망 지연 리스크를 조기에 발견"
-                value={newWorkspace.goal}
-                onChange={(event) => setNewWorkspace((current) => ({ ...current, goal: event.target.value }))}
+                onChange={(event) => setNewWorkspace({ name: event.target.value })}
               />
             </label>
           </div>
@@ -302,39 +375,37 @@ export function WorkspaceScreen() {
       {modal === "invite" && (
         <Popup
           eyebrow="워크스페이스"
-          title="초대 코드로 참여"
+          title="워크스페이스 참여하기"
           onClose={() => setModal("")}
           footer={
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setModal("")}>취소</Button>
-              <Button disabled={!inviteCode.trim()} onClick={() => commands.joinWorkspaceByInviteCode(inviteCode)}>
-                참여하기
-              </Button>
+              <Button disabled={!inviteCode.trim()} onClick={requestWorkspaceParticipation}>가입 신청</Button>
             </div>
           }
         >
           <label className="block text-sm font-semibold text-slate-700">
-            초대 코드
+            조직코드
             <input
-              className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2"
-              placeholder="초대 코드를 입력하세요"
+              className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              placeholder="조직코드를 입력하세요"
               value={inviteCode}
               onChange={(event) => setInviteCode(event.target.value)}
             />
           </label>
-          <p className="mt-3 text-sm leading-6 text-slate-600">초대 코드가 확인되면 연결된 워크스페이스로 접속합니다.</p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">조직코드가 확인되면 승인 대기 상태로 등록되고 조직 관리에서 승인/반려할 수 있습니다.</p>
         </Popup>
       )}
       {workspaceToLeave && (
         <Popup
-          eyebrow={leaveBlockedBySoleAdmin ? "관리자 승계 필요" : leaveDeletesWorkspace ? "조직 삭제" : "워크스페이스"}
+          eyebrow={leaveBlockedBySoleOwner ? "소유자 이전 필요" : leaveDeletesWorkspace ? "조직 삭제" : "워크스페이스"}
           title={leaveDeletesWorkspace ? "마지막 사용자 나가기" : "워크스페이스 나가기"}
-          tone={leaveBlockedBySoleAdmin ? "warning" : "danger"}
+          tone={leaveBlockedBySoleOwner ? "warning" : "danger"}
           onClose={() => setLeaveWorkspaceId("")}
           footer={
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setLeaveWorkspaceId("")}>취소</Button>
-              {leaveBlockedBySoleAdmin ? (
+              {leaveBlockedBySoleOwner ? (
                 <Button onClick={moveToOrganizationForSuccession}>조직 관리로 이동</Button>
               ) : (
                 <Button variant="danger" onClick={confirmLeaveWorkspace}>
@@ -344,10 +415,10 @@ export function WorkspaceScreen() {
             </div>
           }
         >
-          {leaveBlockedBySoleAdmin ? (
+          {leaveBlockedBySoleOwner ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
               <p className="text-sm leading-6 text-amber-900">
-                현재 {workspaceToLeave.name}의 유일한 관리자입니다. 먼저 다른 사용자에게 관리자 권한을 승계한 뒤 나갈 수 있습니다.
+                현재 {workspaceToLeave.name}의 유일한 워크스페이스 소유자입니다. 먼저 다른 사용자에게 소유자 권한을 이전한 뒤 나갈 수 있습니다.
               </p>
             </div>
           ) : leaveDeletesWorkspace ? (
@@ -358,7 +429,7 @@ export function WorkspaceScreen() {
             </div>
           ) : (
             <p className="text-sm leading-6 text-slate-600">
-              {workspaceToLeave.name}에서 나가면 이 목록에서 사라집니다. 다시 참여하려면 초대 코드가 필요합니다.
+              {workspaceToLeave.name}에서 나가면 비활성화 상태로 전환되어 접속할 수 없습니다. 다시 참여하려면 가입 승인 절차가 필요합니다.
             </p>
           )}
         </Popup>

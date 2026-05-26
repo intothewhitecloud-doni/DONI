@@ -59,9 +59,10 @@ export function VerificationDetailScreen() {
 
   return (
     <div className="space-y-8">
+      <Button variant="secondary" onClick={() => commands.navigate("verification")}>목록으로 돌아가기</Button>
       <SectionTitle eyebrow="검증 기록 > 상세" title="결과 해시와 감사 흐름" description="인공지능이 의사결정의 근거, 지표, 관계 일관성을 확인하고 검증 기록을 생성합니다." />
-      <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr_1.1fr]">
-        <Card className="space-y-4">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <Card className="min-w-0 space-y-4">
           <Badge tone="success">검증 완료</Badge>
           <h2 className="text-xl font-bold text-slate-950">{decision.title}</h2>
           <p className="text-sm text-slate-600">결과 해시가 표준 데이터와 일치합니다. 향후 XRPL 기반 인증 결과가 이 기록 위에 누적됩니다.</p>
@@ -83,13 +84,13 @@ export function VerificationDetailScreen() {
             <p className="text-xs font-semibold text-slate-500">선택 범위 해시</p>
             <p className="mt-2 break-all text-sm font-semibold text-slate-900">{record.scopeHash}</p>
           </div>
-          <details className="rounded-md border border-slate-200 p-3">
+          <details className="min-w-0 overflow-hidden rounded-md border border-slate-200 p-3">
             <summary className="cursor-pointer text-sm font-semibold text-slate-800">기술 상세 보기</summary>
-            <pre className="mt-3 max-h-64 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">{record.canonicalJson}</pre>
+            <pre className="mt-3 max-h-64 min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-slate-950 p-3 text-xs text-slate-100">{record.canonicalJson}</pre>
           </details>
           {canRecordOutcome && <Button onClick={() => commands.recordOutcome(decision.id)}>실행 결과 기록</Button>}
         </Card>
-        <Card className="space-y-3">
+        <Card className="min-w-0 space-y-3">
           <h2 className="text-lg font-bold text-slate-950">검증 이력</h2>
           {history.map((historyRecord) => (
             <div key={historyRecord.id} className={`rounded-md border p-3 ${historyRecord.id === record.id ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}>
@@ -101,7 +102,7 @@ export function VerificationDetailScreen() {
             </div>
           ))}
         </Card>
-        <Card className="space-y-3">
+        <Card className="min-w-0 space-y-3">
           <h2 className="text-lg font-bold text-slate-950">감사 흐름</h2>
           {timeline.map((log) => (
             <div key={log.id} className="rounded-md border border-slate-200 p-3">

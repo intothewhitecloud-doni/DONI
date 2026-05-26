@@ -6,6 +6,7 @@ import { Card, SectionTitle } from "../../components/ui/Card";
 import { buildProposalDraftFromInsight } from "../../lib/domain/result-scenarios";
 import type { EvidenceReference } from "../../lib/domain/types";
 import { can } from "../../lib/prototype/permissions";
+import { proposalVoterUserIds } from "../../lib/prototype/policy";
 import { activeInsight, evidenceById } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
@@ -193,9 +194,7 @@ export function ProposalCreateScreen() {
   const { commands, state } = usePrototype();
   const insight = activeInsight(state);
   const canCreateProposal = can(state.session.role, "insight:proposal");
-  const eligibleVoterIds = state.members
-    .filter((member) => member.workspaceId === state.session.workspaceId && member.status === "active" && member.eligibleVoter)
-    .map((member) => member.userId);
+  const voterUserIds = proposalVoterUserIds(state, state.session.workspaceId);
 
   if (!insight) {
     return (
@@ -213,7 +212,7 @@ export function ProposalCreateScreen() {
   const draft = buildProposalDraftFromInsight({
     authorId: state.session.currentUserId,
     createdAt: "2026-05-07T09:00:00.000Z",
-    eligibleVoterIds: eligibleVoterIds.length > 0 ? eligibleVoterIds : [state.session.currentUserId],
+    voterUserIds: voterUserIds.length > 0 ? voterUserIds : [state.session.currentUserId],
     insight
   });
 
