@@ -10,7 +10,7 @@ function loggedInState(): PrototypeState {
   const initialState = createInitialState();
   return {
     ...initialState,
-    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "admin" }
+    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "owner" }
   };
 }
 

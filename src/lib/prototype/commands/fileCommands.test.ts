@@ -8,7 +8,7 @@ function loggedInState(): ReturnType<typeof createInitialState> {
   const initialState = createInitialState();
   return {
     ...initialState,
-    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "admin" as const }
+    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "owner" as const }
   };
 }
 

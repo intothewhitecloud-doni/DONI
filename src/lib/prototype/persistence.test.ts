@@ -82,7 +82,7 @@ function loggedInState(): ReturnType<typeof createInitialState> {
   const initialState = createInitialState();
   return {
     ...initialState,
-    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "admin" as const }
+    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "owner" as const }
   };
 }
 
@@ -93,7 +93,7 @@ test("workspace data persists by group and is shared across login users", () => 
 
   const initial = {
     ...initialState,
-    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "admin" as const }
+    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "owner" as const }
   };
   const added = reducer(
     initial,
@@ -141,6 +141,31 @@ test("legacy v1 user state is ignored by v2 workspace persistence", () => {
   const loaded = loadUserState("user-manager", createInitialState());
 
   assert.equal(loaded, undefined);
+});
+
+test("workspace directory restore strips legacy workspace fields and global user title", () => {
+  const storage = new MemoryStorage();
+  installStorage(storage);
+  const state = loggedInState();
+  saveUserState(state);
+  const directoryKey = buildPersistedWritePayloads(state).find((payload) => payload.key.includes("workspace-directory"))?.key;
+  assert.ok(directoryKey);
+  const directory = JSON.parse(storage.getItem(directoryKey) ?? "{}");
+  directory.users = directory.users.map((user: Record<string, unknown>) => ({ ...user, title: "legacy user title" }));
+  directory.workspaces = directory.workspaces.map((workspace: Record<string, unknown>) => ({
+    ...workspace,
+    decisionGoal: "legacy decision goal",
+    industry: "legacy industry"
+  }));
+  storage.setItem(directoryKey, JSON.stringify(directory));
+
+  const loaded = loadUserState("user-admin", createInitialState());
+
+  assert.ok(loaded);
+  assert.equal("title" in loaded.users[0], false);
+  assert.equal("industry" in loaded.workspaces[0], false);
+  assert.equal("decisionGoal" in loaded.workspaces[0], false);
+  assert.equal(loaded.members[0].title.length > 0, true);
 });
 
 test("preferred workspace restore requires active membership", () => {

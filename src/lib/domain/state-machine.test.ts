@@ -1,20 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loginWithCredentials, logout } from "../prototype/commands/authCommands";
+import { loginWithCredentials, logout, requestWorkspaceAccess, signup } from "../prototype/commands/authCommands";
 import { joinWorkspaceByInviteCode } from "../prototype/commands/workspaceCommands";
 import {
-  activateWorkspaceMember,
+  approveWorkspaceMember,
   deactivateWorkspaceMember,
   regenerateInviteCode,
+  rejectWorkspaceMember,
+  transferWorkspaceOwnership,
   updateWorkspaceMember,
   updateWorkspaceProfile
 } from "../prototype/commands/organizationCommands";
 import { commandMeta } from "../prototype/events";
+import { addDomainType } from "../prototype/commands/typeCommands";
 import { getDashboardView } from "../prototype/queries/dashboardQueries";
 import { getManagedObjectGraphItemDetail, getManagedObjectView } from "../prototype/queries/managedObjectQueries";
+import { activeProposal } from "../prototype/selectors";
 import { createInitialState } from "../prototype/store";
+import { proposalStatusLabel } from "./policy";
 import { currentWorkspaceData, reducer, SOLE_ADMIN_LEAVE_BLOCKED_MESSAGE, type PrototypeAction } from "./state-machine";
 import { displayTypeLabel, normalizeDomainTypeCatalog, normalizeTypeColor } from "./type-catalog";
+import type { Decision, Proposal } from "./types";
 
 function audited(state: ReturnType<typeof createInitialState>, action: PrototypeAction, label: string, targetType: string, targetId: string): PrototypeAction {
   return { ...action, ...commandMeta(state, label, targetType, targetId, `${label} 테스트`) };
@@ -285,7 +291,7 @@ test("workspace switching keeps operational data scoped to the selected group", 
     confirmed,
     audited(
       confirmed,
-      { type: "CREATE_WORKSPACE", name: "신규 격리 그룹", industry: "B2B 서비스", goal: "새 그룹 데이터 격리 확인" },
+      { type: "CREATE_WORKSPACE", name: "신규 격리 그룹" },
       "워크스페이스 생성",
       "workspace",
       confirmed.session.workspaceId
@@ -315,7 +321,7 @@ test("new workspace creation adds a selectable workspace before entering it", ()
     initial,
     audited(
       initial,
-      { type: "CREATE_WORKSPACE", name: "신규 운영 조직", industry: "B2B 서비스", goal: "고객 이탈 징후를 조기에 발견" },
+      { type: "CREATE_WORKSPACE", name: "신규 운영 조직" },
       "워크스페이스 생성",
       "workspace",
       initial.session.workspaceId
@@ -328,17 +334,18 @@ test("new workspace creation adds a selectable workspace before entering it", ()
 
   assert.equal(created.screen, "workspace");
   assert.equal(created.workspaces[0].name, "신규 운영 조직");
-  assert.equal(created.members[0].role, "admin");
+  assert.equal(created.members[0].role, "owner");
+  assert.equal(created.members[0].title, "");
   assert.notEqual(created.session.workspaceId, created.workspaces[0].id);
   assert.equal(created.entities.length, 0);
   assert.equal(created.events.length, 0);
   assert.equal(selected.screen, "dashboard");
   assert.equal(selected.company.name, "신규 운영 조직");
   assert.equal(selected.session.workspaceId, created.workspaces[0].id);
-  assert.equal(selected.session.role, "admin");
+  assert.equal(selected.session.role, "owner");
 });
 
-test("invite code joins the current user to the target workspace", () => {
+test("invite code creates a pending workspace access request", () => {
   let state = createInitialState();
   const dispatch = (action: PrototypeAction) => {
     state = reducer(state, action);
@@ -346,19 +353,151 @@ test("invite code joins the current user to the target workspace", () => {
 
   assert.equal(joinWorkspaceByInviteCode(state, dispatch, "DONI-HEALTH-9174"), true);
 
-  assert.equal(state.session.workspaceId, "workspace-health-supply");
-  assert.equal(state.session.role, "member");
-  assert.equal(state.screen, "dashboard");
+  assert.equal(state.session.workspaceId, "workspace-next-manufacturing");
+  assert.equal(state.session.role, "manager");
+  assert.equal(state.screen, "workspace");
   assert.equal(
     state.members.some(
       (member) =>
         member.userId === state.session.currentUserId &&
         member.workspaceId === "workspace-health-supply" &&
         member.role === "member" &&
-        member.status === "active"
+        member.status === "pending"
     ),
     true
   );
+});
+
+test("signup request uses email identity and blocks pending workspace entry", () => {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+
+  assert.equal(
+    requestWorkspaceAccess(state, dispatch, {
+      code: "DONI-HEALTH-9174",
+      email: "New.Member@Example.com",
+      name: "신규 사용자",
+      password: "member-pass!"
+    }),
+    true
+  );
+
+  const user = state.users.find((item) => item.email === "new.member@example.com");
+  assert.ok(user);
+  assert.equal(state.session.loggedIn, true);
+  assert.equal(state.session.currentUserId, user.id);
+  assert.equal(state.session.workspaceId, "");
+  assert.equal(state.screen, "workspace");
+  assert.equal(
+    state.authAccounts.some((account) => account.email === "new.member@example.com" && account.loginId === "new.member@example.com" && account.userId === user.id),
+    true
+  );
+  assert.equal(
+    state.members.some(
+      (member) =>
+        member.userId === user.id &&
+        member.workspaceId === "workspace-health-supply" &&
+        member.role === "member" &&
+        member.status === "pending"
+    ),
+    true
+  );
+
+  const denied = reducer(
+    state,
+    audited(state, { type: "SELECT_WORKSPACE", workspaceId: "workspace-health-supply" }, "워크스페이스 선택", "workspace", "workspace-health-supply")
+  );
+
+  assert.equal(denied.screen, "workspace");
+  assert.equal(denied.permissionDenied, "현재 사용자는 해당 그룹에 속해 있지 않습니다.");
+});
+
+test("signup without organization code creates account only and lands on workspace selection", () => {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+
+  assert.equal(
+    signup(state, dispatch, {
+      email: "account.only@example.com",
+      name: "계정 사용자",
+      password: "account-pass!"
+    }),
+    true
+  );
+
+  const user = state.users.find((item) => item.email === "account.only@example.com");
+  assert.ok(user);
+  assert.equal("title" in user, false);
+  assert.equal(state.session.loggedIn, true);
+  assert.equal(state.session.currentUserId, user.id);
+  assert.equal(state.session.workspaceId, "");
+  assert.equal(state.screen, "workspace");
+  assert.equal(state.members.some((member) => member.userId === user.id), false);
+  assert.equal(state.authAccounts.some((account) => account.email === "account.only@example.com" && account.userId === user.id), true);
+});
+
+test("signup with invalid organization code fails atomically", () => {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+  const userCount = state.users.length;
+  const accountCount = state.authAccounts.length;
+  const memberCount = state.members.length;
+
+  assert.equal(
+    signup(state, dispatch, {
+      code: "NO-SUCH-CODE",
+      email: "invalid.code@example.com",
+      name: "실패 사용자",
+      password: "invalid-pass!"
+    }),
+    false
+  );
+
+  assert.equal(state.permissionDenied, "조직코드를 확인할 수 없습니다.");
+  assert.equal(state.users.length, userCount);
+  assert.equal(state.authAccounts.length, accountCount);
+  assert.equal(state.members.length, memberCount);
+  assert.equal(state.users.some((user) => user.email === "invalid.code@example.com"), false);
+});
+
+test("signup email slug collisions keep separate email identities", () => {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+
+  assert.equal(
+    requestWorkspaceAccess(state, dispatch, {
+      code: "DONI-HEALTH-9174",
+      email: "a+b@example.com",
+      name: "더하기 사용자",
+      password: "pass-1"
+    }),
+    true
+  );
+  assert.equal(
+    requestWorkspaceAccess(state, dispatch, {
+      code: "DONI-HEALTH-9174",
+      email: "a.b@example.com",
+      name: "점 사용자",
+      password: "pass-2"
+    }),
+    true
+  );
+
+  const plusUser = state.users.find((user) => user.email === "a+b@example.com");
+  const dotUser = state.users.find((user) => user.email === "a.b@example.com");
+  assert.ok(plusUser);
+  assert.ok(dotUser);
+  assert.notEqual(plusUser.id, dotUser.id);
+  assert.equal(state.authAccounts.some((account) => account.email === "a+b@example.com" && account.userId === plusUser.id), true);
+  assert.equal(state.authAccounts.some((account) => account.email === "a.b@example.com" && account.userId === dotUser.id), true);
 });
 
 test("last active workspace member leave deletes workspace and group data", () => {
@@ -367,7 +506,7 @@ test("last active workspace member leave deletes workspace and group data", () =
     initial,
     audited(
       initial,
-      { type: "CREATE_WORKSPACE", name: "이탈 테스트 그룹", industry: "B2B 서비스", goal: "나가기 동작 확인" },
+      { type: "CREATE_WORKSPACE", name: "이탈 테스트 그룹" },
       "워크스페이스 생성",
       "workspace",
       initial.session.workspaceId
@@ -390,13 +529,13 @@ test("last active workspace member leave deletes workspace and group data", () =
   assert.equal(Boolean(left.workspaceDataById[workspaceId]), false);
 });
 
-test("sole workspace admin cannot leave while active members remain before succession", () => {
+test("sole workspace owner cannot leave while active members remain before succession", () => {
   const initial = createInitialState();
   const created = reducer(
     initial,
     audited(
       initial,
-      { type: "CREATE_WORKSPACE", name: "승계 필요 그룹", industry: "B2B 서비스", goal: "관리자 고아 상태 방지" },
+      { type: "CREATE_WORKSPACE", name: "승계 필요 그룹" },
       "워크스페이스 생성",
       "workspace",
       initial.session.workspaceId
@@ -411,7 +550,6 @@ test("sole workspace admin cannot leave while active members remain before succe
     ...selected,
     members: [
       {
-        eligibleVoter: true,
         id: "member-remaining-member",
         name: "이하린",
         role: "member" as const,
@@ -434,13 +572,13 @@ test("sole workspace admin cannot leave while active members remain before succe
   assert.equal(blocked.permissionDenied, SOLE_ADMIN_LEAVE_BLOCKED_MESSAGE);
 });
 
-test("workspace admin can leave after admin succession without deleting group data", () => {
+test("workspace owner can leave after owner succession without deleting group data", () => {
   const initial = createInitialState();
   const created = reducer(
     initial,
     audited(
       initial,
-      { type: "CREATE_WORKSPACE", name: "승계 테스트 그룹", industry: "B2B 서비스", goal: "승계 후 나가기 동작 확인" },
+      { type: "CREATE_WORKSPACE", name: "승계 테스트 그룹" },
       "워크스페이스 생성",
       "workspace",
       initial.session.workspaceId
@@ -454,10 +592,9 @@ test("workspace admin can leave after admin succession without deleting group da
     ...selected,
     members: [
       {
-        eligibleVoter: true,
         id: "member-successor-admin",
         name: "박민재",
-        role: "admin" as const,
+        role: "owner" as const,
         status: "active" as const,
         title: "전략기획 관리자",
         userId: "user-admin",
@@ -484,7 +621,7 @@ test("role switch reprojects to the selected user's accessible workspace", () =>
     initial,
     audited(
       initial,
-      { type: "CREATE_WORKSPACE", name: "관리자 전용 그룹", industry: "B2B 서비스", goal: "관리자 전용 데이터 격리 확인" },
+      { type: "CREATE_WORKSPACE", name: "관리자 전용 그룹" },
       "워크스페이스 생성",
       "workspace",
       initial.session.workspaceId
@@ -508,12 +645,10 @@ test("organization management updates group profile, invite code, and existing u
     state = reducer(state, action);
   };
 
-  loginWithCredentials(state, dispatch, "admin01", "admin01!");
+  loginWithCredentials(state, dispatch, "owner01", "owner01!");
 
   assert.equal(
     updateWorkspaceProfile(state, dispatch, {
-      goal: "핵심 고객 이탈 위험을 조기에 파악",
-      industry: "B2B SaaS",
       name: "DONI 운영 그룹",
       workspaceId: "workspace-next-manufacturing"
     }),
@@ -529,34 +664,111 @@ test("organization management updates group profile, invite code, and existing u
   const member = state.members.find((item) => item.userId === "user-member");
   assert.ok(member);
 
-  assert.equal(updateWorkspaceMember(state, dispatch, { eligibleVoter: false, memberId: member.id, role: "manager", title: "영업 운영 리드" }), true);
+  assert.equal(updateWorkspaceMember(state, dispatch, { memberId: member.id, role: "manager", title: "영업 운영 리드" }), true);
   const promoted = state.members.find((item) => item.id === member.id);
   assert.equal(promoted?.role, "manager");
-  assert.equal(promoted?.eligibleVoter, false);
 
   assert.equal(deactivateWorkspaceMember(state, dispatch, member.id), true);
   const inactive = state.members.find((item) => item.id === member.id);
   assert.equal(inactive?.status, "inactive");
-  assert.equal(inactive?.eligibleVoter, false);
-
-  assert.equal(activateWorkspaceMember(state, dispatch, member.id), true);
-  const active = state.members.find((item) => item.id === member.id);
-  assert.equal(active?.status, "active");
-  assert.equal(active?.eligibleVoter, true);
 });
 
-test("non-admin users cannot mutate organization management", () => {
+test("manager can approve, reject, and deactivate general users only", () => {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+
+  assert.equal(
+    requestWorkspaceAccess(state, dispatch, {
+      code: "DONI-NEXT-4821",
+      email: "pending.member@example.com",
+      name: "승인 대기자",
+      password: "pass!"
+    }),
+    true
+  );
+  const pendingUser = state.users.find((user) => user.email === "pending.member@example.com");
+  assert.ok(pendingUser);
+  const pendingMember = state.members.find((member) => member.userId === pendingUser.id);
+  assert.ok(pendingMember);
+
+  loginWithCredentials(state, dispatch, "test", "test");
+  assert.equal(approveWorkspaceMember(state, dispatch, pendingMember.id), true);
+  assert.equal(state.members.find((member) => member.id === pendingMember.id)?.status, "active");
+  assert.equal(updateWorkspaceMember(state, dispatch, { memberId: pendingMember.id, role: "member", title: "현장 운영 담당" }), true);
+  assert.equal(state.members.find((member) => member.id === pendingMember.id)?.title, "현장 운영 담당");
+  assert.equal(updateWorkspaceMember(state, dispatch, { memberId: pendingMember.id, role: "manager", title: "승급 시도" }), false);
+  assert.equal(deactivateWorkspaceMember(state, dispatch, pendingMember.id), true);
+  assert.equal(state.members.find((member) => member.id === pendingMember.id)?.status, "inactive");
+
+  assert.equal(
+    requestWorkspaceAccess(state, dispatch, {
+      code: "DONI-NEXT-4821",
+      email: "reject.member@example.com",
+      name: "반려 대상자",
+      password: "pass!"
+    }),
+    true
+  );
+  const rejectUser = state.users.find((user) => user.email === "reject.member@example.com");
+  assert.ok(rejectUser);
+  const rejectMember = state.members.find((member) => member.userId === rejectUser.id);
+  assert.ok(rejectMember);
+  loginWithCredentials(state, dispatch, "test", "test");
+  assert.equal(rejectWorkspaceMember(state, dispatch, rejectMember.id), true);
+  assert.equal(state.members.find((member) => member.id === rejectMember.id)?.status, "rejected");
+});
+
+test("manager membership authority does not include workspace profile, code, or type catalog mutation", () => {
   let state = createInitialState();
   const dispatch = (action: PrototypeAction) => {
     state = reducer(state, action);
   };
 
   loginWithCredentials(state, dispatch, "test", "test");
+  const beforeCode = state.workspaces[0].inviteCode;
 
   assert.equal(
     updateWorkspaceProfile(state, dispatch, {
-      goal: "권한 없는 수정",
-      industry: "B2B",
+      name: "범위 초과 그룹",
+      workspaceId: "workspace-next-manufacturing"
+    }),
+    false
+  );
+  assert.equal(regenerateInviteCode(state, dispatch, "workspace-next-manufacturing"), false);
+  assert.equal(addDomainType(state, dispatch, "managed_object", "권한 없는 유형"), false);
+  assert.equal(state.workspaces[0].name, "넥스트 제조 그룹");
+  assert.equal(state.workspaces[0].inviteCode, beforeCode);
+  assert.equal(state.managedObjectTypes.some((type) => type.label === "권한 없는 유형"), false);
+});
+
+test("owner can transfer workspace ownership to an active manager", () => {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+
+  loginWithCredentials(state, dispatch, "owner01", "owner01!");
+  const managerMember = state.members.find((member) => member.userId === "user-manager");
+  assert.ok(managerMember);
+  assert.equal(transferWorkspaceOwnership(state, dispatch, managerMember.id), true);
+
+  assert.equal(state.members.find((member) => member.userId === "user-manager")?.role, "owner");
+  assert.equal(state.members.find((member) => member.userId === "user-admin")?.role, "manager");
+  assert.equal(state.session.role, "manager");
+});
+
+test("non-owner users cannot mutate organization management", () => {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+
+  loginWithCredentials(state, dispatch, "member01", "member01!");
+
+  assert.equal(
+    updateWorkspaceProfile(state, dispatch, {
       name: "권한 없는 그룹",
       workspaceId: "workspace-next-manufacturing"
     }),
@@ -829,6 +1041,70 @@ test("dashboard view exposes selection-based chart contracts and link targets", 
   assert.equal(focused.navigationFocus?.focusId, undefined);
 });
 
+test("dashboard decision items use unique keys and collapse decided proposals", () => {
+  const initial = createInitialState();
+  const uploaded = reducer(initial, audited(initial, { type: "UPLOAD_SAMPLE_FILES" }, "소스 데이터 업로드", "source_file", "source-orders"));
+  const analyzed = reducer(uploaded, {
+    type: "START_ANALYSIS",
+    ...commandMeta(uploaded, "인공지능 분석 시작", "analysis_job", "analysis-job-main", "분석 시작 테스트")
+  });
+  const confirmed = reducer(
+    analyzed,
+    audited(analyzed, { type: "CONFIRM_CANDIDATES" }, "데이터 구조 확정", "workspace", analyzed.session.workspaceId)
+  );
+  const legacyFinalizedProposal = {
+    id: "decision-customer-care",
+    insightId: confirmed.insights[0].id,
+    title: "고객 케어 안건",
+    status: "finalized",
+    summary: "확정된 의사결정과 같은 legacy id를 가진 안건입니다.",
+    expectedImpact: "중복 카드 없이 확정된 의사결정만 보여야 합니다.",
+    votingRule: {
+      quorumPercent: 50,
+      approvalPercent: 60,
+      allowAbstain: true,
+      allowVoteChange: true,
+      tieBreakerRole: "owner"
+    },
+    voterUserIds: ["user-admin", "user-manager"],
+    deadline: "2026-05-31T23:59:59+09:00",
+    createdAt: "2026-05-20T09:00:00+09:00",
+    finalizedAt: "2026-05-21T10:00:00+09:00",
+    decisionId: "decision-customer-care",
+    comments: []
+  } satisfies Proposal;
+  const matchingDecision = {
+    id: "decision-customer-care",
+    proposalId: "proposal-customer-care",
+    title: "고객 케어 안건",
+    result: "approved",
+    finalizedAt: "2026-05-21T10:00:00+09:00",
+    summary: "고객 케어 개선안을 승인했습니다."
+  } satisfies Decision;
+  const duplicatedDecision = {
+    ...matchingDecision,
+    summary: "중복 저장된 같은 의사결정입니다."
+  } satisfies Decision;
+  const confirmedWorkspaceData = currentWorkspaceData(confirmed);
+  const view = getDashboardView({
+    ...confirmed,
+    proposals: [legacyFinalizedProposal],
+    decisions: [matchingDecision, duplicatedDecision],
+    workspaceDataById: {
+      ...confirmed.workspaceDataById,
+      [confirmed.session.workspaceId]: {
+        ...confirmedWorkspaceData,
+        proposals: [legacyFinalizedProposal],
+        decisions: [matchingDecision, duplicatedDecision]
+      }
+    }
+  });
+
+  assert.deepEqual(view.activeDecisionItems.map((item) => item.id), ["decision:decision-customer-care"]);
+  assert.deepEqual(view.summaryCards.find((card) => card.label === "의사결정")?.value, "1건");
+  assert.equal(new Set(view.activeDecisionItems.map((item) => item.id)).size, view.activeDecisionItems.length);
+});
+
 test("managed object view exposes focused object detail and typed graph links", () => {
   const initial = createInitialState();
   const uploaded = reducer(initial, audited(initial, { type: "UPLOAD_SAMPLE_FILES" }, "소스 데이터 업로드", "source_file", "source-orders"));
@@ -987,6 +1263,37 @@ test("managed object view exposes focused object detail and typed graph links", 
   assert.deepEqual(isolatedView.detail.graphNodes, []);
   assert.deepEqual(isolatedView.detail.graphEdges, []);
   assert.equal(isolatedView.detail.defaultGraphItemId, undefined);
+
+  const duplicatedDecision = {
+    id: "decision-customer-care",
+    proposalId: "proposal-customer-care",
+    title: "고객A 선제 안내 및 보상 기준 조정안",
+    result: "approved",
+    finalizedAt: "2026-05-21T10:00:00+09:00",
+    summary: "고객A 클레임 대응안을 승인했습니다."
+  } satisfies Decision;
+  const entityWithDecision = confirmed.entities.map((entity) =>
+    entity.id === "entity-customer-core"
+      ? { ...entity, decisionIds: ["decision-customer-care"] }
+      : entity
+  );
+  const managedViewWithDuplicateDecisions = getManagedObjectView(
+    {
+      ...confirmed,
+      entities: entityWithDecision,
+      decisions: [duplicatedDecision, duplicatedDecision],
+      workspaceDataById: {
+        ...confirmed.workspaceDataById,
+        [confirmed.session.workspaceId]: {
+          ...confirmedWorkspaceData,
+          entities: entityWithDecision,
+          decisions: [duplicatedDecision, duplicatedDecision]
+        }
+      }
+    },
+    "entity-customer-core"
+  );
+  assert.deepEqual(managedViewWithDuplicateDecisions.detail.decisions.map((decision) => decision.id), ["decision-customer-care"]);
 });
 
 test("managed object type updates propagate as category labels and deletion falls back to unspecified", () => {
@@ -1129,6 +1436,54 @@ test("candidate edit keeps the exact submitted title and description", () => {
   assert.equal(candidate?.title, "핵심 고객군");
   assert.equal(candidate?.description, "고객 반복 구매와 클레임 영향도를 함께 보는 핵심 고객군");
   assert.equal(candidate?.status, "edited");
+});
+
+test("proposal list is explicit and member votes are denied by role-derived voter snapshot", () => {
+  const initial = createInitialState();
+  const uploaded = reducer(initial, audited(initial, { type: "UPLOAD_SAMPLE_FILES" }, "소스 데이터 업로드", "source_file", "source-orders"));
+  const analyzed = reducer(uploaded, {
+    type: "START_ANALYSIS",
+    ...commandMeta(uploaded, "인공지능 분석 시작", "analysis_job", "analysis-job-main", "분석 시작 테스트")
+  });
+  const confirmed = reducer(
+    analyzed,
+    audited(analyzed, { type: "CONFIRM_CANDIDATES" }, "데이터 구조 확정", "workspace", analyzed.session.workspaceId)
+  );
+  const proposed = reducer(
+    confirmed,
+    audited(confirmed, { type: "CREATE_PROPOSAL_FROM_INSIGHT", insightId: confirmed.insights[0].id }, "의사결정 안건 생성", "proposal", "proposal-customer-care")
+  );
+  const proposal = proposed.proposals[0];
+
+  assert.deepEqual(proposal.voterUserIds.sort(), ["user-admin", "user-manager"].sort());
+  assert.equal(proposal.voterUserIds.includes("user-member"), false);
+  assert.equal(activeProposal(proposed)?.id, proposal.id);
+
+  const listOnly = reducer(proposed, { type: "NAVIGATE", screen: "proposalVote" });
+  assert.equal(activeProposal(listOnly), undefined);
+
+  const memberSession = reducer(proposed, {
+    type: "LOGIN",
+    userId: "user-member",
+    role: "member",
+    ...commandMeta(proposed, "로그인", "session", "user-member", "구성원 로그인 테스트")
+  });
+  const memberVoted = reducer(memberSession, {
+    type: "CAST_VOTE",
+    proposalId: proposal.id,
+    choice: "approve",
+    reason: "구성원 직접 투표 시도",
+    ...commandMeta(memberSession, "투표 참여", "proposal", proposal.id, "구성원 투표 테스트")
+  });
+
+  assert.equal(memberVoted.votes.some((vote) => vote.voterId === "user-member"), false);
+  assert.equal(memberVoted.permissionDenied, "현재 역할은 이 안건 투표에 참여할 수 없습니다.");
+});
+
+test("proposal status labels are localized for user-facing decision lists", () => {
+  assert.equal(proposalStatusLabel("voting"), "투표 중");
+  assert.equal(proposalStatusLabel("approved"), "승인 완료");
+  assert.equal(proposalStatusLabel("rejected"), "반려");
 });
 
 test("finalization creates decision and audit before verification", () => {

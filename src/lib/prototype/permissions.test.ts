@@ -3,14 +3,14 @@ import test from "node:test";
 import { demoAccounts } from "./authAccounts";
 import { can } from "./permissions";
 
-test("admin can manage the full operating flow", () => {
-  assert.equal(can("admin", "source:upload"), true);
-  assert.equal(can("admin", "candidate:confirm"), true);
-  assert.equal(can("admin", "proposal:finalize"), true);
-  assert.equal(can("admin", "admin:manage"), true);
+test("owner can manage the full operating flow", () => {
+  assert.equal(can("owner", "source:upload"), true);
+  assert.equal(can("owner", "candidate:confirm"), true);
+  assert.equal(can("owner", "proposal:finalize"), true);
+  assert.equal(can("owner", "admin:manage"), true);
 });
 
-test("manager can drive the decision flow without organization management", () => {
+test("manager can drive the decision flow and limited organization management", () => {
   assert.equal(can("manager", "source:upload"), true);
   assert.equal(can("manager", "insight:proposal"), true);
   assert.equal(can("manager", "proposal:vote"), true);
@@ -19,8 +19,8 @@ test("manager can drive the decision flow without organization management", () =
   assert.equal(can("manager", "admin:manage"), false);
 });
 
-test("member can participate in votes but cannot mutate operating structure", () => {
-  assert.equal(can("member", "proposal:vote"), true);
+test("member can read shared screens but cannot vote or mutate operating structure", () => {
+  assert.equal(can("member", "proposal:vote"), false);
   assert.equal(can("member", "source:upload"), false);
   assert.equal(can("member", "candidate:confirm"), false);
   assert.equal(can("member", "insight:proposal"), false);
@@ -30,7 +30,7 @@ test("member can participate in votes but cannot mutate operating structure", ()
 });
 
 test("demo exposes exactly one account per customer role", () => {
-  assert.deepEqual(demoAccounts.map((account) => account.role), ["admin", "manager", "member"]);
+  assert.deepEqual(demoAccounts.map((account) => account.role), ["owner", "manager", "member"]);
   assert.deepEqual(demoAccounts.map((account) => account.userId), ["user-admin", "user-manager", "user-member"]);
   assert.equal(demoAccounts.some((account) => account.loginId === "test" && account.password === "test"), true);
 });
