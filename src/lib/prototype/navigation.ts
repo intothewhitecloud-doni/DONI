@@ -19,52 +19,39 @@ export const sidebarNavItems: SidebarNavItem[] = [
   { screen: "settings", label: "설정", short: "설" }
 ];
 
+const allSidebarScreens = sidebarNavItems.map((item) => item.screen);
+
 const sidebarScreensByRole: Record<Role, Screen[]> = {
-  admin: sidebarNavItems.map((item) => item.screen),
-  manager: ["dashboard", "vault", "objects", "workflow", "metrics", "insights", "proposalVote", "verification"],
-  member: ["dashboard", "proposalVote"]
+  manager: allSidebarScreens,
+  member: allSidebarScreens,
+  owner: allSidebarScreens
 };
 
+const protectedScreens = [
+  "upload",
+  "analysis",
+  "review",
+  "dashboard",
+  "vault",
+  "objects",
+  "workflow",
+  "metrics",
+  "insights",
+  "insightDetail",
+  "proposalCreate",
+  "proposalVote",
+  "decisionConfirm",
+  "verification",
+  "verificationDetail",
+  "organization",
+  "settings",
+  "outcome"
+] satisfies Screen[];
+
 const protectedScreensByRole: Record<Role, Screen[]> = {
-  admin: [
-    "upload",
-    "analysis",
-    "review",
-    "dashboard",
-    "vault",
-    "objects",
-    "workflow",
-    "metrics",
-    "insights",
-    "insightDetail",
-    "proposalCreate",
-    "proposalVote",
-    "decisionConfirm",
-    "verification",
-    "verificationDetail",
-    "organization",
-    "settings",
-    "outcome"
-  ],
-  manager: [
-    "upload",
-    "analysis",
-    "review",
-    "dashboard",
-    "vault",
-    "objects",
-    "workflow",
-    "metrics",
-    "insights",
-    "insightDetail",
-    "proposalCreate",
-    "proposalVote",
-    "decisionConfirm",
-    "verification",
-    "verificationDetail",
-    "outcome"
-  ],
-  member: ["dashboard", "proposalVote"]
+  manager: protectedScreens,
+  member: protectedScreens,
+  owner: protectedScreens
 };
 
 const sidebarParents: Partial<Record<Screen, Screen>> = {
@@ -92,10 +79,6 @@ export function canAccessProtectedScreen(role: Role, screen: Screen): boolean {
 }
 
 export function defaultScreenForRole(role: Role, requestedScreen?: Screen): Screen {
-  if (role === "member" && requestedScreen === "decisionConfirm") {
-    return "proposalVote";
-  }
-
   return "dashboard";
 }
 
@@ -104,16 +87,20 @@ export function permittedScreenForRole(role: Role, screen: Screen): Screen {
 }
 
 export function screenRequiresLogin(screen: Screen): boolean {
-  return screen !== "home" && screen !== "login";
+  return screen !== "home" && screen !== "login" && screen !== "signup";
 }
 
-export function accessibleScreenForSession(loggedIn: boolean, role: Role, screen: Screen): Screen {
+export function accessibleScreenForSession(loggedIn: boolean, role: Role, screen: Screen, hasActiveWorkspace = true): Screen {
   if (!loggedIn && screenRequiresLogin(screen)) {
     return "login";
   }
 
-  if (screen === "home" || screen === "login" || screen === "workspace") {
+  if (screen === "home" || screen === "login" || screen === "signup" || screen === "workspace") {
     return screen;
+  }
+
+  if (!hasActiveWorkspace) {
+    return "workspace";
   }
 
   return permittedScreenForRole(role, screen);

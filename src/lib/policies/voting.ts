@@ -18,7 +18,7 @@ const choices: VoteChoice[] = ["approve", "reject", "abstain"];
 
 export function summarizeVotes(proposal: Proposal, votes: Vote[]): VoteSummary {
   const eligibleVotes = votes.filter(
-    (vote) => vote.proposalId === proposal.id && proposal.eligibleVoterIds.includes(vote.voterId)
+    (vote) => vote.proposalId === proposal.id && proposal.voterUserIds.includes(vote.voterId)
   );
 
   const latestByVoter = new Map<string, Vote>();
@@ -32,7 +32,7 @@ export function summarizeVotes(proposal: Proposal, votes: Vote[]): VoteSummary {
   }
 
   const totalVotes = latestByVoter.size;
-  const eligibleCount = proposal.eligibleVoterIds.length;
+  const eligibleCount = proposal.voterUserIds.length;
   const participationPercent = eligibleCount === 0 ? 0 : (totalVotes / eligibleCount) * 100;
   const decisiveVotes = counts.approve + counts.reject;
   const approvalPercent = totalVotes === 0 ? 0 : (counts.approve / totalVotes) * 100;

@@ -4,13 +4,15 @@ import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type PropsWithChildren } from "react";
 import type { CandidateType, DomainTypeScope, LinkTarget, PrototypeState, Role, Screen, VoteChoice } from "../domain/types";
 import { advanceAnalysisJob, confirmCandidates, editCandidate, excludeCandidate, setCandidateType, startAnalysisJob } from "./commands/analysisCommands";
-import { loginWithCredentials, logout } from "./commands/authCommands";
+import { loginWithCredentials, logout, signup } from "./commands/authCommands";
 import { addSourceFiles, removeSourceFile, updateSourceFile, uploadSampleFiles } from "./commands/fileCommands";
 import { createProposalFromInsight } from "./commands/insightCommands";
 import {
-  activateWorkspaceMember,
   deactivateWorkspaceMember,
+  approveWorkspaceMember,
+  rejectWorkspaceMember,
   regenerateInviteCode,
+  transferWorkspaceOwnership,
   updateWorkspaceMember,
   updateWorkspaceProfile
 } from "./commands/organizationCommands";
@@ -19,7 +21,7 @@ import { castVote, finalizeProposal } from "./commands/proposalCommands";
 import { addDomainType, deleteDomainType, updateDomainType } from "./commands/typeCommands";
 import { generateVerificationRecord } from "./commands/verificationCommands";
 import { createWorkspace, joinWorkspaceByInviteCode, leaveWorkspace, selectWorkspace } from "./commands/workspaceCommands";
-import { findDemoAccount } from "./authAccounts";
+import { findAuthAccount } from "./authAccounts";
 import { createPersistenceEffectController } from "./persistenceEffect";
 import { loadUserState, persistedStateSignature, saveUserState, screenAfterUserRestore } from "./persistence";
 import { pathForScreen } from "./routes";
@@ -29,16 +31,20 @@ interface PrototypeCommands {
   navigate(screen: Screen): void;
   navigateToTarget(target: LinkTarget): void;
   login(loginId: string, password: string): boolean;
+  signup(payload: { code?: string; email: string; name: string; password: string }): boolean;
+  requestWorkspaceAccess(payload: { code?: string; email: string; name: string; password: string }): boolean;
   logout(): void;
   selectWorkspace(workspaceId: string): boolean;
   joinWorkspaceByInviteCode(inviteCode: string): boolean;
   leaveWorkspace(workspaceId: string): boolean;
-  createWorkspace(payload: { name: string; industry: string; goal: string }): boolean;
-  updateWorkspaceProfile(payload: { workspaceId: string; name: string; industry: string; goal: string }): boolean;
+  createWorkspace(payload: { name: string }): boolean;
+  updateWorkspaceProfile(payload: { workspaceId: string; name: string }): boolean;
   regenerateInviteCode(workspaceId: string): boolean;
-  updateWorkspaceMember(payload: { memberId: string; role: Role; eligibleVoter: boolean; title: string }): boolean;
-  activateWorkspaceMember(memberId: string): boolean;
+  updateWorkspaceMember(payload: { memberId: string; role: Role; title: string }): boolean;
+  approveWorkspaceMember(memberId: string): boolean;
+  rejectWorkspaceMember(memberId: string): boolean;
   deactivateWorkspaceMember(memberId: string): boolean;
+  transferWorkspaceOwnership(memberId: string): boolean;
   addDomainType(scope: DomainTypeScope, label: string, color?: string): boolean;
   updateDomainType(scope: DomainTypeScope, typeId: string, label: string, color?: string): boolean;
   deleteDomainType(scope: DomainTypeScope, typeId: string): boolean;
@@ -88,7 +94,7 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
         router.push(pathForScreen(target.screen));
       },
       login: (loginId, password) => {
-        const account = findDemoAccount(loginId, password);
+        const account = findAuthAccount(state.authAccounts, loginId, password);
         if (!account) {
           return false;
         }
@@ -122,6 +128,20 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
         }
         return loggedIn;
       },
+      signup: (payload) => {
+        const requested = signup(state, dispatch, payload);
+        if (requested) {
+          router.push(pathForScreen("workspace"));
+        }
+        return requested;
+      },
+      requestWorkspaceAccess: (payload) => {
+        const requested = signup(state, dispatch, payload);
+        if (requested) {
+          router.push(pathForScreen("workspace"));
+        }
+        return requested;
+      },
       logout: () => {
         logout(state, dispatch);
         router.push(pathForScreen("login"));
@@ -136,7 +156,7 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
       joinWorkspaceByInviteCode: (inviteCode) => {
         const joined = joinWorkspaceByInviteCode(state, dispatch, inviteCode);
         if (joined) {
-          router.push(pathForScreen("dashboard"));
+          router.push(pathForScreen("workspace"));
         }
         return joined;
       },
@@ -155,8 +175,10 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
       updateWorkspaceProfile: (payload) => updateWorkspaceProfile(state, dispatch, payload),
       regenerateInviteCode: (workspaceId) => regenerateInviteCode(state, dispatch, workspaceId),
       updateWorkspaceMember: (payload) => updateWorkspaceMember(state, dispatch, payload),
-      activateWorkspaceMember: (memberId) => activateWorkspaceMember(state, dispatch, memberId),
+      approveWorkspaceMember: (memberId) => approveWorkspaceMember(state, dispatch, memberId),
+      rejectWorkspaceMember: (memberId) => rejectWorkspaceMember(state, dispatch, memberId),
       deactivateWorkspaceMember: (memberId) => deactivateWorkspaceMember(state, dispatch, memberId),
+      transferWorkspaceOwnership: (memberId) => transferWorkspaceOwnership(state, dispatch, memberId),
       addDomainType: (scope, label, color) => addDomainType(state, dispatch, scope, label, color),
       updateDomainType: (scope, typeId, label, color) => updateDomainType(state, dispatch, scope, typeId, label, color),
       deleteDomainType: (scope, typeId) => deleteDomainType(state, dispatch, scope, typeId),

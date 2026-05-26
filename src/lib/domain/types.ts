@@ -1,6 +1,7 @@
 export type Screen =
   | "home"
   | "login"
+  | "signup"
   | "workspace"
   | "upload"
   | "analysis"
@@ -36,7 +37,9 @@ export interface LinkTarget {
   label: string;
 }
 
-export type Role = "admin" | "manager" | "member";
+export type Role = "owner" | "manager" | "member";
+
+export type MembershipStatus = "pending" | "active" | "rejected" | "inactive";
 
 export type PermissionAction =
   | "workspace:select"
@@ -75,16 +78,22 @@ export interface DomainTypeDefinition {
 
 export interface User {
   id: string;
+  email?: string;
   name: string;
-  title: string;
   role: Role;
+}
+
+export interface AuthAccount {
+  email?: string;
+  loginId: string;
+  password: string;
+  role: Role;
+  userId: string;
 }
 
 export interface Workspace {
   id: string;
   name: string;
-  industry: string;
-  decisionGoal: string;
   inviteCode: string;
 }
 
@@ -95,8 +104,7 @@ export interface WorkspaceMember {
   role: Role;
   name: string;
   title: string;
-  eligibleVoter: boolean;
-  status: "invited" | "active" | "inactive";
+  status: MembershipStatus;
 }
 
 export interface WorkspaceSession {
@@ -279,7 +287,7 @@ export interface Proposal {
   summary: string;
   expectedImpact: string;
   votingRule: VotingRule;
-  eligibleVoterIds: string[];
+  voterUserIds: string[];
   deadline: string;
   createdAt: string;
   finalizedAt?: string;
@@ -417,6 +425,7 @@ export interface WorkspaceResultBundle {
 export interface PrototypeState {
   screen: Screen;
   session: WorkspaceSession;
+  authAccounts: AuthAccount[];
   users: User[];
   workspaces: Workspace[];
   members: WorkspaceMember[];

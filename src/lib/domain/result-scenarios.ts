@@ -42,7 +42,7 @@ type OperationalSelection = {
 
 export type ProposalDraft = Pick<
   Proposal,
-  "id" | "insightId" | "title" | "status" | "summary" | "expectedImpact" | "votingRule" | "eligibleVoterIds" | "deadline" | "createdAt" | "comments"
+  "id" | "insightId" | "title" | "status" | "summary" | "expectedImpact" | "votingRule" | "voterUserIds" | "deadline" | "createdAt" | "comments"
 >;
 
 type ScenarioDefinition = SampleResultScenario;
@@ -235,12 +235,12 @@ export function buildWorkspaceResultBundle(selection: OperationalSelection): Wor
 export function buildProposalDraftFromInsight({
   authorId,
   createdAt,
-  eligibleVoterIds,
+  voterUserIds,
   insight
 }: {
   authorId: string;
   createdAt: string;
-  eligibleVoterIds: string[];
+  voterUserIds: string[];
   insight: AIInsight;
 }): ProposalDraft {
   const scenario = resultScenarios.find((item) => item.insightId === insight.id);
@@ -258,9 +258,9 @@ export function buildProposalDraftFromInsight({
       approvalPercent: 60,
       allowAbstain: true,
       allowVoteChange: true,
-      tieBreakerRole: "admin"
+      tieBreakerRole: "owner"
     },
-    eligibleVoterIds,
+    voterUserIds,
     deadline,
     createdAt,
     comments: [

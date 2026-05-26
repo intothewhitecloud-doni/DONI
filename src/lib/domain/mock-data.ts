@@ -13,6 +13,7 @@ import {
   sampleWorkflowMetricBindings
 } from "./sample-analysis";
 import type { PrototypeState } from "./types";
+import { demoAccounts } from "./auth-fixtures";
 
 const now = "2026-05-07T09:00:00.000Z";
 
@@ -24,24 +25,21 @@ export const initialPrototypeState: PrototypeState = {
     workspaceId: "workspace-next-manufacturing",
     role: "manager"
   },
+  authAccounts: demoAccounts,
   users: [
-    { id: "user-admin", name: "박민재", title: "전략기획 관리자", role: "admin" },
-    { id: "user-manager", name: "김도현", title: "운영 의사결정 리드", role: "manager" },
-    { id: "user-member", name: "이하린", title: "공급망 담당", role: "member" }
+    { email: "owner@next.example", id: "user-admin", name: "박민재", role: "owner" },
+    { email: "manager@next.example", id: "user-manager", name: "김도현", role: "manager" },
+    { email: "member@next.example", id: "user-member", name: "이하린", role: "member" }
   ],
   workspaces: [
     {
       id: "workspace-next-manufacturing",
       name: "넥스트 제조 그룹",
-      industry: "제조 및 유통",
-      decisionGoal: "저마진 상품을 줄이고 공급망 지연 리스크를 조기에 발견",
       inviteCode: "DONI-NEXT-4821"
     },
     {
       id: "workspace-health-supply",
       name: "헬스케어 공급 협의체",
-      industry: "의료 공급망",
-      decisionGoal: "긴급 납품 지연과 재고 부족을 사전에 파악",
       inviteCode: "DONI-HEALTH-9174"
     }
   ],
@@ -50,10 +48,9 @@ export const initialPrototypeState: PrototypeState = {
       id: "member-admin",
       userId: "user-admin",
       workspaceId: "workspace-next-manufacturing",
-      role: "admin",
+      role: "owner",
       name: "박민재",
-      title: "전략기획 관리자",
-      eligibleVoter: true,
+      title: "워크스페이스 소유자",
       status: "active"
     },
     {
@@ -63,7 +60,6 @@ export const initialPrototypeState: PrototypeState = {
       role: "manager",
       name: "김도현",
       title: "운영 의사결정 리드",
-      eligibleVoter: true,
       status: "active"
     },
     {
@@ -73,7 +69,6 @@ export const initialPrototypeState: PrototypeState = {
       role: "member",
       name: "이하린",
       title: "공급망 담당",
-      eligibleVoter: true,
       status: "active"
     }
   ],

@@ -1,7 +1,8 @@
 import type { PermissionAction, Role } from "../domain/types";
+import { roleLabelForPolicy } from "./policy";
 
 const matrix: Record<Role, PermissionAction[]> = {
-  admin: [
+  owner: [
     "workspace:select",
     "source:upload",
     "analysis:start",
@@ -28,7 +29,7 @@ const matrix: Record<Role, PermissionAction[]> = {
     "outcome:record",
     "audit:read"
   ],
-  member: ["workspace:select", "proposal:vote"]
+  member: ["workspace:select", "audit:read"]
 };
 
 export function can(role: Role, action: PermissionAction): boolean {
@@ -36,11 +37,5 @@ export function can(role: Role, action: PermissionAction): boolean {
 }
 
 export function roleLabel(role: Role): string {
-  const labels: Record<Role, string> = {
-    admin: "관리자",
-    manager: "매니저",
-    member: "구성원"
-  };
-
-  return labels[role];
+  return roleLabelForPolicy(role);
 }

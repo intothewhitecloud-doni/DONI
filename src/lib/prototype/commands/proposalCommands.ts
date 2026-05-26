@@ -3,6 +3,7 @@ import { decisionIdForProposal } from "../../domain/result-scenarios";
 import type { PrototypeState, VoteChoice } from "../../domain/types";
 import { commandMeta } from "../events";
 import { can } from "../permissions";
+import { canVoteOnProposal } from "../policy";
 import type { PrototypeAction } from "../store";
 
 export function castVote(
@@ -12,7 +13,7 @@ export function castVote(
   choice: VoteChoice,
   reason: string
 ): boolean {
-  if (!can(state.session.role, "proposal:vote")) {
+  if (!can(state.session.role, "proposal:vote") || !canVoteOnProposal(state, proposalId)) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 투표에 참여할 수 없습니다." });
     return false;
   }

@@ -1,4 +1,15 @@
 import { summarizeVotes } from "../policies/voting";
+import {
+  activeWorkspaceMemberForUser,
+  actorMembershipForTarget,
+  canEnterWorkspace,
+  canFinalizeProposal,
+  canManageMembership,
+  canVoteOnProposal,
+  normalizeLegacyRole,
+  normalizeMembershipStatus,
+  proposalVoterUserIds
+} from "./policy";
 import { initialPrototypeState as preparedData } from "./mock-data";
 import { buildProposalDraftFromInsight, buildWorkspaceResultBundle, decisionIdForProposal, workflowsHaveSelectedMetrics } from "./result-scenarios";
 import { sampleCandidateOperationalMap } from "./sample-analysis";
@@ -12,6 +23,7 @@ import {
 } from "./type-catalog";
 import type {
   AnalysisJob,
+  AuthAccount,
   AuditLog,
   CandidateType,
   Decision,
@@ -24,6 +36,7 @@ import type {
   Role,
   Screen,
   SourceFile,
+  User,
   VerificationRecord,
   VoteChoice,
   Workspace,
@@ -31,7 +44,8 @@ import type {
   WorkspaceMember
 } from "./types";
 
-export const SOLE_ADMIN_LEAVE_BLOCKED_MESSAGE = "먼저 다른 사용자에게 관리자 권한을 승계한 뒤 나갈 수 있습니다.";
+export const SOLE_OWNER_LEAVE_BLOCKED_MESSAGE = "먼저 다른 사용자에게 워크스페이스 소유자 권한을 이전한 뒤 나갈 수 있습니다.";
+export const SOLE_ADMIN_LEAVE_BLOCKED_MESSAGE = SOLE_OWNER_LEAVE_BLOCKED_MESSAGE;
 
 type ActionMeta = {
   auditLog?: AuditLog;
@@ -47,14 +61,18 @@ export type PrototypeAction = ActionMeta &
     | { type: "RESTORE_USER_STATE"; state: PrototypeState; userId: string; role: Role; screen: Screen }
     | { type: "LOGOUT" }
     | { type: "SELECT_WORKSPACE"; workspaceId: string }
-    | { type: "CREATE_WORKSPACE"; name: string; industry: string; goal: string }
+    | { type: "REGISTER_ACCOUNT"; account: AuthAccount; member?: WorkspaceMember; user: User; workspaceId?: string }
+    | { type: "REQUEST_WORKSPACE_ACCESS"; account: AuthAccount; member: WorkspaceMember; user: User; workspaceId: string }
+    | { type: "CREATE_WORKSPACE"; name: string }
     | { type: "JOIN_WORKSPACE"; member: WorkspaceMember; workspaceId: string }
     | { type: "LEAVE_WORKSPACE"; workspaceId: string }
-    | { type: "UPDATE_WORKSPACE"; workspaceId: string; name: string; industry: string; goal: string }
+    | { type: "UPDATE_WORKSPACE"; workspaceId: string; name: string }
     | { type: "REGENERATE_INVITE_CODE"; workspaceId: string; inviteCode: string }
-    | { type: "UPDATE_MEMBER"; memberId: string; role: Role; eligibleVoter: boolean; title: string }
-    | { type: "ACTIVATE_MEMBER"; memberId: string }
+    | { type: "UPDATE_MEMBER"; memberId: string; role: Role; title: string }
+    | { type: "APPROVE_MEMBER"; memberId: string }
+    | { type: "REJECT_MEMBER"; memberId: string }
     | { type: "DEACTIVATE_MEMBER"; memberId: string }
+    | { type: "TRANSFER_OWNERSHIP"; memberId: string }
     | { type: "SET_ROLE"; role: Role }
     | { type: "SET_CANDIDATE_TYPE"; candidateType: CandidateType }
     | { type: "ADD_SOURCE_FILES"; files: SourceFile[] }
@@ -170,8 +188,8 @@ export function createEmptyWorkspaceData(workspace: Workspace): WorkspaceOperati
   return {
     company: {
       name: workspace.name,
-      industry: workspace.industry,
-      goal: workspace.decisionGoal,
+      industry: "",
+      goal: "",
       dataReadiness: "draft"
     },
     ...structuredClone(emptyOperationalCollections),
@@ -375,9 +393,7 @@ export function projectWorkspaceData(state: PrototypeState, workspaceId = state.
 }
 
 export function userCanAccessWorkspace(state: PrototypeState, workspaceId: string, userId = state.session.currentUserId): boolean {
-  return state.members.some(
-    (member) => member.userId === userId && member.workspaceId === workspaceId && member.status === "active"
-  );
+  return canEnterWorkspace(state, workspaceId, userId);
 }
 
 function activeWorkspaceMembers(state: PrototypeState, workspaceId: string): WorkspaceMember[] {
@@ -390,15 +406,19 @@ export function willDeleteWorkspaceOnLeave(state: PrototypeState, workspaceId: s
   return activeMembers.length === 1 && activeMembers[0]?.userId === userId;
 }
 
-export function isSoleActiveWorkspaceAdmin(state: PrototypeState, workspaceId: string, userId = state.session.currentUserId): boolean {
-  const activeAdmins = activeWorkspaceMembers(state, workspaceId).filter((member) => member.role === "admin");
+export function isSoleActiveWorkspaceOwner(state: PrototypeState, workspaceId: string, userId = state.session.currentUserId): boolean {
+  const activeOwners = activeWorkspaceMembers(state, workspaceId).filter((member) => member.role === "owner");
 
-  return activeAdmins.length === 1 && activeAdmins[0]?.userId === userId;
+  return activeOwners.length === 1 && activeOwners[0]?.userId === userId;
 }
 
-export function shouldBlockWorkspaceLeaveForSoleAdmin(state: PrototypeState, workspaceId: string, userId = state.session.currentUserId): boolean {
-  return isSoleActiveWorkspaceAdmin(state, workspaceId, userId) && !willDeleteWorkspaceOnLeave(state, workspaceId, userId);
+export const isSoleActiveWorkspaceAdmin = isSoleActiveWorkspaceOwner;
+
+export function shouldBlockWorkspaceLeaveForSoleOwner(state: PrototypeState, workspaceId: string, userId = state.session.currentUserId): boolean {
+  return isSoleActiveWorkspaceOwner(state, workspaceId, userId) && !willDeleteWorkspaceOnLeave(state, workspaceId, userId);
 }
+
+export const shouldBlockWorkspaceLeaveForSoleAdmin = shouldBlockWorkspaceLeaveForSoleOwner;
 
 function firstAccessibleWorkspaceId(state: PrototypeState, userId: string): string {
   const activeWorkspaceIds = new Set(
@@ -411,15 +431,11 @@ function firstAccessibleWorkspaceId(state: PrototypeState, userId: string): stri
 }
 
 function accountRole(state: PrototypeState, userId: string): Role {
-  return state.users.find((user) => user.id === userId)?.role ?? state.session.role;
+  return normalizeLegacyRole(state.users.find((user) => user.id === userId)?.role ?? state.session.role);
 }
 
 function workspaceRoleForUser(state: PrototypeState, userId: string, workspaceId: string): Role {
-  return (
-    state.members.find(
-      (member) => member.userId === userId && member.workspaceId === workspaceId && member.status === "active"
-    )?.role ?? accountRole(state, userId)
-  );
+  return activeWorkspaceMemberForUser(state, workspaceId, userId)?.role ?? accountRole(state, userId);
 }
 
 function syncActiveWorkspaceData(state: PrototypeState): PrototypeState {
@@ -644,7 +660,8 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
             ? workspaceRoleForUser(action.state, action.userId, action.state.session.workspaceId)
             : action.role
         },
-        users: state.users,
+        authAccounts: action.state.authAccounts.length > 0 ? action.state.authAccounts : state.authAccounts,
+        users: action.state.users.length > 0 ? action.state.users : state.users,
         navigationFocus: undefined,
         permissionDenied: undefined,
         simulatedError: undefined
@@ -698,18 +715,94 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       );
     }
 
+    case "REGISTER_ACCOUNT": {
+      const workspace = action.workspaceId ? state.workspaces.find((item) => item.id === action.workspaceId) : undefined;
+      const existingMember = action.member ? state.members.find((member) => member.id === action.member?.id) : undefined;
+      const member = action.member ? (existingMember?.status === "active" ? existingMember : action.member) : undefined;
+      const members = member ? [member, ...state.members.filter((item) => item.id !== member.id)] : state.members;
+      const nextState = {
+        ...state,
+        authAccounts: [action.account, ...state.authAccounts.filter((account) => account.userId !== action.account.userId)],
+        users: [action.user, ...state.users.filter((user) => user.id !== action.user.id)],
+        members,
+        screen: "workspace" as Screen,
+        navigationFocus: undefined,
+        session: {
+          ...state.session,
+          currentUserId: action.user.id,
+          loggedIn: true,
+          role: action.user.role,
+          workspaceId: ""
+        },
+        notifications: [
+          {
+            id: action.notificationId ?? "notice-account-registration",
+            level: member ? "info" as const : "success" as const,
+            message: member
+              ? `${workspace?.name ?? "워크스페이스"} 가입 신청이 승인 대기 상태로 등록되었습니다.`
+              : "회원가입이 완료되었습니다. 워크스페이스 참여 또는 생성을 진행할 수 있습니다."
+          },
+          ...state.notifications
+        ],
+        permissionDenied: undefined,
+        simulatedError: undefined
+      };
+
+      return withAudit(projectWorkspaceData(nextState, nextState.session.workspaceId), action);
+    }
+
+    case "REQUEST_WORKSPACE_ACCESS": {
+      const workspace = state.workspaces.find((item) => item.id === action.workspaceId);
+      const existingMember = state.members.find((member) => member.id === action.member.id);
+      const member = existingMember?.status === "active" ? existingMember : action.member;
+      const nextState = {
+        ...state,
+        authAccounts: [action.account, ...state.authAccounts.filter((account) => account.userId !== action.account.userId)],
+        users: [action.user, ...state.users.filter((user) => user.id !== action.user.id)],
+        members: [member, ...state.members.filter((item) => item.id !== member.id)],
+        screen: "workspace" as Screen,
+        navigationFocus: undefined,
+        session: {
+          ...state.session,
+          currentUserId: action.user.id,
+          loggedIn: true,
+          role: member.status === "active" ? member.role : action.user.role,
+          workspaceId: member.status === "active" ? member.workspaceId : ""
+        },
+        notifications: [
+          {
+            id: action.notificationId ?? "notice-workspace-access-request",
+            level: workspace && member.status === "active" ? "success" as const : "info" as const,
+            message: workspace && member.status === "active" ? "이미 승인 완료된 워크스페이스입니다." : "가입 신청이 승인 대기 상태로 등록되었습니다."
+          },
+          ...state.notifications
+        ],
+        permissionDenied: undefined
+      };
+
+      return withAudit(projectWorkspaceData(nextState, nextState.session.workspaceId), action);
+    }
+
     case "JOIN_WORKSPACE":
       return withAudit(
         projectWorkspaceData(
           {
             ...state,
             members: [action.member, ...state.members.filter((member) => member.id !== action.member.id)],
-            screen: "dashboard",
+            screen: "workspace",
             navigationFocus: undefined,
-            session: { ...state.session, role: action.member.role, workspaceId: action.workspaceId },
+            session: {
+              ...state.session,
+              role: action.member.status === "active" ? action.member.role : state.session.role,
+              workspaceId: action.member.status === "active" ? action.workspaceId : state.session.workspaceId
+            },
+            notifications: [
+              { id: action.notificationId ?? "notice-workspace-join-request", level: "info", message: "워크스페이스 가입 신청이 승인 대기 상태로 등록되었습니다." },
+              ...state.notifications
+            ],
             permissionDenied: undefined
           },
-          action.workspaceId
+          action.member.status === "active" ? action.workspaceId : state.session.workspaceId
         ),
         action
       );
@@ -720,18 +813,15 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       const workspace: Workspace = {
         id: workspaceId,
         name: action.name,
-        industry: action.industry,
-        decisionGoal: action.goal,
         inviteCode: `DONI-${String(state.workspaces.length + 1).padStart(4, "0")}`
       };
       const creatorMember: WorkspaceMember = {
         id: `member-${workspaceId}-${currentUser.id}`,
         userId: currentUser.id,
         workspaceId,
-        role: "admin",
+        role: "owner",
         name: currentUser.name,
-        title: currentUser.title,
-        eligibleVoter: true,
+        title: "",
         status: "active"
       };
       return withAudit(
@@ -761,8 +851,8 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         return { ...state, permissionDenied: "현재 사용자는 해당 그룹에 속해 있지 않습니다." };
       }
 
-      if (shouldBlockWorkspaceLeaveForSoleAdmin(state, action.workspaceId)) {
-        return { ...state, permissionDenied: SOLE_ADMIN_LEAVE_BLOCKED_MESSAGE };
+      if (shouldBlockWorkspaceLeaveForSoleOwner(state, action.workspaceId)) {
+        return { ...state, permissionDenied: SOLE_OWNER_LEAVE_BLOCKED_MESSAGE };
       }
 
       const deleteWorkspace = willDeleteWorkspaceOnLeave(state, action.workspaceId);
@@ -770,7 +860,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         ? state.members.filter((member) => member.workspaceId !== action.workspaceId)
         : state.members.map((member) =>
             member.userId === state.session.currentUserId && member.workspaceId === action.workspaceId
-              ? { ...member, status: "inactive" as const, eligibleVoter: false }
+              ? { ...member, status: "inactive" as const }
               : member
           );
       const nextState = deleteWorkspace
@@ -812,25 +902,25 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
           ? createEmptyWorkspaceData(targetWorkspace)
           : {
             ...workspaceDataFromState(state),
-            company: { ...state.company, name: action.name, industry: action.industry, goal: action.goal }
+            company: { ...state.company, name: action.name }
           });
       return withAudit(
         {
           ...state,
           company:
             state.session.workspaceId === action.workspaceId
-              ? { ...state.company, name: action.name, industry: action.industry, goal: action.goal }
+              ? { ...state.company, name: action.name }
               : state.company,
           workspaces: state.workspaces.map((workspace) =>
             workspace.id === action.workspaceId
-              ? { ...workspace, name: action.name, industry: action.industry, decisionGoal: action.goal }
+              ? { ...workspace, name: action.name }
               : workspace
           ),
           workspaceDataById: {
             ...dataById,
             [action.workspaceId]: {
               ...targetData,
-              company: { ...targetData.company, name: action.name, industry: action.industry, goal: action.goal }
+              company: { ...targetData.company, name: action.name }
             }
           }
         },
@@ -846,7 +936,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
             workspace.id === action.workspaceId ? { ...workspace, inviteCode: action.inviteCode } : workspace
           ),
           notifications: [
-            { id: action.notificationId ?? "notice-invite-code", level: "success", message: "그룹 초대 코드가 새로 발급되었습니다." },
+            { id: action.notificationId ?? "notice-invite-code", level: "success", message: "그룹 조직코드가 새로 발급되었습니다." },
             ...state.notifications
           ]
         },
@@ -855,9 +945,19 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
 
     case "UPDATE_MEMBER":
       {
+        const target = state.members.find((member) => member.id === action.memberId);
+        const actor = actorMembershipForTarget(state, target);
+        const roleChanged = Boolean(target && target.role !== action.role);
+        const titleChanged = Boolean(target && target.title !== action.title);
+        const canUpdateRole = !roleChanged || canManageMembership(actor, target, "update_role", action.role);
+        const canUpdateTitle = !titleChanged || canManageMembership(actor, target, "update_title");
+        if (!target || !canUpdateRole || !canUpdateTitle) {
+          return { ...state, permissionDenied: "현재 역할은 해당 사용자의 역할 또는 직책을 변경할 수 없습니다." };
+        }
+
         const members = state.members.map((member) =>
           member.id === action.memberId
-            ? { ...member, role: action.role, eligibleVoter: action.eligibleVoter, title: action.title }
+            ? { ...member, role: action.role, title: action.title }
             : member
         );
         const updatedState = { ...state, members };
@@ -877,25 +977,62 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         );
       }
 
-    case "ACTIVATE_MEMBER":
-      return withAudit(
-        {
-          ...state,
-          members: state.members.map((member) =>
-            member.id === action.memberId ? { ...member, status: "active", eligibleVoter: true } : member
-          ),
-          notifications: [
-            { id: action.notificationId ?? "notice-member-activate", level: "success", message: "사용자를 다시 활성화했습니다." },
-            ...state.notifications
-          ]
-        },
-        action
-      );
+    case "APPROVE_MEMBER":
+      {
+        const target = state.members.find((member) => member.id === action.memberId);
+        const actor = actorMembershipForTarget(state, target);
+        if (!canManageMembership(actor, target, "approve")) {
+          return { ...state, permissionDenied: "현재 역할은 해당 가입 신청을 승인할 수 없습니다." };
+        }
+
+        return withAudit(
+          {
+            ...state,
+            members: state.members.map((member) =>
+              member.id === action.memberId ? { ...member, status: "active" as const } : member
+            ),
+            notifications: [
+              { id: action.notificationId ?? "notice-member-approve", level: "success", message: "가입 신청을 승인했습니다." },
+              ...state.notifications
+            ]
+          },
+          action
+        );
+      }
+
+    case "REJECT_MEMBER":
+      {
+        const target = state.members.find((member) => member.id === action.memberId);
+        const actor = actorMembershipForTarget(state, target);
+        if (!canManageMembership(actor, target, "reject")) {
+          return { ...state, permissionDenied: "현재 역할은 해당 가입 신청을 반려할 수 없습니다." };
+        }
+
+        return withAudit(
+          {
+            ...state,
+            members: state.members.map((member) =>
+              member.id === action.memberId ? { ...member, status: "rejected" as const } : member
+            ),
+            notifications: [
+              { id: action.notificationId ?? "notice-member-reject", level: "warning", message: "가입 신청을 반려했습니다." },
+              ...state.notifications
+            ]
+          },
+          action
+        );
+      }
 
     case "DEACTIVATE_MEMBER":
       {
+        const target = state.members.find((member) => member.id === action.memberId);
+        const actor = actorMembershipForTarget(state, target);
+        if (!canManageMembership(actor, target, "deactivate")) {
+          return { ...state, permissionDenied: "현재 역할은 해당 사용자를 비활성화할 수 없습니다." };
+        }
+
         const members = state.members.map((member) =>
-          member.id === action.memberId ? { ...member, status: "inactive" as const, eligibleVoter: false } : member
+          member.id === action.memberId ? { ...member, status: "inactive" as const } : member
         );
         const deactivatedState = { ...state, members };
         const currentWorkspaceId = userCanAccessWorkspace(deactivatedState, state.session.workspaceId)
@@ -920,6 +1057,45 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
             },
             currentWorkspaceId
           ),
+          action
+        );
+      }
+
+    case "TRANSFER_OWNERSHIP":
+      {
+        const target = state.members.find((member) => member.id === action.memberId);
+        const actor = actorMembershipForTarget(state, target);
+        if (!canManageMembership(actor, target, "transfer_owner")) {
+          return { ...state, permissionDenied: "워크스페이스 소유자만 활성 사용자에게 소유권을 이전할 수 있습니다." };
+        }
+        if (!actor || !target) {
+          return state;
+        }
+
+        const members = state.members.map((member) => {
+          if (member.id === target.id) {
+            return { ...member, role: "owner" as const };
+          }
+
+          if (member.id === actor.id) {
+            return { ...member, role: "manager" as const };
+          }
+
+          return member;
+        });
+        const transferredState = { ...state, members };
+        return withAudit(
+          {
+            ...transferredState,
+            session: {
+              ...state.session,
+              role: workspaceRoleForUser(transferredState, state.session.currentUserId, state.session.workspaceId)
+            },
+            notifications: [
+              { id: action.notificationId ?? "notice-owner-transfer", level: "success", message: "워크스페이스 소유자를 이전했습니다." },
+              ...state.notifications
+            ]
+          },
           action
         );
       }
@@ -1208,13 +1384,11 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       if (!insight) {
         return state;
       }
-      const eligibleVoterIds = activeWorkspaceMembers(state, state.session.workspaceId)
-        .filter((member) => member.eligibleVoter)
-        .map((member) => member.userId);
+      const voterUserIds = proposalVoterUserIds(state, state.session.workspaceId);
       const proposal: Proposal = buildProposalDraftFromInsight({
         authorId: state.session.currentUserId,
         createdAt: at(action),
-        eligibleVoterIds: eligibleVoterIds.length > 0 ? eligibleVoterIds : [state.session.currentUserId],
+        voterUserIds: voterUserIds.length > 0 ? voterUserIds : [state.session.currentUserId],
         insight
       });
 
@@ -1234,6 +1408,10 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
     }
 
     case "CAST_VOTE":
+      if (!canVoteOnProposal(state, action.proposalId)) {
+        return { ...state, permissionDenied: "현재 역할은 이 안건 투표에 참여할 수 없습니다." };
+      }
+
       return withAudit(
         {
           ...state,
@@ -1258,6 +1436,10 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       const proposal = state.proposals.find((item) => item.id === action.proposalId);
       if (!proposal) {
         return state;
+      }
+
+      if (!canFinalizeProposal(state)) {
+        return { ...state, permissionDenied: "현재 역할은 의사결정 결과를 확정할 수 없습니다." };
       }
 
       const summary = summarizeVotes(proposal, state.votes);

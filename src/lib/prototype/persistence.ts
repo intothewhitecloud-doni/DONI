@@ -1,5 +1,6 @@
 import { createEmptyWorkspaceData, projectWorkspaceData } from "../domain/state-machine";
-import type { PrototypeState, Screen, Workspace, WorkspaceMember, WorkspaceOperationalState } from "../domain/types";
+import type { AuthAccount, Proposal, PrototypeState, Screen, User, Workspace, WorkspaceMember, WorkspaceOperationalState } from "../domain/types";
+import { normalizeLegacyRole, normalizeMembershipStatus, normalizeProposalVoters } from "../domain/policy";
 
 const STORAGE_VERSION = 2;
 const USER_SESSION_PREFIX = "doni:user-session";
@@ -30,8 +31,10 @@ type PersistedUserSession = {
 };
 
 type PersistedWorkspaceDirectory = {
+  authAccounts?: AuthAccount[];
   members: WorkspaceMember[];
   savedAt: string;
+  users?: User[];
   version: typeof STORAGE_VERSION;
   workspaces: Workspace[];
 };
@@ -127,8 +130,10 @@ export function buildPersistedWritePayloads(state: PrototypeState, savedAt = new
   }
 
   const directory: PersistedWorkspaceDirectory = {
+    authAccounts: state.authAccounts,
     members: state.members,
     savedAt,
+    users: state.users,
     version: STORAGE_VERSION,
     workspaces: state.workspaces
   };
@@ -178,11 +183,60 @@ export function checkPersistedWriteBudget(state: PrototypeState, budgetBytes?: n
 
 function parseUserSession(raw: string | null, userId: string): PersistedUserSession | undefined {
   const parsed = parseJson<Partial<PersistedUserSession>>(raw);
-  if (!parsed || parsed.version !== STORAGE_VERSION || parsed.userId !== userId || !parsed.workspaceId || !parsed.screen) {
+  if (!parsed || parsed.version !== STORAGE_VERSION || parsed.userId !== userId || typeof parsed.workspaceId !== "string" || !parsed.screen) {
     return undefined;
   }
 
   return parsed as PersistedUserSession;
+}
+
+function normalizeUser(user: User & { title?: string }): User {
+  const { title: _legacyTitle, ...rest } = user;
+  return {
+    ...rest,
+    email: user.email?.trim().toLowerCase(),
+    role: normalizeLegacyRole(user.role)
+  };
+}
+
+function normalizeAuthAccount(account: AuthAccount): AuthAccount {
+  return {
+    ...account,
+    email: account.email?.trim().toLowerCase(),
+    role: normalizeLegacyRole(account.role)
+  };
+}
+
+function normalizeMember(member: WorkspaceMember & { eligibleVoter?: boolean; status?: string; role?: string }): WorkspaceMember {
+  const { eligibleVoter: _legacyEligibleVoter, ...rest } = member;
+  return {
+    ...rest,
+    title: member.title ?? "",
+    role: normalizeLegacyRole(member.role),
+    status: normalizeMembershipStatus(member.status)
+  };
+}
+
+function normalizeWorkspace(workspace: Workspace & { industry?: string; decisionGoal?: string }): Workspace {
+  const { industry: _legacyIndustry, decisionGoal: _legacyDecisionGoal, ...rest } = workspace;
+  return rest;
+}
+
+function normalizeWorkspaceData(data: WorkspaceOperationalState): WorkspaceOperationalState {
+  return {
+    ...data,
+    proposals: data.proposals.map((proposal) => {
+      const normalized = normalizeProposalVoters(proposal as Partial<Proposal> & Record<string, unknown>);
+      return {
+        ...proposal,
+        votingRule: {
+          ...proposal.votingRule,
+          tieBreakerRole: normalizeLegacyRole(proposal.votingRule.tieBreakerRole)
+        },
+        voterUserIds: normalized.voterUserIds
+      };
+    })
+  };
 }
 
 function parseWorkspaceDirectory(raw: string | null): PersistedWorkspaceDirectory | undefined {
@@ -191,7 +245,14 @@ function parseWorkspaceDirectory(raw: string | null): PersistedWorkspaceDirector
     return undefined;
   }
 
-  return parsed as PersistedWorkspaceDirectory;
+  return {
+    ...parsed,
+    authAccounts: parsed.authAccounts?.map(normalizeAuthAccount),
+    members: parsed.members.map(normalizeMember),
+    users: parsed.users?.map(normalizeUser),
+    version: STORAGE_VERSION,
+    workspaces: parsed.workspaces.map(normalizeWorkspace)
+  } as PersistedWorkspaceDirectory;
 }
 
 function parseWorkspaceData(raw: string | null, workspaceId: string): WorkspaceOperationalState | undefined {
@@ -200,7 +261,7 @@ function parseWorkspaceData(raw: string | null, workspaceId: string): WorkspaceO
     return undefined;
   }
 
-  return parsed.data;
+  return normalizeWorkspaceData(parsed.data);
 }
 
 function workspaceForUser(
@@ -232,6 +293,8 @@ export function loadUserState(userId: string, fallbackState: PrototypeState): Pr
   const session = parseUserSession(storage.getItem(storageKeyForUser(userId)), userId);
   const workspaces = directory?.workspaces ?? fallbackState.workspaces;
   const members = directory?.members ?? fallbackState.members;
+  const users = directory?.users ?? fallbackState.users;
+  const authAccounts = directory?.authAccounts ?? fallbackState.authAccounts;
   const activeWorkspaceIds = new Set(
     members
       .filter((member) => member.userId === userId && member.status === "active")
@@ -261,9 +324,11 @@ export function loadUserState(userId: string, fallbackState: PrototypeState): Pr
   return projectWorkspaceData(
     {
       ...fallbackState,
+      authAccounts,
       members,
       screen,
       session: { ...fallbackState.session, currentUserId: userId, loggedIn: true, workspaceId },
+      users,
       workspaces,
       workspaceDataById
     },

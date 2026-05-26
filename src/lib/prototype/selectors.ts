@@ -6,7 +6,23 @@ export function currentUser(state: PrototypeState) {
 }
 
 export function currentWorkspace(state: PrototypeState) {
-  return state.workspaces.find((workspace) => workspace.id === state.session.workspaceId) ?? state.workspaces[0];
+  return state.workspaces.find((workspace) => workspace.id === state.session.workspaceId) ?? {
+    id: "",
+    inviteCode: "",
+    name: "워크스페이스 선택 필요"
+  };
+}
+
+export function hasActiveWorkspaceSession(state: PrototypeState): boolean {
+  return Boolean(
+    state.session.workspaceId &&
+      state.members.some(
+        (member) =>
+          member.userId === state.session.currentUserId &&
+          member.workspaceId === state.session.workspaceId &&
+          member.status === "active"
+      )
+  );
 }
 
 export function accessibleWorkspaces(state: PrototypeState, userId = state.session.currentUserId) {
@@ -17,6 +33,15 @@ export function accessibleWorkspaces(state: PrototypeState, userId = state.sessi
   );
 
   return state.workspaces.filter((workspace) => activeWorkspaceIds.has(workspace.id));
+}
+
+export function workspaceMembershipsForUser(state: PrototypeState, userId = state.session.currentUserId) {
+  return state.workspaces
+    .map((workspace) => ({
+      member: state.members.find((member) => member.userId === userId && member.workspaceId === workspace.id),
+      workspace
+    }))
+    .filter((item): item is { workspace: (typeof state.workspaces)[number]; member: NonNullable<typeof item.member> } => Boolean(item.member));
 }
 
 export function currentWorkspaceData(state: PrototypeState) {
@@ -42,15 +67,7 @@ export function activeInsight(state: PrototypeState): AIInsight | undefined {
 export function activeProposal(state: PrototypeState): Proposal | undefined {
   const data = currentWorkspaceData(state);
   const focusId = state.navigationFocus?.screen === "proposalVote" ? state.navigationFocus.focusId : undefined;
-  const activeInsightProposal = data.insights
-    .find((insight) => insight.id === data.activeInsightId)
-    ?.proposalId;
-  return (
-    data.proposals.find((proposal) => proposal.id === focusId) ??
-    data.proposals.find((proposal) => proposal.id === activeInsightProposal) ??
-    data.proposals.find((proposal) => proposal.id === data.activeProposalId) ??
-    data.proposals[0]
-  );
+  return data.proposals.find((proposal) => proposal.id === focusId);
 }
 
 export function latestDecision(state: PrototypeState): Decision | undefined {
