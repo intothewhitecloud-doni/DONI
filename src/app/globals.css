@@ -28,7 +28,7 @@ body {
 h1, h2, h3, h4, h5, h6, .font-display {
   font-family: theme('fontFamily.display');
   color: theme('colors.ink');
-  letter-spacing: -0.04em; /* Approx for Cal Sans */
+  letter-spacing: 0;
 }
 
 button,

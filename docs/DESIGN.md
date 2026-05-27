@@ -50,7 +50,7 @@ colors:
   surface-variant: '#d9e3f7'
   canvas: '#ffffff'
   surface-soft: '#f8f9fa'
-  surface-card: '#f1f5f9'
+  surface-card: '#ffffff'
   surface-strong: '#e2e8f0'
   surface-dark: '#101010'
   surface-dark-elevated: '#1a1a1a'
@@ -71,31 +71,31 @@ typography:
     fontSize: 64px
     fontWeight: '600'
     lineHeight: '1.05'
-    letterSpacing: -2px
+    letterSpacing: '0'
   display-lg:
     fontFamily: Inter
     fontSize: 48px
     fontWeight: '600'
     lineHeight: '1.1'
-    letterSpacing: -1.5px
+    letterSpacing: '0'
   display-md:
     fontFamily: Inter
     fontSize: 36px
     fontWeight: '600'
     lineHeight: '1.15'
-    letterSpacing: -1px
+    letterSpacing: '0'
   display-sm:
     fontFamily: Inter
     fontSize: 28px
     fontWeight: '600'
     lineHeight: '1.2'
-    letterSpacing: -0.5px
+    letterSpacing: '0'
   title-lg:
     fontFamily: Inter
     fontSize: 22px
     fontWeight: '600'
     lineHeight: '1.3'
-    letterSpacing: -0.3px
+    letterSpacing: '0'
   title-md:
     fontFamily: Inter
     fontSize: 18px
@@ -152,9 +152,9 @@ spacing:
 
 ## Overview
 
-Cal.com's marketing surface is a clean, friendly modern-SaaS interface — white canvas (`{colors.canvas}` — #ffffff) with black primary CTAs (`{colors.primary}` — #111111), **Pretendard** typography, and `{colors.surface-card}` (#f1f5f9) light-gray cards holding product UI fragments. The system reads as confidently engineered without trying to impress — every band has clear hierarchy, generous whitespace, and a single primary action.
+Cal.com's marketing surface is a clean, friendly modern-SaaS interface — white canvas (`{colors.canvas}` — #ffffff) with black primary CTAs (`{colors.primary}` — #111111), **Pretendard** typography, and `{colors.surface-card}` (#ffffff) cards holding product UI fragments with borders and shadows for separation. The system reads as confidently engineered without trying to impress — every band has clear hierarchy, generous whitespace, and a single primary action.
 
-Type voice uses **Pretendard** as the universal typeface for both display and body. Pretendard provides excellent legibility for Korean text and a clean, geometric feel suitable for modern SaaS. Display sizes maintain a slightly tightened letter-spacing (-0.5px to -2px depending on size) to keep the modern, confident feel of Cal.com's original display typography.
+Type voice uses **Pretendard** as the universal typeface for both display and body. Pretendard provides excellent legibility for Korean text and a clean, geometric feel suitable for modern SaaS. Display sizes use zero letter-spacing across breakpoints to preserve Korean readability and prevent responsive wrapping drift in operational console surfaces.
 
 Component voltage comes from **product UI fragments shown directly inside cards** — calendar widgets, scheduling forms, automation diagrams, integration tiles. Cal.com doesn't paint marketing illustrations of the product; it shows the actual product chrome at small scale embedded in the marketing flow.
 
@@ -162,8 +162,8 @@ The footer flips to `{colors.surface-dark}` (#101010) — a deep near-black that
 
 **Key Characteristics (A11y Enhanced):**
 - White canvas with black primary CTA (`{colors.primary}` — #111111). Buttons are `{rounded.md}` (8px) with confident weight-600 labels. Standard friendly-SaaS button.
-- **Pretendard** typeface for both headlines and body text, with negative letter-spacing on display sizes.
-- Deepened light-gray card surfaces (`{colors.surface-card}` — #f1f5f9) to ensure they distinctly contrast against the white canvas, satisfying boundary recognition.
+- **Pretendard** typeface for both headlines and body text, with zero letter-spacing on display sizes.
+- White card surfaces (`{colors.surface-card}` — #ffffff) rely on darker hairline borders and shadows to ensure they distinctly contrast against the white canvas, satisfying boundary recognition.
 - Product UI fragments embedded directly in cards.
 - Nav-pill-group and interactive tabs use `{colors.brand-accent}` (#2563eb) or high-contrast states to clearly indicate active selection.
 - Avatars are circular (`{rounded.full}`).
@@ -182,7 +182,7 @@ The footer flips to `{colors.surface-dark}` (#101010) — a deep near-black that
 ### Surface
 - **Canvas** (`{colors.canvas}` — #ffffff): The default page floor.
 - **Surface Soft** (`{colors.surface-soft}` — #f8f9fa): Very-soft section dividers.
-- **Surface Card** (`{colors.surface-card}` — #f1f5f9): Feature cards, testimonial cards. Darkened to Slate 100 for clear distinction against canvas.
+- **Surface Card** (`{colors.surface-card}` — #ffffff): Console cards and product UI fragments. Uses hairline borders and `shadow-soft` for clear distinction against canvas.
 - **Surface Strong** (`{colors.surface-strong}` — #e2e8f0): Hover states or disabled background.
 - **Surface Dark** (`{colors.surface-dark}` — #101010): The footer background.
 - **Surface Dark Elevated** (`{colors.surface-dark-elevated}` — #1a1a1a): Nested dark cards.
@@ -203,17 +203,17 @@ The footer flips to `{colors.surface-dark}` (#101010) — a deep near-black that
 ## Typography
 
 ### Font Family
-The system runs **Pretendard** as the universal typeface. Pretendard handles display, body, buttons, navigation, and captions seamlessly. It provides a geometric, modern character that replaces the original dual-font setup (Cal Sans / Inter) while maintaining the exact same tracking and weight principles.
+The system runs **Pretendard** as the universal typeface. Pretendard handles display, body, buttons, navigation, and captions seamlessly. It provides a geometric, modern character that replaces the original dual-font setup while using zero tracking for stable Korean enterprise UI.
 
 ### Hierarchy
 
 | Token | Size | Weight | Line Height | Letter Spacing | Use |
 |---|---|---|---|---|---|
-| `{typography.display-xl}` | 64px | 600 | 1.05 | -2px | Homepage h1 ("The better way to schedule your meetings") — Pretendard |
-| `{typography.display-lg}` | 48px | 600 | 1.1 | -1.5px | Section heads ("Your all-purpose scheduling app") — Pretendard |
-| `{typography.display-md}` | 36px | 600 | 1.15 | -1px | Sub-section heads, card titles — Pretendard |
-| `{typography.display-sm}` | 28px | 600 | 1.2 | -0.5px | CTA-band heads, pricing tier prices — Pretendard |
-| `{typography.title-lg}` | 22px | 600 | 1.3 | -0.3px | Pricing plan names — Pretendard |
+| `{typography.display-xl}` | 64px | 600 | 1.05 | 0 | Homepage h1 ("The better way to schedule your meetings") — Pretendard |
+| `{typography.display-lg}` | 48px | 600 | 1.1 | 0 | Section heads ("Your all-purpose scheduling app") — Pretendard |
+| `{typography.display-md}` | 36px | 600 | 1.15 | 0 | Sub-section heads, card titles — Pretendard |
+| `{typography.display-sm}` | 28px | 600 | 1.2 | 0 | CTA-band heads, pricing tier prices — Pretendard |
+| `{typography.title-lg}` | 22px | 600 | 1.3 | 0 | Pricing plan names — Pretendard |
 | `{typography.title-md}` | 18px | 600 | 1.4 | 0 | Feature card titles, intro paragraphs |
 | `{typography.title-sm}` | 16px | 600 | 1.4 | 0 | Small card titles, list labels |
 | `{typography.body-md}` | 16px | 400 | 1.5 | 0 | Default running-text |
@@ -299,7 +299,7 @@ To amplify the sense of spatial depth, the UI employs **Framer Motion** for load
 
 **`hero-app-mockup-card`** — A larger product-UI mockup card showing the actual Cal.com booking widget. Background `{colors.canvas}`, 1px hairline border, rounded `{rounded.xl}` (16px), subtle drop shadow.
 
-**`feature-card`** — Used in 3-up feature grids. Background `{colors.surface-card}` (#f1f5f9), rounded `{rounded.lg}` (12px), internal padding `{spacing.xl}` (32px).
+**`feature-card`** — Used in 3-up feature grids. Background `{colors.surface-card}` (#ffffff), rounded `{rounded.lg}` (12px), internal padding `{spacing.xl}` (32px), hairline border, and soft shadow.
 
 **`pricing-tier-card-featured`** — The featured tier (typically "Teams"). Background flips to `{colors.surface-dark}` (#101010).
 
@@ -323,7 +323,7 @@ While the base system leans toward soft minimalism, enterprise software must pas
 
 ### Do
 - Reserve `{colors.primary}` (#111111) for primary CTAs and h1/h2 type.
-- Apply negative letter-spacing on display sizes (-0.5 to -2px) to maintain a modern, confident feel.
+- Keep letter-spacing at 0 on display sizes to preserve Korean readability and responsive stability.
 - Embed real product UI fragments inside marketing cards.
 - Ensure all interactive elements have focus rings to comply with accessibility.
 

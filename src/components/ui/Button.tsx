@@ -12,16 +12,17 @@ const variantClass: Record<Variant, string> = {
 export function Button({
   children,
   className = "",
+  type = "button",
   variant = "primary",
   ...props
 }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }>) {
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center rounded-md px-5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${variantClass[variant]} ${className}`}
+      className={`inline-flex h-10 min-w-0 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-5 text-sm font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${variantClass[variant]} ${className}`}
+      type={type}
       {...props}
     >
       {children}
     </button>
   );
 }
-

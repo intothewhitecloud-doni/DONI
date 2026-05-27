@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from "react";
+import type { HTMLAttributes, PropsWithChildren } from "react";
 
 export type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info" | "orange" | "pink" | "violet" | "emerald";
 
@@ -14,7 +14,22 @@ const toneClass: Record<BadgeTone, string> = {
   emerald: "border-badge-emerald/30 bg-badge-emerald/10 text-badge-emerald"
 };
 
-export function Badge({ children, tone = "neutral" }: PropsWithChildren<{ tone?: BadgeTone }>) {
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClass[tone]}`}>{children}</span>;
-}
+export function Badge({
+  children,
+  className = "",
+  tone = "neutral",
+  title,
+  ...props
+}: PropsWithChildren<HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone }>) {
+  const fallbackTitle = typeof children === "string" ? children : undefined;
 
+  return (
+    <span
+      className={`inline-flex max-w-full shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none whitespace-nowrap ${toneClass[tone]} ${className}`}
+      title={title ?? fallbackTitle}
+      {...props}
+    >
+      {children}
+    </span>
+  );
+}

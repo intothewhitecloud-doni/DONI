@@ -73,20 +73,20 @@ function MetricBarChart({
   const color = chartColors[status].bar;
 
   return (
-    <div className={`mt-4 flex ${compact ? "h-32" : "h-40"} items-end gap-2 pb-1`}>
+    <div className={`mt-4 flex min-w-0 ${compact ? "h-32" : "h-40"} items-end gap-2 overflow-hidden pb-1`}>
       {points.map((point, index) => {
         const isCurrent = index === points.length - 1;
         const heightPercent = Math.max(10, (point.value / maxValue) * 100);
 
         return (
-          <div key={`${id}-${point.label}`} className="flex h-full flex-1 flex-col items-center justify-end">
-            <span className={`text-xs font-bold ${isCurrent ? "text-slate-900" : "text-slate-500"}`}>
+          <div key={`${id}-${point.label}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
+            <span className={`max-w-full truncate whitespace-nowrap text-xs font-bold ${isCurrent ? "text-ink" : "text-muted"}`}>
               {point.value}{unit}
             </span>
             <div className={`${compact ? "h-20" : "h-24"} mt-1 flex w-full items-end`}>
               <div className={`w-full rounded-t-md ${isCurrent ? color : "bg-slate-200"}`} style={{ height: `${heightPercent}%` }} />
             </div>
-            <p className="mt-2 min-h-8 w-full text-center text-xs font-semibold leading-4 text-slate-600">{point.label}</p>
+            <p className="mt-2 min-h-8 w-full min-w-0 text-center text-xs font-semibold leading-4 text-muted">{point.label}</p>
           </div>
         );
       })}
@@ -192,13 +192,13 @@ function MetricPieChart({ points, status, unit }: { points: MetricChartPoint[]; 
   const colors = chartColors[status];
 
   return (
-    <div className="mt-5 grid grid-cols-[96px_1fr] items-center gap-4">
+    <div className="mt-5 grid min-w-0 grid-cols-[96px_minmax(0,1fr)] items-center gap-4">
       <div
         className="h-24 w-24 rounded-full border border-slate-200"
         style={{ background: `conic-gradient(${colors.stroke} ${percent * 3.6}deg, #e2e8f0 0deg)` }}
       />
-      <div className="space-y-2 text-sm text-slate-600">
-        {points.map((point) => <p key={point.label}>{point.label}: {point.value}{unit}</p>)}
+      <div className="min-w-0 space-y-2 text-sm text-muted">
+        {points.map((point) => <p key={point.label} className="truncate" title={`${point.label}: ${point.value}${unit}`}>{point.label}: {point.value}{unit}</p>)}
       </div>
     </div>
   );
