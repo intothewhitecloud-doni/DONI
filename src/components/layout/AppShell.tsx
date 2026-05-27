@@ -45,50 +45,60 @@ export function AppShell({ screen }: { screen: Screen }) {
 
   return (
     <div className="min-h-screen bg-canvas text-body">
+      {mobileOpen && (
+        <button
+          aria-label="메뉴 닫기"
+          className="fixed inset-0 z-30 bg-slate-950/30 lg:hidden"
+          type="button"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-hairline bg-white px-4 py-5 shadow-[4px_0_24px_rgba(0,0,0,0.03)] transition md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-hairline bg-white px-4 py-5 shadow-[4px_0_24px_rgba(0,0,0,0.03)] transition-transform duration-200 lg:w-20 lg:translate-x-0 lg:px-3 xl:w-64 xl:px-4 ${mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col items-start gap-1.5">
-            <img src="/assets/logo.svg" alt="DONI" className="h-12 w-auto" />
-            <p className="pl-0.5 text-caption text-muted">기업 운영 콘솔</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-col items-start gap-1.5 lg:items-center xl:items-start">
+            <img src="/assets/logo.svg" alt="DONI" className="h-12 w-auto lg:h-10 xl:h-12" />
+            <p className="pl-0.5 text-caption text-muted lg:hidden xl:block">기업 운영 콘솔</p>
           </div>
-          <button className="rounded-md px-2 py-1 text-button md:hidden" onClick={() => setMobileOpen(false)}>닫기</button>
+          <button className="shrink-0 rounded-md px-2 py-1 text-button lg:hidden" type="button" onClick={() => setMobileOpen(false)}>닫기</button>
         </div>
         <nav className="mt-8 space-y-1">
           {visibleNavItems.map((item) => (
             <button
               key={item.screen}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-nav-link transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${activeScreen === item.screen ? "bg-brand-accent/10 text-brand-accent font-semibold shadow-sm" : "text-muted hover:bg-surface-soft hover:text-ink"
+              className={`flex w-full min-w-0 items-center gap-3 rounded-md px-3 py-2 text-left text-nav-link transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:justify-center lg:px-2 xl:justify-start xl:px-3 ${activeScreen === item.screen ? "bg-brand-accent/10 text-brand-accent font-semibold shadow-sm" : "text-muted hover:bg-surface-soft hover:text-ink"
                 }`}
               onClick={() => {
                 commands.navigate(item.screen);
                 setMobileOpen(false);
               }}
+              title={item.label}
+              type="button"
             >
               <span className={`flex size-7 items-center justify-center rounded-md text-caption shadow-sm ${activeScreen === item.screen ? "bg-brand-accent text-white" : "bg-canvas border border-hairline text-ink"}`}>{item.short}</span>
-              {item.label}
+              <span className="min-w-0 truncate lg:hidden xl:block">{item.label}</span>
             </button>
           ))}
         </nav>
       </aside>
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-hairline bg-white/95 backdrop-blur shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:left-72">
-        <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 md:px-6">
+      <header className="fixed inset-x-0 top-0 z-20 border-b border-hairline bg-white/95 backdrop-blur shadow-[0_4px_24px_rgba(0,0,0,0.03)] lg:left-20 xl:left-64">
+        <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 sm:px-5 xl:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <button className="rounded-md border border-hairline px-3 py-2 text-button md:hidden" onClick={() => setMobileOpen(true)}>메뉴</button>
+            <button className="shrink-0 rounded-md border border-hairline px-3 py-2 text-button lg:hidden" type="button" onClick={() => setMobileOpen(true)}>메뉴</button>
             <CompanyPill companyName={company.name} />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
             <Badge tone="info">{roleLabel(displayRole)}</Badge>
-            <span className="hidden text-title-sm text-ink sm:inline">{user.name}</span>
+            <span className="hidden max-w-32 truncate whitespace-nowrap text-title-sm text-ink sm:inline xl:max-w-48">{user.name}</span>
             <ButtonLike onClick={commands.logout}>로그아웃</ButtonLike>
           </div>
         </div>
       </header>
-      <main className="min-h-screen px-4 pb-12 pt-36 md:pl-[19.5rem] md:pr-6">
+      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-5 lg:pl-[6.5rem] lg:pr-5 xl:pl-[17.5rem] xl:pr-8">
         <Notice />
-        <div className="w-full">
+        <div className="mx-auto w-full max-w-[1180px] 2xl:max-w-[1280px]">
           {renderScreen(screenToRender)}
         </div>
       </main>
@@ -98,12 +108,12 @@ export function AppShell({ screen }: { screen: Screen }) {
 
 function CompanyPill({ companyName }: { companyName: string }) {
   return (
-    <div className="inline-flex max-w-[58vw] items-center gap-1 rounded-full bg-surface-soft p-1 text-left md:max-w-md">
-      <span className="min-w-0 rounded-full bg-canvas px-3 py-1.5 shadow-soft">
-        <span className="block text-caption leading-4 text-muted">현재 기업</span>
-        <span className="block truncate text-title-sm leading-5 text-ink">{companyName}</span>
+    <div className="inline-flex min-w-0 max-w-[52vw] items-center gap-1 rounded-full bg-surface-soft p-1 text-left sm:max-w-md">
+      <span className="inline-flex min-w-0 items-center gap-2 rounded-full bg-canvas px-3 py-1.5 shadow-soft">
+        <span className="shrink-0 whitespace-nowrap text-caption leading-4 text-muted">현재 기업</span>
+        <span className="min-w-0 max-w-28 truncate whitespace-nowrap text-title-sm leading-5 text-ink sm:max-w-40" title={companyName}>{companyName}</span>
       </span>
-      <span className="shrink-0 px-3 py-1.5 text-caption text-muted">단일 콘솔</span>
+      <span className="hidden shrink-0 whitespace-nowrap px-3 py-1.5 text-caption text-muted sm:inline">단일 콘솔</span>
     </div>
   );
 }
@@ -111,8 +121,9 @@ function CompanyPill({ companyName }: { companyName: string }) {
 function ButtonLike({ children, onClick }: { children: string; onClick: () => void }) {
   return (
     <button
-      className="rounded-md border border-error/20 bg-error/5 px-3 py-2 text-button text-error transition hover:bg-error/10"
+      className="shrink-0 whitespace-nowrap rounded-md border border-error/20 bg-error/5 px-3 py-2 text-button text-error transition hover:bg-error/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       onClick={onClick}
+      type="button"
     >
       {children}
     </button>
@@ -128,10 +139,10 @@ function Notice() {
   }
 
   return (
-    <div className="fixed right-4 top-20 z-50 max-w-sm rounded-lg border border-warning/30 bg-warning/10 p-4 text-body-sm text-warning shadow-soft">
+    <div className="fixed left-4 right-4 top-20 z-50 rounded-lg border border-warning/30 bg-warning/10 p-4 text-body-sm text-warning shadow-soft sm:left-auto sm:max-w-sm">
       <div className="flex items-start justify-between gap-3">
-        <p>{message}</p>
-        <button className="font-bold hover:text-ink" onClick={commands.clearNotice}>닫기</button>
+        <p className="min-w-0">{message}</p>
+        <button className="shrink-0 whitespace-nowrap font-bold hover:text-ink" type="button" onClick={commands.clearNotice}>닫기</button>
       </div>
     </div>
   );
