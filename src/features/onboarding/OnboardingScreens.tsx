@@ -87,12 +87,10 @@ export function LoginScreen() {
   const { commands, state } = usePrototype();
   const [loginId, setLoginId] = useState("test");
   const [password, setPassword] = useState("test");
+  const loginFeedback = state.permissionDenied;
 
   function submit() {
-    if (!commands.login(loginId, password)) {
-      commands.clearNotice();
-      commands.navigate("login");
-    }
+    commands.login(loginId, password);
   }
 
   return (
@@ -115,14 +113,38 @@ export function LoginScreen() {
         </section>
         <Card className="space-y-4">
           <SectionTitle eyebrow="로그인" title="기업 콘솔 접속" description="승인 완료된 기업 사용자만 대시보드로 이동합니다." />
-          {state.permissionDenied && <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">{state.permissionDenied}</div>}
+          {loginFeedback && (
+            <div
+              aria-live="assertive"
+              className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error"
+              role="alert"
+            >
+              {loginFeedback}
+            </div>
+          )}
           <label className="block text-sm font-medium text-slate-700">
             아이디 또는 이메일
-            <input className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2" value={loginId} onChange={(event) => setLoginId(event.target.value)} />
+            <input
+              aria-invalid={Boolean(loginFeedback)}
+              className={`mt-1 w-full rounded-md border px-3 py-2 ${loginFeedback ? "border-error/50 bg-error/5" : "border-slate-200"}`}
+              value={loginId}
+              onChange={(event) => setLoginId(event.target.value)}
+            />
           </label>
           <label className="block text-sm font-medium text-slate-700">
             비밀번호
-            <input className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+            <input
+              aria-invalid={Boolean(loginFeedback)}
+              className={`mt-1 w-full rounded-md border px-3 py-2 ${loginFeedback ? "border-error/50 bg-error/5" : "border-slate-200"}`}
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  submit();
+                }
+              }}
+            />
           </label>
           <Button className="w-full" onClick={submit}>로그인</Button>
           <Button variant="secondary" className="w-full" onClick={() => commands.navigate("signup")}>회원가입</Button>

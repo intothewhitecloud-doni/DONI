@@ -58,6 +58,18 @@ test("approved login enters dashboard and logout returns to login", () => {
   assert.equal(stateRef.state.screen, "login");
 });
 
+test("invalid login keeps user out and shows credential feedback", () => {
+  const stateRef = { state: createInitialState() };
+  const dispatch = dispatchFor(stateRef);
+
+  dispatch({ type: "NAVIGATE", screen: "login" });
+
+  assert.equal(loginWithCredentials(stateRef.state, dispatch, "test", "wrong-password"), false);
+  assert.equal(stateRef.state.session.loggedIn, false);
+  assert.equal(stateRef.state.screen, "login");
+  assert.match(stateRef.state.permissionDenied ?? "", /아이디 또는 비밀번호/);
+});
+
 test("signup requires company code and pending login stays on login with approval popup", () => {
   const stateRef = { state: createInitialState() };
   const dispatch = dispatchFor(stateRef);

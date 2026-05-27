@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type PropsWithChildren } from "react";
 import type { CandidateType, DomainTypeScope, LinkTarget, PrototypeState, Role, Screen, VoteChoice } from "../domain/types";
 import { advanceAnalysisJob, confirmCandidates, editCandidate, excludeCandidate, setCandidateType, startAnalysisJob } from "./commands/analysisCommands";
-import { loginWithCredentials, logout, signup } from "./commands/authCommands";
+import { LOGIN_FAILED_MESSAGE, loginWithCredentials, logout, signup } from "./commands/authCommands";
 import { addSourceFiles, removeSourceFile, updateSourceFile, uploadSampleFiles } from "./commands/fileCommands";
 import { createProposalFromInsight } from "./commands/insightCommands";
 import {
@@ -96,6 +96,7 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
       login: (loginId, password) => {
         const account = findAuthAccount(state.authAccounts, loginId, password);
         if (!account) {
+          dispatch({ type: "SET_PERMISSION_DENIED", message: LOGIN_FAILED_MESSAGE });
           return false;
         }
 

@@ -7,6 +7,7 @@ import { normalizedEmail } from "../policy";
 import type { PrototypeAction } from "../store";
 
 export const APPROVAL_PENDING_MESSAGE = "가입 신청이 등록되었습니다. 승인 완료 후 접속할 수 있습니다.";
+export const LOGIN_FAILED_MESSAGE = "아이디 또는 비밀번호를 확인해 주세요.";
 
 export function loginWithCredentials(
   state: PrototypeState,
@@ -16,6 +17,7 @@ export function loginWithCredentials(
 ): boolean {
   const account = findAuthAccount(state.authAccounts, loginId, password);
   if (!account) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: LOGIN_FAILED_MESSAGE });
     return false;
   }
 
