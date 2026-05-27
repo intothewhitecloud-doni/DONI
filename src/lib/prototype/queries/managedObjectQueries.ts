@@ -1,8 +1,8 @@
 import type { EntityInstance, EventRecord, MetricDefinition, MetricValue, PrototypeState, Relation } from "../../domain/types";
 import { displayTypeLabel, domainTypeId, normalizeTypeLabel } from "../../domain/type-catalog";
-import { currentWorkspaceData } from "../selectors";
+import { currentCompanyData } from "../selectors";
 
-type WorkspaceData = ReturnType<typeof currentWorkspaceData>;
+type CompanyData = ReturnType<typeof currentCompanyData>;
 
 export type ManagedObjectCategoryId = string;
 
@@ -88,7 +88,7 @@ export type ManagedObjectViewOptions = {
   visibleEntityIds?: string[];
 };
 
-function categoryDefinitions(data: WorkspaceData): Array<Omit<ManagedObjectCategory, "instanceCount" | "statusLabel" | "tone">> {
+function categoryDefinitions(data: CompanyData): Array<Omit<ManagedObjectCategory, "instanceCount" | "statusLabel" | "tone">> {
   const definitions = data.managedObjectTypes.map((type) => ({
     id: type.id,
     kind: type.label,
@@ -148,7 +148,7 @@ export const managedObjectGraphLegend: ManagedObjectGraphLegendItem[] = [
 const workflowSequence = ["event-order", "event-order-p08", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
 
 export function getManagedObjectView(state: PrototypeState, focusId?: string, options: ManagedObjectViewOptions = {}) {
-  const data = currentWorkspaceData(state);
+  const data = currentCompanyData(state);
   const categories = buildManagedObjectCategories(data);
   const activeCategoryId = resolveActiveCategoryId(data.entities, categories, focusId);
   const detail = buildManagedObjectDetail(state, activeCategoryId, focusId, options);
@@ -202,7 +202,7 @@ export function getManagedObjectGraphItemDetail(detail: ManagedObjectDetail, ite
   };
 }
 
-function buildManagedObjectCategories(data: WorkspaceData): ManagedObjectCategory[] {
+function buildManagedObjectCategories(data: CompanyData): ManagedObjectCategory[] {
   return categoryDefinitions(data)
     .map((definition): ManagedObjectCategory | undefined => {
       const instances = data.entities.filter((entity) => displayTypeLabel(entity.kind) === definition.label);
@@ -247,7 +247,7 @@ function buildManagedObjectDetail(
   focusId?: string,
   options: ManagedObjectViewOptions = {}
 ): ManagedObjectDetail {
-  const data = currentWorkspaceData(state);
+  const data = currentCompanyData(state);
   const categories = buildManagedObjectCategories(data);
   const category = categories.find((item) => item.id === categoryId);
   const focusedEntity =
@@ -338,7 +338,7 @@ function emptyManagedObjectDetail(): ManagedObjectDetail {
 }
 
 function collectWorkflowEventIds(
-  data: WorkspaceData,
+  data: CompanyData,
   instances: EntityInstance[],
   insights: PrototypeState["insights"]
 ): Set<string> {
@@ -369,7 +369,7 @@ function collectWorkflowEventIds(
 }
 
 function collectMetricIds(
-  data: WorkspaceData,
+  data: CompanyData,
   instances: EntityInstance[],
   events: EventRecord[],
   insights: PrototypeState["insights"],
@@ -415,7 +415,7 @@ function buildGraphModel({
   relations,
   visibleEntityIds
 }: {
-  data: WorkspaceData;
+  data: CompanyData;
   events: EventRecord[];
   insights: PrototypeState["insights"];
   instances: EntityInstance[];

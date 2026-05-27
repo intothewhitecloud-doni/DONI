@@ -7,13 +7,14 @@ import { Card, SectionTitle } from "../../components/ui/Card";
 import { MetricChart } from "../../components/ui/MetricChart";
 import { Popup } from "../../components/ui/Popup";
 import type { DomainTypeColor, DomainTypeDefinition, EvidenceReference, MetricValue, SourceFile } from "../../lib/domain/types";
+import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../../lib/domain/types";
 import {
   displayTypeLabel,
   domainTypeColorHex,
   normalizeHexColor,
   normalizeTypeColor
 } from "../../lib/domain/type-catalog";
-import { can } from "../../lib/prototype/permissions";
+import { canCurrentUser } from "../../lib/prototype/permissions";
 import { getManagedObjectView } from "../../lib/prototype/queries/managedObjectQueries";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import {
@@ -44,15 +45,21 @@ const canonicalSourceKind: EvidenceReference["sourceKind"] = "canonical_sample";
 
 export function DataVaultScreen() {
   const { commands, state } = usePrototype();
-  const canManageFiles = can(state.session.role, "source:upload");
+  const canManageFiles = canCurrentUser(state, "source:upload");
   const inputRef = useRef<HTMLInputElement>(null);
   const [activeFileId, setActiveFileId] = useState("");
   const [isReadingFiles, setIsReadingFiles] = useState(false);
   const [editingFile, setEditingFile] = useState({ kind: "", name: "" });
   const [fileFeedback, setFileFeedback] = useState("");
+  const [activeOrganizationCategoryId, setActiveOrganizationCategoryId] = useState(UNASSIGNED_ORGANIZATION_CATEGORY_ID);
+  const organizationCategories = state.organizationCategories;
+  const visibleSourceFiles = useMemo(
+    () => state.sourceFiles.filter((file) => (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID) === activeOrganizationCategoryId),
+    [activeOrganizationCategoryId, state.sourceFiles]
+  );
   const activeFile = useMemo(
-    () => state.sourceFiles.find((file) => file.id === activeFileId) ?? state.sourceFiles[0],
-    [activeFileId, state.sourceFiles]
+    () => visibleSourceFiles.find((file) => file.id === activeFileId) ?? visibleSourceFiles[0],
+    [activeFileId, visibleSourceFiles]
   );
   const fileEvidence = activeFile
     ? state.evidence.filter((item) => item.sourceKind !== canonicalSourceKind && item.sourceFileId === activeFile.id)
@@ -60,12 +67,20 @@ export function DataVaultScreen() {
   const canonicalEvidence = state.evidence.filter((item) => item.sourceKind === canonicalSourceKind);
 
   useEffect(() => {
-    if (activeFileId && state.sourceFiles.some((file) => file.id === activeFileId)) {
+    if (activeFileId && visibleSourceFiles.some((file) => file.id === activeFileId)) {
       return;
     }
 
-    setActiveFileId(state.sourceFiles[0]?.id ?? "");
-  }, [activeFileId, state.sourceFiles]);
+    setActiveFileId(visibleSourceFiles[0]?.id ?? "");
+  }, [activeFileId, visibleSourceFiles]);
+
+  useEffect(() => {
+    if (organizationCategories.some((category) => category.id === activeOrganizationCategoryId)) {
+      return;
+    }
+
+    setActiveOrganizationCategoryId(UNASSIGNED_ORGANIZATION_CATEGORY_ID);
+  }, [activeOrganizationCategoryId, organizationCategories]);
 
   useEffect(() => {
     setEditingFile({
@@ -99,7 +114,7 @@ export function DataVaultScreen() {
         .map((result) => result.value);
 
       if (files.length > 0) {
-        if (commands.addSourceFiles(files)) {
+        if (commands.addSourceFiles(files, activeOrganizationCategoryId)) {
           input.value = "";
           setFileFeedback("");
         } else {
@@ -119,12 +134,12 @@ export function DataVaultScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="데이터 보관함" title="파일 추가와 분석 준비" description="업무 파일을 추가하고, 업로드된 파일의 내용과 근거 위치를 확인합니다." />
+      <SectionTitle eyebrow="데이터 보관함" title="조직별 파일 추가와 분석 준비" description="업로드 전에 조직 탭을 선택하고 해당 분류로 업무 파일을 추가합니다." />
       <Card className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-950">파일 추가</h2>
-            <p className="mt-1 text-sm text-slate-600">주문, 배송, 클레임, 상품, 마진, 공급사 관련 파일을 보관함에 추가합니다.</p>
+            <p className="mt-1 text-sm text-slate-600">현재 선택 조직: {organizationCategories.find((category) => category.id === activeOrganizationCategoryId)?.name ?? "미지정"}</p>
           </div>
           {canManageFiles && (
             <div className="flex flex-wrap gap-2">
@@ -150,20 +165,34 @@ export function DataVaultScreen() {
             {fileFeedback}
           </div>
         )}
+        <div className="flex flex-wrap gap-2">
+          {organizationCategories.map((category) => {
+            const count = state.sourceFiles.filter((file) => (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID) === category.id).length;
+            return (
+              <Button
+                key={category.id}
+                variant={activeOrganizationCategoryId === category.id ? "primary" : "secondary"}
+                onClick={() => setActiveOrganizationCategoryId(category.id)}
+              >
+                {category.name} · {count}
+              </Button>
+            );
+          })}
+        </div>
       </Card>
       <div className="grid items-start gap-5 lg:grid-cols-[1fr_1.1fr]">
         <Card className="min-w-0 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-slate-950">보관 파일</h2>
-            <Badge tone={state.sourceFiles.length > 0 ? "info" : "neutral"}>{state.sourceFiles.length}개</Badge>
+            <Badge tone={visibleSourceFiles.length > 0 ? "info" : "neutral"}>{visibleSourceFiles.length}개</Badge>
           </div>
-          {state.sourceFiles.length === 0 ? (
+          {visibleSourceFiles.length === 0 ? (
             <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-5">
-              <p className="font-semibold text-slate-900">아직 추가된 파일이 없습니다</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">파일을 추가하면 이곳에서 조회하고 다운로드할 수 있습니다.</p>
+              <p className="font-semibold text-slate-900">선택한 조직에 추가된 파일이 없습니다</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">조직 탭을 선택한 뒤 파일을 추가하면 이곳에서 조회할 수 있습니다.</p>
             </div>
           ) : (
-            state.sourceFiles.map((file) => (
+            visibleSourceFiles.map((file) => (
               <button
                 key={file.id}
                 className={`w-full rounded-md border p-4 text-left transition ${
@@ -175,6 +204,9 @@ export function DataVaultScreen() {
                   <div>
                     <h3 className="font-bold text-slate-950">{file.name}</h3>
                     <p className="mt-2 text-sm text-slate-600">{sourceFileListSummary(file)}</p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      조직: {organizationCategories.find((category) => category.id === (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID))?.name ?? "미지정"}
+                    </p>
                     <p className="mt-2 text-xs text-slate-500">
                       {file.uploadedAt ? `업로드 시각 ${new Date(file.uploadedAt).toLocaleString("ko-KR")}` : "업로드 전"}
                     </p>
@@ -803,8 +835,8 @@ function hexToRgb(hex: string): { b: number; g: number; r: number } | undefined 
 export function ManagedObjectsScreen() {
   const { commands, state } = usePrototype();
   const hasFiles = state.sourceFiles.length > 0;
-  const canPrepareAnalysis = can(state.session.role, "source:upload") && can(state.session.role, "analysis:start");
-  const canManageTypes = can(state.session.role, "admin:manage");
+  const canPrepareAnalysis = canCurrentUser(state, "source:upload") && canCurrentUser(state, "analysis:start");
+  const canManageTypes = canCurrentUser(state, "company:type:manage");
   const focusedObjectId = state.navigationFocus?.screen === "objects" ? state.navigationFocus.focusId : undefined;
   const [activeObjectId, setActiveObjectId] = useState(focusedObjectId ?? "");
   const [selectedGraphItemId, setSelectedGraphItemId] = useState<string | undefined>(undefined);
@@ -1141,7 +1173,7 @@ function DomainTypeManager({
           </div>
         )}
       </div>
-      {!canManage && <p className="text-xs font-semibold text-slate-500">관리자만 유형을 추가/수정/삭제할 수 있습니다.</p>}
+      {!canManage && <p className="text-xs font-semibold text-slate-500">기업 소유자만 유형을 추가/수정/삭제할 수 있습니다.</p>}
     </div>
   );
 }
@@ -1305,8 +1337,8 @@ function DetailStat({ label, value }: { label: string; value: string }) {
 export function WorkflowScreen() {
   const { commands, state } = usePrototype();
   const hasFiles = state.sourceFiles.length > 0;
-  const canPrepareAnalysis = can(state.session.role, "source:upload") && can(state.session.role, "analysis:start");
-  const canManageTypes = can(state.session.role, "admin:manage");
+  const canPrepareAnalysis = canCurrentUser(state, "source:upload") && canCurrentUser(state, "analysis:start");
+  const canManageTypes = canCurrentUser(state, "company:type:manage");
   const focusedEventId = state.navigationFocus?.screen === "workflow" ? state.navigationFocus.focusId : undefined;
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1450,8 +1482,8 @@ export function WorkflowScreen() {
 export function MetricsScreen() {
   const { commands, state } = usePrototype();
   const hasFiles = state.sourceFiles.length > 0;
-  const canPrepareAnalysis = can(state.session.role, "source:upload") && can(state.session.role, "analysis:start");
-  const canOpenInsightDetail = can(state.session.role, "insight:proposal");
+  const canPrepareAnalysis = canCurrentUser(state, "source:upload") && canCurrentUser(state, "analysis:start");
+  const canOpenInsightDetail = canCurrentUser(state, "insight:proposal");
   const focusedMetricId = state.navigationFocus?.screen === "metrics" ? state.navigationFocus.focusId : undefined;
 
   if (state.metricDefinitions.length === 0) {

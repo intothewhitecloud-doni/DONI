@@ -2,7 +2,7 @@ import type { Dispatch } from "react";
 import type { DomainTypeScope, PrototypeState } from "../../domain/types";
 import { normalizeTypeColor, normalizeTypeLabel } from "../../domain/type-catalog";
 import { commandMeta } from "../events";
-import { can } from "../permissions";
+import { canCurrentUser } from "../permissions";
 import type { PrototypeAction } from "../store";
 
 function scopeLabel(scope: DomainTypeScope): string {
@@ -20,7 +20,7 @@ export function addDomainType(
   label: string,
   color?: string
 ): boolean {
-  if (!can(state.session.role, "admin:manage")) {
+  if (!canCurrentUser(state, "company:type:manage")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 유형을 관리할 수 없습니다." });
     return false;
   }
@@ -55,7 +55,7 @@ export function updateDomainType(
   label: string,
   color?: string
 ): boolean {
-  if (!can(state.session.role, "admin:manage")) {
+  if (!canCurrentUser(state, "company:type:manage")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 유형을 관리할 수 없습니다." });
     return false;
   }
@@ -94,7 +94,7 @@ export function deleteDomainType(
   scope: DomainTypeScope,
   typeId: string
 ): boolean {
-  if (!can(state.session.role, "admin:manage")) {
+  if (!canCurrentUser(state, "company:type:manage")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 유형을 관리할 수 없습니다." });
     return false;
   }

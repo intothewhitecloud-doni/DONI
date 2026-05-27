@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
-import type { Proposal, VoteChoice } from "../../lib/domain/types";
+import type { ActorSnapshot, Proposal, VoteChoice } from "../../lib/domain/types";
 import { summarizeVotes } from "../../lib/policies/voting";
-import { can, roleLabel } from "../../lib/prototype/permissions";
-import { activeWorkspaceMemberForUser, canOpenProposalDetail, proposalStatusLabel } from "../../lib/prototype/policy";
-import { activeProposal, currentWorkspaceData, latestDecision } from "../../lib/prototype/selectors";
+import { canCurrentUser, roleLabel } from "../../lib/prototype/permissions";
+import { activeCompanyUserForUser, canOpenProposalDetail, proposalStatusLabel } from "../../lib/prototype/policy";
+import { activeProposal, currentCompanyData, latestDecision } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
 const choiceLabels: Record<VoteChoice, string> = {
@@ -17,14 +17,29 @@ const choiceLabels: Record<VoteChoice, string> = {
   abstain: "기권"
 };
 
+function actorNameFromSnapshot(snapshot: ActorSnapshot | undefined, fallbackName: string | undefined): string {
+  return snapshot?.name ?? fallbackName ?? "삭제된 사용자";
+}
+
+function actorDetailFromSnapshot(snapshot: ActorSnapshot | undefined, fallbackTitle: string | undefined): string {
+  if (fallbackTitle?.trim()) {
+    return fallbackTitle.trim();
+  }
+  if (snapshot) {
+    const snapshotRoleLabel = snapshot.role === "owner" || snapshot.role === "manager" ? roleLabel(snapshot.role) : snapshot.role;
+    return `${snapshotRoleLabel} · 기록 스냅샷`;
+  }
+  return "미지정";
+}
+
 export function ProposalVoteScreen() {
   const { commands, state } = usePrototype();
   const proposal = activeProposal(state);
-  const proposals = currentWorkspaceData(state).proposals;
-  const currentMember = activeWorkspaceMemberForUser(state, state.session.workspaceId, state.session.currentUserId);
-  const canOpenDetail = canOpenProposalDetail(currentMember);
-  const canFinalizeProposal = can(state.session.role, "proposal:finalize");
-  const canVoteProposal = can(state.session.role, "proposal:vote");
+  const proposals = currentCompanyData(state).proposals;
+  const currentCompanyUser = activeCompanyUserForUser(state, state.session.currentUserId);
+  const canOpenDetail = canOpenProposalDetail(currentCompanyUser);
+  const canFinalizeProposal = canCurrentUser(state, "proposal:finalize");
+  const canVoteProposal = canCurrentUser(state, "proposal:vote");
   const [choice, setChoice] = useState<VoteChoice>("approve");
   const summary = useMemo(() => (proposal ? summarizeVotes(proposal, state.votes) : undefined), [proposal, state.votes]);
   const currentUserVote = proposal
@@ -81,15 +96,17 @@ export function ProposalVoteScreen() {
         </Card>
         <Card className="space-y-4">
           <h2 className="text-lg font-bold text-slate-950">참여 구성원</h2>
-          {proposal.voterUserIds.map((userId) => {
+          {proposal.voterUserIds.map((userId, index) => {
             const user = state.users.find((item) => item.id === userId);
-            const member = activeWorkspaceMemberForUser(state, state.session.workspaceId, userId);
+            const companyUser = activeCompanyUserForUser(state, userId);
             const vote = state.votes.find((item) => item.proposalId === proposal.id && item.voterId === userId);
+            const voterSnapshot =
+              proposal.voterSnapshots?.find((snapshot) => snapshot.userId === userId) ?? proposal.voterSnapshots?.[index];
             return (
               <div key={userId} className="flex items-center justify-between rounded-md border border-slate-200 p-3">
                 <div>
-                  <p className="font-semibold text-slate-900">{user?.name}</p>
-                  <p className="text-xs text-slate-500">{member?.title.trim() || "미지정"}</p>
+                  <p className="font-semibold text-slate-900">{actorNameFromSnapshot(voterSnapshot, user?.name)}</p>
+                  <p className="text-xs text-slate-500">{actorDetailFromSnapshot(voterSnapshot, companyUser?.title)}</p>
                 </div>
                 <Badge tone={vote ? "success" : "neutral"}>{vote ? choiceLabels[vote.choice] : "대기"}</Badge>
               </div>
@@ -102,7 +119,9 @@ export function ProposalVoteScreen() {
                 const author = state.users.find((user) => user.id === comment.authorId);
                 return (
                   <div key={comment.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-900">{author?.name ?? "구성원"}</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {actorNameFromSnapshot(comment.authorSnapshot, author?.name)}
+                    </p>
                     <p className="mt-1 text-sm leading-6 text-slate-600">{comment.message}</p>
                   </div>
                 );
@@ -113,7 +132,9 @@ export function ProposalVoteScreen() {
                   const voter = state.users.find((user) => user.id === vote.voterId);
                   return (
                     <div key={`${vote.id}-opinion`} className="rounded-md border border-slate-200 p-3">
-                      <p className="text-sm font-semibold text-slate-900">{voter?.name ?? "투표자"} · {choiceLabels[vote.choice]}</p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {actorNameFromSnapshot(vote.voterSnapshot, voter?.name)} · {choiceLabels[vote.choice]}
+                      </p>
                       <p className="mt-1 text-sm leading-6 text-slate-600">{vote.reason}</p>
                     </div>
                   );
@@ -134,7 +155,7 @@ function ProposalList({ canOpenDetail, proposals }: { canOpenDetail: boolean; pr
       <SectionTitle
         eyebrow="의사결정"
         title="인사이트에서 생성된 안건 목록"
-        description={canOpenDetail ? "안건을 선택해 상세 투표 화면으로 이동할 수 있습니다." : "일반 사용자는 안건 목록과 내 승인/반려/기권 상태만 조회할 수 있습니다."}
+        description={canOpenDetail ? "안건을 선택해 상세 투표 화면으로 이동할 수 있습니다." : "상세 권한이 없으면 안건 목록과 내 승인/반려/기권 상태만 조회할 수 있습니다."}
       />
       <div className="grid gap-4">
         {proposals.map((proposal) => {
@@ -189,7 +210,7 @@ function ProposalList({ canOpenDetail, proposals }: { canOpenDetail: boolean; pr
 export function DecisionConfirmScreen() {
   const { commands, state } = usePrototype();
   const decision = latestDecision(state);
-  const canCreateVerification = can(state.session.role, "verification:create");
+  const canCreateVerification = canCurrentUser(state, "verification:create");
 
   if (!decision) {
     return (

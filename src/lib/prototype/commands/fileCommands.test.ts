@@ -2,14 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { reducer, type PrototypeAction } from "../../domain/state-machine";
 import { createInitialState } from "../store";
+import { loginWithCredentials } from "./authCommands";
 import { addSourceFiles, updateSourceFile } from "./fileCommands";
 
 function loggedInState(): ReturnType<typeof createInitialState> {
-  const initialState = createInitialState();
-  return {
-    ...initialState,
-    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "owner" as const }
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
   };
+  loginWithCredentials(state, dispatch, "test", "test");
+  return state;
 }
 
 function statefulDispatch(initialState = loggedInState()) {

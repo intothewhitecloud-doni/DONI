@@ -12,7 +12,7 @@ import type {
   SelectionProfile,
   SelectionScope,
   WorkflowMetricBinding,
-  WorkspaceResultBundle
+  CompanyResultBundle
 } from "./types";
 import {
   sampleMetricCandidateIdsByWorkflowCandidate,
@@ -178,7 +178,7 @@ export function buildSelectionProfile({
   };
 }
 
-export function buildWorkspaceResultBundle(selection: OperationalSelection): WorkspaceResultBundle {
+export function buildCompanyResultBundle(selection: OperationalSelection): CompanyResultBundle {
   const scope = buildSelectionScope({
     candidates: selection.candidates,
     selectedCandidateIds: selection.selectedCandidateIds

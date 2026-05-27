@@ -4,7 +4,6 @@ export const screenRoutes: Record<Screen, string> = {
   home: "/",
   login: "/login",
   signup: "/signup",
-  workspace: "/workspace",
   upload: "/upload",
   analysis: "/analysis",
   review: "/review",
@@ -20,7 +19,7 @@ export const screenRoutes: Record<Screen, string> = {
   decisionConfirm: "/decision-confirm",
   verification: "/verification",
   verificationDetail: "/verification-detail",
-  organization: "/organization",
+  company: "/company",
   settings: "/settings",
   outcome: "/outcome"
 };

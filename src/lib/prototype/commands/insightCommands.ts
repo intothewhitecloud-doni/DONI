@@ -2,7 +2,7 @@ import type { Dispatch } from "react";
 import { proposalIdForInsight } from "../../domain/result-scenarios";
 import type { PrototypeState } from "../../domain/types";
 import { commandMeta } from "../events";
-import { can } from "../permissions";
+import { canCurrentUser } from "../permissions";
 import type { PrototypeAction } from "../store";
 
 export function createProposalFromInsight(
@@ -10,7 +10,7 @@ export function createProposalFromInsight(
   dispatch: Dispatch<PrototypeAction>,
   insightId: string
 ): boolean {
-  if (!can(state.session.role, "insight:proposal")) {
+  if (!canCurrentUser(state, "insight:proposal")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 인사이트에서 안건을 만들 수 없습니다." });
     return false;
   }

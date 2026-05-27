@@ -2,28 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "../ui/Badge";
-import { OrganizationScreen, SettingsScreen } from "../../features/admin/AdminScreens";
+import { CompanyManagementScreen, SettingsScreen } from "../../features/admin/AdminScreens";
 import { DashboardScreen } from "../../features/dashboard/DashboardScreen";
 import { DataVaultScreen, ManagedObjectsScreen, MetricsScreen, WorkflowScreen } from "../../features/data-review/DataScreens";
 import { DecisionConfirmScreen, ProposalVoteScreen } from "../../features/decisions/DecisionScreens";
 import { InsightDetailScreen, InsightsScreen, ProposalCreateScreen } from "../../features/insights/InsightScreens";
-import { AnalysisScreen, HomeScreen, LoginScreen, ReviewScreen, SignupScreen, WorkspaceScreen } from "../../features/onboarding/OnboardingScreens";
+import { AnalysisScreen, HomeScreen, LoginScreen, ReviewScreen, SignupScreen } from "../../features/onboarding/OnboardingScreens";
 import { OutcomeScreen, VerificationDetailScreen, VerificationListScreen } from "../../features/verification/VerificationScreens";
 import type { Screen } from "../../lib/domain/types";
 import { accessibleScreenForSession, activeSidebarScreen, sidebarItemsForRole } from "../../lib/prototype/navigation";
 import { roleLabel } from "../../lib/prototype/permissions";
-import { currentUser, currentWorkspace, hasActiveWorkspaceSession } from "../../lib/prototype/selectors";
+import { currentCompany, currentCompanyUser, currentUser, hasActiveCompanySession } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
-const publicScreens: Screen[] = ["home", "login", "signup", "workspace"];
+const publicScreens: Screen[] = ["home", "login", "signup"];
 
 export function AppShell({ screen }: { screen: Screen }) {
   const { commands, state } = usePrototype();
   const [mobileOpen, setMobileOpen] = useState(false);
   const user = currentUser(state);
-  const workspace = currentWorkspace(state);
-  const visibleNavItems = sidebarItemsForRole(state.session.role);
-  const screenToRender = accessibleScreenForSession(state.session.loggedIn, state.session.role, screen, hasActiveWorkspaceSession(state));
+  const company = currentCompany(state);
+  const companyUser = currentCompanyUser(state);
+  const displayRole = companyUser?.status === "active" ? companyUser.role : state.session.role;
+  const visibleNavItems = sidebarItemsForRole(displayRole);
+  const screenToRender = accessibleScreenForSession(state.session.loggedIn, displayRole, screen, hasActiveCompanySession(state));
   const activeScreen = activeSidebarScreen(screenToRender);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function AppShell({ screen }: { screen: Screen }) {
         <div className="flex items-center justify-between">
           <div className="flex flex-col items-start gap-1.5">
             <img src="/assets/logo.svg" alt="DONI" className="h-12 w-auto" />
-            <p className="pl-0.5 text-caption text-muted">운영 콘솔</p>
+            <p className="pl-0.5 text-caption text-muted">기업 운영 콘솔</p>
           </div>
           <button className="rounded-md px-2 py-1 text-button md:hidden" onClick={() => setMobileOpen(false)}>닫기</button>
         </div>
@@ -75,10 +77,10 @@ export function AppShell({ screen }: { screen: Screen }) {
         <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button className="rounded-md border border-hairline px-3 py-2 text-button md:hidden" onClick={() => setMobileOpen(true)}>메뉴</button>
-            <WorkspaceSwitchButton workspaceName={workspace.name} onClick={() => commands.navigate("workspace")} />
+            <CompanyPill companyName={company.name} />
           </div>
           <div className="flex items-center gap-2">
-            <Badge tone="info">{roleLabel(state.session.role)}</Badge>
+            <Badge tone="info">{roleLabel(displayRole)}</Badge>
             <span className="hidden text-title-sm text-ink sm:inline">{user.name}</span>
             <ButtonLike onClick={commands.logout}>로그아웃</ButtonLike>
           </div>
@@ -94,19 +96,15 @@ export function AppShell({ screen }: { screen: Screen }) {
   );
 }
 
-function WorkspaceSwitchButton({ onClick, workspaceName }: { onClick: () => void; workspaceName: string }) {
+function CompanyPill({ companyName }: { companyName: string }) {
   return (
-    <button
-      className="group inline-flex max-w-[58vw] items-center gap-1 rounded-full bg-surface-soft p-1 text-left transition hover:bg-surface-strong md:max-w-md"
-      title="워크스페이스 선택 화면으로 이동"
-      onClick={onClick}
-    >
+    <div className="inline-flex max-w-[58vw] items-center gap-1 rounded-full bg-surface-soft p-1 text-left md:max-w-md">
       <span className="min-w-0 rounded-full bg-canvas px-3 py-1.5 shadow-soft">
-        <span className="block text-caption leading-4 text-muted">현재 그룹</span>
-        <span className="block truncate text-title-sm leading-5 text-ink">{workspaceName}</span>
+        <span className="block text-caption leading-4 text-muted">현재 기업</span>
+        <span className="block truncate text-title-sm leading-5 text-ink">{companyName}</span>
       </span>
-      <span className="shrink-0 px-3 py-1.5 text-caption text-muted hover:text-ink">워크스페이스 변경</span>
-    </button>
+      <span className="shrink-0 px-3 py-1.5 text-caption text-muted">단일 콘솔</span>
+    </div>
   );
 }
 
@@ -147,8 +145,6 @@ function renderScreen(screen: Screen) {
       return <SignupScreen />;
     case "home":
       return <HomeScreen />;
-    case "workspace":
-      return <WorkspaceScreen />;
     case "upload":
       return <DataVaultScreen />;
     case "analysis":
@@ -179,8 +175,8 @@ function renderScreen(screen: Screen) {
       return <VerificationListScreen />;
     case "verificationDetail":
       return <VerificationDetailScreen />;
-    case "organization":
-      return <OrganizationScreen />;
+    case "company":
+      return <CompanyManagementScreen />;
     case "settings":
       return <SettingsScreen />;
     case "outcome":

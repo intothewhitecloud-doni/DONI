@@ -3,13 +3,13 @@
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
-import { can } from "../../lib/prototype/permissions";
+import { canCurrentUser } from "../../lib/prototype/permissions";
 import { getVerificationDetailView } from "../../lib/prototype/queries/verificationQueries";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
 export function VerificationListScreen() {
   const { commands, state } = usePrototype();
-  const canFinalizeProposal = can(state.session.role, "proposal:finalize");
+  const canFinalizeProposal = canCurrentUser(state, "proposal:finalize");
 
   return (
     <div className="space-y-8">
@@ -46,7 +46,7 @@ export function VerificationListScreen() {
 export function VerificationDetailScreen() {
   const { commands, state } = usePrototype();
   const { decision, history, record, timeline } = getVerificationDetailView(state);
-  const canRecordOutcome = can(state.session.role, "outcome:record");
+  const canRecordOutcome = canCurrentUser(state, "outcome:record");
 
   if (!decision || !record) {
     return (

@@ -3,7 +3,7 @@ import { canonicalJson } from "../../policies/canonical-json";
 import { sha256Hex } from "../../policies/hash";
 import type { PrototypeState, VerificationMethod } from "../../domain/types";
 import { commandMeta } from "../events";
-import { can } from "../permissions";
+import { canCurrentUser } from "../permissions";
 import type { PrototypeAction } from "../store";
 
 export async function generateVerificationRecord(
@@ -11,7 +11,7 @@ export async function generateVerificationRecord(
   dispatch: Dispatch<PrototypeAction>,
   decisionId: string
 ): Promise<boolean> {
-  if (!can(state.session.role, "verification:create")) {
+  if (!canCurrentUser(state, "verification:create")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 검증 기록을 생성할 수 없습니다." });
     return false;
   }

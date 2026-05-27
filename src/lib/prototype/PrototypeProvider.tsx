@@ -8,22 +8,23 @@ import { loginWithCredentials, logout, signup } from "./commands/authCommands";
 import { addSourceFiles, removeSourceFile, updateSourceFile, uploadSampleFiles } from "./commands/fileCommands";
 import { createProposalFromInsight } from "./commands/insightCommands";
 import {
-  deactivateWorkspaceMember,
-  approveWorkspaceMember,
-  rejectWorkspaceMember,
-  regenerateInviteCode,
-  transferWorkspaceOwnership,
-  updateWorkspaceMember,
-  updateWorkspaceProfile
+  addOrganizationCategory,
+  approveCompanyUser,
+  deleteCompanyUserAccount,
+  deleteOrganizationCategory,
+  regenerateCompanyCode,
+  rejectCompanyUser,
+  updateCompanyProfile,
+  updateCompanyUser,
+  updateOrganizationCategory
 } from "./commands/organizationCommands";
 import { recordOutcome } from "./commands/outcomeCommands";
 import { castVote, finalizeProposal } from "./commands/proposalCommands";
 import { addDomainType, deleteDomainType, updateDomainType } from "./commands/typeCommands";
 import { generateVerificationRecord } from "./commands/verificationCommands";
-import { createWorkspace, joinWorkspaceByInviteCode, leaveWorkspace, selectWorkspace } from "./commands/workspaceCommands";
 import { findAuthAccount } from "./authAccounts";
 import { createPersistenceEffectController } from "./persistenceEffect";
-import { loadUserState, persistedStateSignature, saveUserState, screenAfterUserRestore } from "./persistence";
+import { loadCompanyDirectoryState, loadUserState, persistedStateSignature, saveUserState, screenAfterUserRestore } from "./persistence";
 import { pathForScreen } from "./routes";
 import { createInitialState, reducer } from "./store";
 
@@ -31,26 +32,25 @@ interface PrototypeCommands {
   navigate(screen: Screen): void;
   navigateToTarget(target: LinkTarget): void;
   login(loginId: string, password: string): boolean;
-  signup(payload: { code?: string; email: string; name: string; password: string }): boolean;
-  requestWorkspaceAccess(payload: { code?: string; email: string; name: string; password: string }): boolean;
+  signup(payload: { code: string; email: string; name: string; password: string }): boolean;
   logout(): void;
-  selectWorkspace(workspaceId: string): boolean;
-  joinWorkspaceByInviteCode(inviteCode: string): boolean;
-  leaveWorkspace(workspaceId: string): boolean;
-  createWorkspace(payload: { name: string }): boolean;
-  updateWorkspaceProfile(payload: { workspaceId: string; name: string }): boolean;
-  regenerateInviteCode(workspaceId: string): boolean;
-  updateWorkspaceMember(payload: { memberId: string; role: Role; title: string }): boolean;
-  approveWorkspaceMember(memberId: string): boolean;
-  rejectWorkspaceMember(memberId: string): boolean;
-  deactivateWorkspaceMember(memberId: string): boolean;
-  transferWorkspaceOwnership(memberId: string): boolean;
+  updateCompanyProfile(payload: { name: string }): boolean;
+  regenerateCompanyCode(): boolean;
+  updateCompanyUser(payload: { companyUserId: string; role: Role; title: string; organizationCategoryId: string }): boolean;
+  approveCompanyUser(companyUserId: string): boolean;
+  rejectCompanyUser(companyUserId: string): boolean;
+  deleteCompanyUserAccount(companyUserId: string): boolean;
+  addOrganizationCategory(name: string): boolean;
+  updateOrganizationCategory(organizationCategoryId: string, name: string): boolean;
+  deleteOrganizationCategory(organizationCategoryId: string): boolean;
   addDomainType(scope: DomainTypeScope, label: string, color?: string): boolean;
   updateDomainType(scope: DomainTypeScope, typeId: string, label: string, color?: string): boolean;
   deleteDomainType(scope: DomainTypeScope, typeId: string): boolean;
-  setRole(role: Role): void;
-  addSourceFiles(files: Array<{ name: string; size: number; mimeType?: string; dataUrl?: string; textContent?: string; previewColumns?: string[]; previewRows?: string[][]; rowCount?: number }>): boolean;
-  updateSourceFile(fileId: string, patch: { name: string; kind: string }): boolean;
+  addSourceFiles(
+    files: Array<{ name: string; size: number; organizationCategoryId?: string; mimeType?: string; dataUrl?: string; textContent?: string; previewColumns?: string[]; previewRows?: string[][]; rowCount?: number }>,
+    organizationCategoryId?: string
+  ): boolean;
+  updateSourceFile(fileId: string, patch: { name: string; kind: string; organizationCategoryId?: string }): boolean;
   removeSourceFile(fileId: string): boolean;
   uploadSampleFiles(): boolean;
   startAnalysisJob(): boolean;
@@ -76,7 +76,7 @@ const PrototypeContext = createContext<PrototypeContextValue | undefined>(undefi
 
 export function PrototypeProvider({ children }: PropsWithChildren) {
   const router = useRouter();
-  const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+  const [state, dispatch] = useReducer(reducer, undefined, () => loadCompanyDirectoryState(createInitialState()));
   const persistenceEffectControllerRef = useRef(createPersistenceEffectController());
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
 
         const savedState = loadUserState(account.userId, createInitialState());
         if (savedState) {
-          const restoredScreen = screenAfterUserRestore(savedState.screen, savedState.session.workspaceId);
+          const restoredScreen = screenAfterUserRestore(savedState.screen);
           dispatch({
             type: "RESTORE_USER_STATE",
             role: account.role,
@@ -118,27 +118,21 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
               targetType: "session"
             }
           });
-          router.push(pathForScreen(restoredScreen));
+          router.push(pathForScreen(savedState.session.loggedIn ? restoredScreen : "login"));
           return true;
         }
 
+        const activeCompanyUser = state.companyUsers.find((companyUser) => companyUser.userId === account.userId && companyUser.status === "active");
         const loggedIn = loginWithCredentials(state, dispatch, loginId, password);
         if (loggedIn) {
-          router.push(pathForScreen("workspace"));
+          router.push(pathForScreen(activeCompanyUser ? "dashboard" : "login"));
         }
         return loggedIn;
       },
       signup: (payload) => {
         const requested = signup(state, dispatch, payload);
         if (requested) {
-          router.push(pathForScreen("workspace"));
-        }
-        return requested;
-      },
-      requestWorkspaceAccess: (payload) => {
-        const requested = signup(state, dispatch, payload);
-        if (requested) {
-          router.push(pathForScreen("workspace"));
+          router.push(pathForScreen("login"));
         }
         return requested;
       },
@@ -146,44 +140,19 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
         logout(state, dispatch);
         router.push(pathForScreen("login"));
       },
-      selectWorkspace: (workspaceId) => {
-        const selected = selectWorkspace(state, dispatch, workspaceId);
-        if (selected) {
-          router.push(pathForScreen("dashboard"));
-        }
-        return selected;
-      },
-      joinWorkspaceByInviteCode: (inviteCode) => {
-        const joined = joinWorkspaceByInviteCode(state, dispatch, inviteCode);
-        if (joined) {
-          router.push(pathForScreen("workspace"));
-        }
-        return joined;
-      },
-      leaveWorkspace: (workspaceId) => {
-        const left = leaveWorkspace(state, dispatch, workspaceId);
-        if (left) {
-          router.push(pathForScreen("workspace"));
-        }
-        return left;
-      },
-      createWorkspace: (payload) => {
-        createWorkspace(state, dispatch, payload);
-        router.push(pathForScreen("workspace"));
-        return true;
-      },
-      updateWorkspaceProfile: (payload) => updateWorkspaceProfile(state, dispatch, payload),
-      regenerateInviteCode: (workspaceId) => regenerateInviteCode(state, dispatch, workspaceId),
-      updateWorkspaceMember: (payload) => updateWorkspaceMember(state, dispatch, payload),
-      approveWorkspaceMember: (memberId) => approveWorkspaceMember(state, dispatch, memberId),
-      rejectWorkspaceMember: (memberId) => rejectWorkspaceMember(state, dispatch, memberId),
-      deactivateWorkspaceMember: (memberId) => deactivateWorkspaceMember(state, dispatch, memberId),
-      transferWorkspaceOwnership: (memberId) => transferWorkspaceOwnership(state, dispatch, memberId),
+      updateCompanyProfile: (payload) => updateCompanyProfile(state, dispatch, payload),
+      regenerateCompanyCode: () => regenerateCompanyCode(state, dispatch),
+      updateCompanyUser: (payload) => updateCompanyUser(state, dispatch, payload),
+      approveCompanyUser: (companyUserId) => approveCompanyUser(state, dispatch, companyUserId),
+      rejectCompanyUser: (companyUserId) => rejectCompanyUser(state, dispatch, companyUserId),
+      deleteCompanyUserAccount: (companyUserId) => deleteCompanyUserAccount(state, dispatch, companyUserId),
+      addOrganizationCategory: (name) => addOrganizationCategory(state, dispatch, name),
+      updateOrganizationCategory: (organizationCategoryId, name) => updateOrganizationCategory(state, dispatch, organizationCategoryId, name),
+      deleteOrganizationCategory: (organizationCategoryId) => deleteOrganizationCategory(state, dispatch, organizationCategoryId),
       addDomainType: (scope, label, color) => addDomainType(state, dispatch, scope, label, color),
       updateDomainType: (scope, typeId, label, color) => updateDomainType(state, dispatch, scope, typeId, label, color),
       deleteDomainType: (scope, typeId) => deleteDomainType(state, dispatch, scope, typeId),
-      setRole: (role) => dispatch({ type: "SET_ROLE", role }),
-      addSourceFiles: (files) => addSourceFiles(state, dispatch, files),
+      addSourceFiles: (files, organizationCategoryId) => addSourceFiles(state, dispatch, files, organizationCategoryId),
       updateSourceFile: (fileId, patch) => updateSourceFile(state, dispatch, fileId, patch),
       removeSourceFile: (fileId) => removeSourceFile(state, dispatch, fileId),
       uploadSampleFiles: () => {

@@ -1,385 +1,278 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
 import { Popup } from "../../components/ui/Popup";
-import type { Role, WorkspaceMember } from "../../lib/domain/types";
-import { can, roleLabel } from "../../lib/prototype/permissions";
-import { actorMembershipForTarget, canManageMembership, membershipStatusLabel } from "../../lib/prototype/policy";
-import { currentWorkspace } from "../../lib/prototype/selectors";
+import type { CompanyUser, CompanyUserStatus } from "../../lib/domain/types";
+import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../../lib/domain/types";
+import { companyUserStatusLabel } from "../../lib/prototype/policy";
+import { roleLabel } from "../../lib/prototype/permissions";
+import { currentCompanyUser } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
-const roleOptions: Role[] = ["owner", "manager", "member"];
-type MemberFilter = "all" | WorkspaceMember["status"];
-
-const memberFilters: Array<{ label: string; value: MemberFilter }> = [
+const statusFilters: Array<{ label: string; value: CompanyUserStatus | "all" }> = [
   { label: "전체", value: "all" },
   { label: "승인 대기", value: "pending" },
   { label: "승인 완료", value: "active" },
-  { label: "반려", value: "rejected" },
-  { label: "비활성화", value: "inactive" }
+  { label: "반려", value: "rejected" }
 ];
 
-export function OrganizationScreen() {
+export function CompanyManagementScreen() {
   const { commands, state } = usePrototype();
-  const workspace = currentWorkspace(state);
-  const canManageProfile = can(state.session.role, "admin:manage");
-  const actor = state.members.find(
-    (member) => member.userId === state.session.currentUserId && member.workspaceId === workspace.id && member.status === "active"
-  );
-  const [memberFilter, setMemberFilter] = useState<MemberFilter>("pending");
-  const allWorkspaceMembers = useMemo(
-    () => state.members.filter((member) => member.workspaceId === workspace.id),
-    [state.members, workspace.id]
-  );
-  const memberCounts = useMemo(
-    () => ({
-      active: allWorkspaceMembers.filter((member) => member.status === "active").length,
-      all: allWorkspaceMembers.length,
-      inactive: allWorkspaceMembers.filter((member) => member.status === "inactive").length,
-      pending: allWorkspaceMembers.filter((member) => member.status === "pending").length,
-      rejected: allWorkspaceMembers.filter((member) => member.status === "rejected").length
-    }),
-    [allWorkspaceMembers]
-  );
-  const effectiveMemberFilter: MemberFilter = memberFilter === "pending" && memberCounts.pending === 0 ? "all" : memberFilter;
-  const workspaceMembers = useMemo(
-    () =>
-      allWorkspaceMembers.filter((member) => {
-        if (effectiveMemberFilter === "all") {
-          return true;
-        }
+  const actor = currentCompanyUser(state);
+  const canManage = actor?.role === "owner" && actor.status === "active";
+  const [companyName, setCompanyName] = useState(state.company.name);
+  const [statusFilter, setStatusFilter] = useState<CompanyUserStatus | "all">("all");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState("");
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<CompanyUser | undefined>();
 
-        return member.status === effectiveMemberFilter;
-      }),
-    [allWorkspaceMembers, effectiveMemberFilter]
+  const users = useMemo(
+    () => state.companyUsers.filter((companyUser) => statusFilter === "all" || companyUser.status === statusFilter),
+    [state.companyUsers, statusFilter]
   );
-  const [profile, setProfile] = useState({ name: workspace.name });
-  const [copied, setCopied] = useState(false);
-  const [memberToDeactivate, setMemberToDeactivate] = useState<WorkspaceMember | undefined>();
-  const [memberToTransferOwnership, setMemberToTransferOwnership] = useState<WorkspaceMember | undefined>();
 
-  useEffect(() => {
-    setProfile({ name: workspace.name });
-  }, [workspace.name]);
-
-  useEffect(() => {
-    if (memberFilter === "pending" && memberCounts.pending === 0) {
-      setMemberFilter("all");
-    }
-  }, [memberCounts.pending, memberFilter]);
-
-  function saveProfile() {
-    commands.updateWorkspaceProfile({
-      name: profile.name,
-      workspaceId: workspace.id
-    });
+  function saveCompany() {
+    commands.updateCompanyProfile({ name: companyName });
   }
 
-  function copyInviteCode() {
-    void navigator.clipboard?.writeText(workspace.inviteCode);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
-  }
-
-  function confirmDeactivateMember() {
-    if (memberToDeactivate && commands.deactivateWorkspaceMember(memberToDeactivate.id)) {
-      setMemberToDeactivate(undefined);
+  function addCategory() {
+    if (commands.addOrganizationCategory(newCategoryName)) {
+      setNewCategoryName("");
     }
   }
 
-  function confirmTransferOwnership() {
-    if (memberToTransferOwnership && commands.transferWorkspaceOwnership(memberToTransferOwnership.id)) {
-      setMemberToTransferOwnership(undefined);
+  function startCategoryEdit(categoryId: string, name: string) {
+    setEditingCategoryId(categoryId);
+    setEditingCategoryName(name);
+  }
+
+  function submitCategoryEdit() {
+    if (editingCategoryId && commands.updateOrganizationCategory(editingCategoryId, editingCategoryName)) {
+      setEditingCategoryId("");
+      setEditingCategoryName("");
+    }
+  }
+
+  function confirmDeleteAccount() {
+    if (deleteTarget && commands.deleteCompanyUserAccount(deleteTarget.id)) {
+      setDeleteTarget(undefined);
     }
   }
 
   return (
-    <div className="space-y-8">
+    <main className="space-y-8">
       <SectionTitle
-        eyebrow="조직 관리"
-        title="그룹 정보와 사용자를 관리합니다"
-        description="현재 접속한 그룹의 기본 정보, 조직코드, 사용자 참여 상태를 관리합니다."
+        eyebrow="기업 관리"
+        title="기업 정보, 사용자, 조직 카테고리"
+        description="조직은 권한이 아니라 분류/표시용 카테고리입니다. 기업 관리자는 이 화면을 조회만 할 수 있습니다."
       />
 
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        <Card className="space-y-5">
-          <div>
-            <Badge tone="info">그룹 정보</Badge>
-            <h2 className="mt-3 text-lg font-bold text-slate-950">기본 정보</h2>
+      <Card className="space-y-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-2">
+            <p className="text-caption text-muted">기업 정보</p>
+            <label className="block text-sm font-medium text-slate-700">
+              기업명
+              <input
+                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 md:w-96"
+                disabled={!canManage}
+                value={companyName}
+                onChange={(event) => setCompanyName(event.target.value)}
+              />
+            </label>
           </div>
-          {canManageProfile ? (
-            <>
-              <label className="block text-sm font-semibold text-slate-700">
-                그룹명
-                <input
-                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                  value={profile.name}
-                  onChange={(event) => setProfile({ name: event.target.value })}
-                />
-              </label>
-              <Button disabled={!profile.name.trim()} onClick={saveProfile}>그룹 정보 저장</Button>
-            </>
-          ) : (
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-bold text-slate-500">그룹명</p>
-              <p className="mt-1 text-lg font-bold text-slate-950">{workspace.name}</p>
-            </div>
-          )}
-        </Card>
+          {canManage && <Button onClick={saveCompany}>기업 정보 저장</Button>}
+        </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-surface-soft p-4">
+          <div>
+            <p className="text-caption text-muted">회사코드</p>
+            <p className="font-mono text-title-sm text-ink">{state.company.code}</p>
+          </div>
+          {canManage && <Button variant="secondary" onClick={commands.regenerateCompanyCode}>새 코드 발급</Button>}
+        </div>
+      </Card>
 
-        <Card className="space-y-5">
-          <div>
-            <Badge tone="neutral">조직코드</Badge>
-            <h2 className="mt-3 text-lg font-bold text-slate-950">그룹 참여 코드</h2>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="font-mono text-xl font-bold text-slate-950">{workspace.inviteCode}</p>
-            <p className="mt-1 text-sm text-slate-500">새 사용자가 워크스페이스 참여하기 화면에서 입력할 수 있습니다.</p>
-          </div>
+      <Card className="space-y-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <SectionTitle
+            eyebrow="사용자 관리"
+            title="기업 사용자"
+            description="계정 삭제는 이 기업 콘솔의 사용자 계정 자체를 제거합니다. 과거 기록에는 이름/역할 스냅샷이 남습니다."
+          />
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={copyInviteCode}>{copied ? "복사됨" : "조직코드 복사"}</Button>
-            {canManageProfile && <Button onClick={() => commands.regenerateInviteCode(workspace.id)}>새 코드 발급</Button>}
-          </div>
-        </Card>
-      </div>
-
-      <Card className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <Badge tone="neutral">사용자</Badge>
-            <h2 className="mt-3 text-lg font-bold text-slate-950">그룹 사용자</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              새 사용자는 조직코드로 승인 요청을 생성합니다. 소유자는 운영 관리자와 일반 사용자를, 운영 관리자는 일반 사용자를 승인/반려/비활성화할 수 있습니다.
-            </p>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-1">
-            {memberFilters.map((filter) => (
-              <button
+            {statusFilters.map((filter) => (
+              <Button
                 key={filter.value}
-                aria-pressed={effectiveMemberFilter === filter.value}
-                className={`rounded px-3 py-1.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                  effectiveMemberFilter === filter.value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-white hover:text-slate-950"
-                }`}
-                type="button"
-                onClick={() => setMemberFilter(filter.value)}
+                variant={statusFilter === filter.value ? "primary" : "secondary"}
+                onClick={() => setStatusFilter(filter.value)}
               >
-                {filter.label} {memberCounts[filter.value]}
-              </button>
+                {filter.label}
+              </Button>
             ))}
           </div>
         </div>
-        <div className="space-y-3">
-          {workspaceMembers.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-              선택한 상태에 해당하는 사용자가 없습니다.
-            </div>
-          ) : (
-            workspaceMembers.map((member) => (
-              <MemberRow
-                key={member.id}
-                actor={actorMembershipForTarget(state, member)}
-                currentUserId={state.session.currentUserId}
-                member={member}
-                onApprove={commands.approveWorkspaceMember}
-                onDeactivate={() => setMemberToDeactivate(member)}
-                onReject={commands.rejectWorkspaceMember}
-                onTransferOwnership={() => setMemberToTransferOwnership(member)}
-                onUpdate={commands.updateWorkspaceMember}
-              />
-            ))
-          )}
+        <div className="overflow-hidden rounded-lg border border-hairline">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead className="bg-surface-soft text-caption text-muted">
+              <tr>
+                <th className="px-4 py-3">사용자</th>
+                <th className="px-4 py-3">역할</th>
+                <th className="px-4 py-3">상태</th>
+                <th className="px-4 py-3">조직</th>
+                <th className="px-4 py-3">직책</th>
+                <th className="px-4 py-3">관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((companyUser) => (
+                <CompanyUserRow
+                  key={companyUser.id}
+                  canManage={canManage}
+                  companyUser={companyUser}
+                  isCurrentUser={companyUser.userId === state.session.currentUserId}
+                  onDelete={() => setDeleteTarget(companyUser)}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
-      {memberToDeactivate && (
-        <Popup
-          eyebrow="확인 필요"
-          title="사용자 비활성화"
-          tone="warning"
-          onClose={() => setMemberToDeactivate(undefined)}
-          footer={
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setMemberToDeactivate(undefined)}>취소</Button>
-              <Button variant="danger" onClick={confirmDeactivateMember}>비활성화</Button>
+
+      <Card className="space-y-5">
+        <SectionTitle
+          eyebrow="조직 카테고리"
+          title="분류/표시용 조직"
+          description="조직은 이름만 관리합니다. 삭제하면 연결된 사용자와 파일이 미지정으로 이동합니다."
+        />
+        {canManage && (
+          <div className="flex flex-col gap-2 md:flex-row">
+            <input
+              className="flex-1 rounded-md border border-slate-200 px-3 py-2"
+              placeholder="새 조직 이름"
+              value={newCategoryName}
+              onChange={(event) => setNewCategoryName(event.target.value)}
+            />
+            <Button onClick={addCategory}>조직 추가</Button>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {state.organizationCategories.map((category) => (
+            <div key={category.id} className="flex items-center gap-2 rounded-full border border-hairline bg-white px-3 py-2">
+              {editingCategoryId === category.id ? (
+                <>
+                  <input
+                    className="w-40 rounded-md border border-slate-200 px-2 py-1 text-sm"
+                    value={editingCategoryName}
+                    onChange={(event) => setEditingCategoryName(event.target.value)}
+                  />
+                  <button className="text-button text-primary" onClick={submitCategoryEdit}>저장</button>
+                  <button className="text-button text-muted" onClick={() => setEditingCategoryId("")}>취소</button>
+                </>
+              ) : (
+                <>
+                  <Badge tone={category.id === UNASSIGNED_ORGANIZATION_CATEGORY_ID ? "neutral" : "info"}>{category.name}</Badge>
+                  {canManage && category.id !== UNASSIGNED_ORGANIZATION_CATEGORY_ID && (
+                    <>
+                      <button className="text-button text-primary" onClick={() => startCategoryEdit(category.id, category.name)}>수정</button>
+                      <button className="text-button text-error" onClick={() => commands.deleteOrganizationCategory(category.id)}>삭제</button>
+                    </>
+                  )}
+                </>
+              )}
             </div>
-          }
-        >
-          <p className="text-sm leading-6 text-muted">
-            {memberToDeactivate.name} 사용자는 이 그룹에 더 이상 접근할 수 없습니다. 필요하면 이후 다시 활성화할 수 있습니다.
+          ))}
+        </div>
+      </Card>
+
+      {deleteTarget && (
+        <Popup title="사용자 계정 삭제" onClose={() => setDeleteTarget(undefined)}>
+          <p className="text-sm leading-6 text-slate-600">
+            {deleteTarget.name} 사용자 계정을 이 기업 콘솔에서 삭제합니다. 과거 의사결정/감사 기록에는 이름과 역할 스냅샷이 유지됩니다.
           </p>
-        </Popup>
-      )}
-      {memberToTransferOwnership && (
-        <Popup
-          eyebrow="주의 필요"
-          title="소유자 이전"
-          tone="warning"
-          onClose={() => setMemberToTransferOwnership(undefined)}
-          footer={
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setMemberToTransferOwnership(undefined)}>취소</Button>
-              <Button variant="danger" onClick={confirmTransferOwnership}>소유자 이전</Button>
-            </div>
-          }
-        >
-          <div className="space-y-3 text-sm leading-6 text-muted">
-            <p>
-              {memberToTransferOwnership.name} 사용자에게 이 그룹의 소유자 권한을 이전합니다. 이전 후 현재 소유자는 운영 관리자로 변경됩니다.
-            </p>
-            <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-warning">
-              소유자 이전은 그룹 권한의 최상위 관리자를 바꾸는 작업입니다. 새 소유자만 이후 소유자 이전과 전체 조직 관리를 수행할 수 있습니다.
-            </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDeleteTarget(undefined)}>취소</Button>
+            <Button variant="danger" onClick={confirmDeleteAccount}>계정 삭제</Button>
           </div>
         </Popup>
       )}
-    </div>
+    </main>
   );
 }
 
-function MemberRow({
-  actor,
-  currentUserId,
-  member,
-  onApprove,
-  onDeactivate,
-  onReject,
-  onTransferOwnership,
-  onUpdate
+function CompanyUserRow({
+  canManage,
+  companyUser,
+  isCurrentUser,
+  onDelete
 }: {
-  actor?: WorkspaceMember;
-  currentUserId: string;
-  member: WorkspaceMember;
-  onApprove: (memberId: string) => boolean;
-  onDeactivate: () => void;
-  onReject: (memberId: string) => boolean;
-  onTransferOwnership: () => void;
-  onUpdate: (payload: { memberId: string; role: Role; title: string }) => boolean;
+  canManage: boolean;
+  companyUser: CompanyUser;
+  isCurrentUser: boolean;
+  onDelete: () => void;
 }) {
-  const [draft, setDraft] = useState({
-    role: member.role,
-    title: member.title
-  });
-  const isCurrentUser = currentUserId === member.userId;
-  const roleChanged = draft.role !== member.role;
-  const titleChanged = draft.title !== member.title;
-  const canApprove = canManageMembership(actor, member, "approve");
-  const canReject = canManageMembership(actor, member, "reject");
-  const canDeactivate = canManageMembership(actor, member, "deactivate") && !isCurrentUser;
-  const canUpdateRole = canManageMembership(actor, member, "update_role", draft.role) && !isCurrentUser;
-  const canUpdateTitle = canManageMembership(actor, member, "update_title") && !isCurrentUser;
-  const canTransferOwnership = canManageMembership(actor, member, "transfer_owner");
-  const canRenderRoleSelect = canUpdateRole || (member.role !== "owner" && actor?.role === "owner" && !isCurrentUser);
-  const canSave = (roleChanged ? canUpdateRole : true) && (titleChanged ? canUpdateTitle : true) && (roleChanged || titleChanged) && !isCurrentUser;
+  const { commands, state } = usePrototype();
+  const [title, setTitle] = useState(companyUser.title);
+  const [organizationCategoryId, setOrganizationCategoryId] = useState(companyUser.organizationCategoryId);
+  const category = state.organizationCategories.find((item) => item.id === companyUser.organizationCategoryId);
+  const editable = canManage && !isCurrentUser && companyUser.role !== "owner" && companyUser.status === "active";
+  const pendingEditable = canManage && !isCurrentUser && companyUser.status === "pending";
 
-  useEffect(() => {
-    setDraft({
-      role: member.role,
-      title: member.title
-    });
-  }, [member.role, member.title]);
+  function save() {
+    commands.updateCompanyUser({ companyUserId: companyUser.id, role: companyUser.role, title, organizationCategoryId });
+  }
 
   return (
-    <div className="rounded-md border border-slate-200 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-bold text-slate-950">{member.name}</p>
-          <p className="text-sm text-slate-600">{member.title.trim() || "미지정"}</p>
-        </div>
+    <tr className="border-t border-hairline">
+      <td className="px-4 py-3">
+        <p className="font-semibold text-ink">{companyUser.name}</p>
+        <p className="text-caption text-muted">{companyUser.email}</p>
+      </td>
+      <td className="px-4 py-3">
+        <Badge tone={companyUser.role === "owner" ? "success" : "info"}>{roleLabel(companyUser.role)}</Badge>
+      </td>
+      <td className="px-4 py-3"><Badge tone={companyUser.status === "active" ? "success" : companyUser.status === "pending" ? "warning" : "neutral"}>{companyUserStatusLabel(companyUser.status)}</Badge></td>
+      <td className="px-4 py-3">
+        {editable ? (
+          <select className="rounded-md border border-slate-200 px-2 py-1" value={organizationCategoryId} onChange={(event) => setOrganizationCategoryId(event.target.value)}>
+            {state.organizationCategories.map((category) => (
+              <option key={category.id} value={category.id}>{category.name}</option>
+            ))}
+          </select>
+        ) : (
+          <Badge tone="neutral">{category?.name ?? "미지정"}</Badge>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        {editable ? (
+          <input className="w-40 rounded-md border border-slate-200 px-2 py-1" value={title} onChange={(event) => setTitle(event.target.value)} />
+        ) : (
+          companyUser.title || "미지정"
+        )}
+      </td>
+      <td className="px-4 py-3">
         <div className="flex flex-wrap gap-2">
-          <Badge tone={member.status === "active" ? "success" : member.status === "pending" ? "warning" : member.status === "rejected" ? "danger" : "neutral"}>
-            {membershipStatusLabel(member.status)}
-          </Badge>
-          <Badge tone="info">{roleLabel(member.role)}</Badge>
+          {editable && <Button onClick={save}>저장</Button>}
+          {pendingEditable && <Button onClick={() => commands.approveCompanyUser(companyUser.id)}>승인</Button>}
+          {pendingEditable && <Button variant="secondary" onClick={() => commands.rejectCompanyUser(companyUser.id)}>반려</Button>}
+          {canManage && !isCurrentUser && companyUser.role !== "owner" && <Button variant="danger" onClick={onDelete}>삭제</Button>}
+          {!canManage && <span className="text-caption text-muted">조회 전용</span>}
         </div>
-      </div>
-      {(canUpdateTitle || canRenderRoleSelect) && (
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_150px]">
-          {canUpdateTitle ? (
-            <label className="block text-sm font-semibold text-slate-700">
-              직책
-              <input
-                className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                value={draft.title}
-                onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-              />
-            </label>
-          ) : (
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-xs font-bold text-slate-500">직책</p>
-              <p className="mt-1 text-sm font-semibold text-slate-800">{member.title.trim() || "미지정"}</p>
-            </div>
-          )}
-          {canRenderRoleSelect ? (
-            <label className="block text-sm font-semibold text-slate-700">
-              역할
-              <select
-                className="mt-2 w-full rounded-md border border-slate-200 bg-white px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                value={draft.role}
-                onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value as Role }))}
-              >
-                {roleOptions.filter((role) => role !== "owner" || member.role === "owner").map((role) => (
-                  <option key={role} value={role}>{roleLabel(role)}</option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-xs font-bold text-slate-500">역할</p>
-              <p className="mt-1 text-sm font-semibold text-slate-800">{roleLabel(member.role)}</p>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600">
-          투표 참여는 역할에서 자동 결정됩니다. 워크스페이스 소유자와 운영 관리자만 투표할 수 있습니다.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {(member.status === "pending" || member.status === "rejected") && canApprove && (
-            <Button onClick={() => onApprove(member.id)}>승인</Button>
-          )}
-          {member.status === "pending" && canReject && (
-            <Button variant="secondary" onClick={() => onReject(member.id)}>반려</Button>
-          )}
-          {canSave && (
-            <Button variant="secondary" onClick={() => onUpdate({ memberId: member.id, ...draft })}>저장</Button>
-          )}
-          {canTransferOwnership && (
-            <Button variant="secondary" onClick={onTransferOwnership}>소유자 이전</Button>
-          )}
-          {canDeactivate && (
-            <Button variant="danger" onClick={onDeactivate}>비활성화</Button>
-          )}
-        </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
 export function SettingsScreen() {
   return (
-    <div className="space-y-8">
-      <SectionTitle eyebrow="설정" title="인공지능 사용량과 알림" description="사용량과 예산 상태를 기준으로 운영 알림을 관리합니다." />
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <Badge tone="info">이번 달 호출</Badge>
-          <p className="mt-4 text-3xl font-bold text-slate-950">184회</p>
-        </Card>
-        <Card>
-          <Badge tone="warning">예상 비용</Badge>
-          <p className="mt-4 text-3xl font-bold text-slate-950">42만원</p>
-        </Card>
-        <Card>
-          <Badge tone="success">예산 사용률</Badge>
-          <p className="mt-4 text-3xl font-bold text-slate-950">58%</p>
-        </Card>
-      </div>
-      <Card className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-950">알림 기준</h2>
-        <p className="text-sm text-slate-600">예산 사용률 80% 도달, 위험 지표 2개 이상 발생, 투표 마감 12시간 전 알림을 제공합니다.</p>
+    <main className="space-y-6">
+      <SectionTitle eyebrow="설정" title="콘솔 설정" description="알림, 저장소, 화면 표시 옵션은 이후 단계에서 확장합니다." />
+      <Card>
+        <p className="text-sm text-slate-600">현재 프로토타입은 기업 단일 콘솔 구조로 동작합니다.</p>
       </Card>
-    </div>
+    </main>
   );
 }

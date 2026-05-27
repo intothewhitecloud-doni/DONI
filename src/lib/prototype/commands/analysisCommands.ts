@@ -1,11 +1,11 @@
 import type { Dispatch } from "react";
 import type { CandidateType, PrototypeState } from "../../domain/types";
 import { commandMeta } from "../events";
-import { can } from "../permissions";
+import { canCurrentUser } from "../permissions";
 import type { PrototypeAction } from "../store";
 
 export function startAnalysisJob(state: PrototypeState, dispatch: Dispatch<PrototypeAction>): boolean {
-  if (!can(state.session.role, "analysis:start")) {
+  if (!canCurrentUser(state, "analysis:start")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 인공지능 분석을 시작할 수 없습니다." });
     return false;
   }
@@ -33,7 +33,7 @@ export function editCandidate(
   note: string,
   description?: string
 ): boolean {
-  if (!can(state.session.role, "candidate:review")) {
+  if (!canCurrentUser(state, "candidate:review")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 후보를 수정할 수 없습니다." });
     return false;
   }
@@ -50,7 +50,7 @@ export function editCandidate(
 }
 
 export function excludeCandidate(state: PrototypeState, dispatch: Dispatch<PrototypeAction>, candidateId: string): boolean {
-  if (!can(state.session.role, "candidate:review")) {
+  if (!canCurrentUser(state, "candidate:review")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 후보를 제외할 수 없습니다." });
     return false;
   }
@@ -64,7 +64,7 @@ export function excludeCandidate(state: PrototypeState, dispatch: Dispatch<Proto
 }
 
 export function confirmCandidates(state: PrototypeState, dispatch: Dispatch<PrototypeAction>, selectedCandidateIds?: string[]): boolean {
-  if (!can(state.session.role, "candidate:confirm")) {
+  if (!canCurrentUser(state, "candidate:confirm")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 데이터 구조를 확정할 수 없습니다." });
     return false;
   }
@@ -72,7 +72,7 @@ export function confirmCandidates(state: PrototypeState, dispatch: Dispatch<Prot
   dispatch({
     type: "CONFIRM_CANDIDATES",
     selectedCandidateIds,
-    ...commandMeta(state, "데이터 구조 확정", "workspace", state.session.workspaceId, "확정 후보를 관리 대상, 업무 흐름, 연결 관계, 지표로 반영했습니다.")
+    ...commandMeta(state, "데이터 구조 확정", "company", state.company.id, "확정 후보를 관리 대상, 업무 흐름, 연결 관계, 지표로 반영했습니다.")
   });
   return true;
 }

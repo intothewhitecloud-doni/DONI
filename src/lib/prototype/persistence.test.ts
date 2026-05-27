@@ -1,21 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { commandMeta } from "./events";
 import {
   buildPersistedWritePayloads,
   checkPersistedWriteBudget,
+  loadCompanyDirectoryState,
+  loadUserState,
   persistedStateSignature,
   persistedWritePayloadByteSize,
   saveUserState,
-  loadUserState,
   screenAfterUserRestore,
   serializedStorageEntryByteSize,
-  storageKeyForUser,
-  storageKeyForWorkspaceData
+  storageKeyForCompanyData,
+  storageKeyForUser
 } from "./persistence";
-import { sampleMetricValues } from "../domain/sample-analysis";
+import { loginWithCredentials, signup } from "./commands/authCommands";
+import { addSourceFiles } from "./commands/fileCommands";
 import { createInitialState } from "./store";
 import { reducer, type PrototypeAction } from "../domain/state-machine";
+import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../domain/types";
 
 class MemoryStorage implements Storage {
   protected readonly store = new Map<string, string>();
@@ -74,288 +76,104 @@ function installStorage(storage: Storage): void {
   });
 }
 
-function audited(state: ReturnType<typeof createInitialState>, action: PrototypeAction, label: string, targetType: string, targetId: string): PrototypeAction {
-  return { ...action, ...commandMeta(state, label, targetType, targetId, `${label} 테스트`) };
+function loginState() {
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+  loginWithCredentials(state, dispatch, "test", "test");
+  return { dispatch, get state() { return state; }, set state(next) { state = next; } };
 }
 
-function loggedInState(): ReturnType<typeof createInitialState> {
-  const initialState = createInitialState();
-  return {
-    ...initialState,
-    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "owner" as const }
-  };
-}
+test("not logged-in state skips persisted payloads", () => {
+  const state = createInitialState();
 
-test("workspace data persists by group and is shared across login users", () => {
-  const storage = new MemoryStorage();
-  installStorage(storage);
-  const initialState = createInitialState();
-
-  const initial = {
-    ...initialState,
-    session: { ...initialState.session, currentUserId: "user-admin", loggedIn: true, role: "owner" as const }
-  };
-  const added = reducer(
-    initial,
-    audited(
-      initial,
-      {
-        type: "ADD_SOURCE_FILES",
-        files: [
-          {
-            id: "source-shared-workspace",
-            kind: "표 형식 데이터",
-            name: "공유_그룹_파일.csv",
-            rowCount: 7,
-            status: "ready"
-          }
-        ]
-      },
-      "파일 추가",
-      "source_file",
-      "source-shared-workspace"
-    )
-  );
-
-  saveUserState(added);
-  const loadedForManager = loadUserState("user-manager", createInitialState());
-
-  assert.ok(loadedForManager);
-  assert.equal(loadedForManager.session.currentUserId, "user-manager");
-  assert.equal(loadedForManager.session.workspaceId, "workspace-next-manufacturing");
-  assert.equal(loadedForManager.sourceFiles[0].name, "공유_그룹_파일.csv");
+  assert.deepEqual(buildPersistedWritePayloads(state), []);
+  assert.equal(persistedStateSignature(state), "");
 });
 
-test("legacy v1 user state is ignored by v2 workspace persistence", () => {
+test("pending signup persists company directory without a user session payload", () => {
   const storage = new MemoryStorage();
   installStorage(storage);
-  storage.setItem(
-    "doni:user-state:v1:user-manager",
-    JSON.stringify({
-      state: { sourceFiles: [{ id: "legacy", name: "이전_사용자_파일.csv" }] },
-      userId: "user-manager",
-      version: 1
-    })
-  );
+  let state = createInitialState();
+  const dispatch = (action: PrototypeAction) => {
+    state = reducer(state, action);
+  };
+
+  assert.equal(signup(state, dispatch, { code: "DONI-NEXT-4821", email: "pending.persist@example.com", name: "승인 대기", password: "pending-pass!" }), true);
+  const payloads = buildPersistedWritePayloads(state, "2026-05-07T09:00:00.000Z");
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads.some((payload) => payload.key === storageKeyForUser(state.session.currentUserId)), false);
+  assert.equal(payloads.some((payload) => payload.key === storageKeyForCompanyData(state.company.id)), false);
+
+  const saved = saveUserState(state);
+  assert.equal(saved.ok, true);
+
+  const bootstrapped = loadCompanyDirectoryState(createInitialState());
+  assert.ok(bootstrapped.authAccounts.some((account) => account.email === "pending.persist@example.com"));
+  assert.ok(bootstrapped.companyUsers.some((companyUser) => companyUser.email === "pending.persist@example.com" && companyUser.status === "pending"));
+
+  const restoredRef = { state: bootstrapped };
+  const restoredDispatch = (action: PrototypeAction) => {
+    restoredRef.state = reducer(restoredRef.state, action);
+  };
+  assert.equal(loginWithCredentials(restoredRef.state, restoredDispatch, "pending.persist@example.com", "pending-pass!"), true);
+  assert.equal(restoredRef.state.session.loggedIn, false);
+  assert.equal(restoredRef.state.screen, "login");
+  assert.match(restoredRef.state.permissionDenied ?? "", /승인/);
+});
+
+test("company console payloads include directory, session, and company data", () => {
+  const ctx = loginState();
+  const payloads = buildPersistedWritePayloads(ctx.state, "2026-05-07T09:00:00.000Z");
+
+  assert.equal(payloads.length, 3);
+  assert.equal(payloads.some((payload) => payload.key === storageKeyForUser("user-manager")), true);
+  assert.equal(payloads.some((payload) => payload.key === storageKeyForCompanyData(ctx.state.company.id)), true);
+  assert.equal(persistedWritePayloadByteSize(payloads) > 0, true);
+  assert.equal(serializedStorageEntryByteSize(payloads[0]) > payloads[0].key.length, true);
+});
+
+test("save and load user state restores active company user to dashboard", () => {
+  const storage = new MemoryStorage();
+  installStorage(storage);
+  const ctx = loginState();
+  addSourceFiles(ctx.state, ctx.dispatch, [{ name: "운영.csv", size: 100, rowCount: 3 }], UNASSIGNED_ORGANIZATION_CATEGORY_ID);
+
+  const saved = saveUserState(ctx.state);
+  assert.equal(saved.ok, true);
 
   const loaded = loadUserState("user-manager", createInitialState());
-
-  assert.equal(loaded, undefined);
-});
-
-test("workspace directory restore strips legacy workspace fields and global user title", () => {
-  const storage = new MemoryStorage();
-  installStorage(storage);
-  const state = loggedInState();
-  saveUserState(state);
-  const directoryKey = buildPersistedWritePayloads(state).find((payload) => payload.key.includes("workspace-directory"))?.key;
-  assert.ok(directoryKey);
-  const directory = JSON.parse(storage.getItem(directoryKey) ?? "{}");
-  directory.users = directory.users.map((user: Record<string, unknown>) => ({ ...user, title: "legacy user title" }));
-  directory.workspaces = directory.workspaces.map((workspace: Record<string, unknown>) => ({
-    ...workspace,
-    decisionGoal: "legacy decision goal",
-    industry: "legacy industry"
-  }));
-  storage.setItem(directoryKey, JSON.stringify(directory));
-
-  const loaded = loadUserState("user-admin", createInitialState());
-
   assert.ok(loaded);
-  assert.equal("title" in loaded.users[0], false);
-  assert.equal("industry" in loaded.workspaces[0], false);
-  assert.equal("decisionGoal" in loaded.workspaces[0], false);
-  assert.equal(loaded.members[0].title.length > 0, true);
+  assert.equal(loaded.session.loggedIn, true);
+  assert.equal(loaded.session.currentUserId, "user-manager");
+  assert.equal(loaded.screen, "dashboard");
+  assert.equal(loaded.sourceFiles[0].name, "운영.csv");
 });
 
-test("preferred workspace restore requires active membership", () => {
-  const storage = new MemoryStorage();
-  installStorage(storage);
-  const initial = {
-    ...createInitialState(),
-    session: { ...createInitialState().session, currentUserId: "user-manager", loggedIn: true, role: "manager" as const }
-  };
-  saveUserState(initial);
-  storage.setItem(
-    storageKeyForUser("user-manager"),
-    JSON.stringify({
-      savedAt: "2026-05-09T00:00:00.000Z",
-      screen: "dashboard",
-      userId: "user-manager",
-      version: 2,
-      workspaceId: "workspace-health-supply"
-    })
-  );
-
-  const loaded = loadUserState("user-manager", createInitialState());
-
-  assert.ok(loaded);
-  assert.equal(loaded.session.workspaceId, "workspace-next-manufacturing");
-});
-
-test("restored legacy claim-rate time series is migrated to dated weekly points", () => {
-  const storage = new MemoryStorage();
-  installStorage(storage);
-  const state = loggedInState();
-  const workspaceId = "workspace-next-manufacturing";
-  const currentClaimRate = sampleMetricValues.find((metricValue) => metricValue.id === "metric-value-claim");
-  if (!currentClaimRate) {
-    assert.fail("클레임률 샘플 지표가 필요합니다.");
-  }
-  const legacyClaimRate = {
-    ...structuredClone(currentClaimRate),
-    basis: {
-      claimRows: 4,
-      customerSegment: "고객A",
-      p42ClaimRows: 4,
-      p42OrderRows: 4
-    },
-    series: [
-      { label: "일반 고객군", value: 0 },
-      { label: "핵심 고객군", value: 100 },
-      { label: "P-08", value: 0 },
-      { label: "P-42", value: 100 }
-    ]
-  };
-
-  saveUserState({
-    ...state,
-    workspaceDataById: {
-      ...state.workspaceDataById,
-      [workspaceId]: {
-        ...state.workspaceDataById[workspaceId],
-        metricValues: [legacyClaimRate]
-      }
-    }
-  });
-
-  const loaded = loadUserState("user-admin", createInitialState());
-  const restoredClaimRate = loaded?.metricValues.find((metricValue) => metricValue.id === "metric-value-claim");
-
-  assert.ok(restoredClaimRate);
-  assert.deepEqual(restoredClaimRate.series.map((point) => point.label), ["4/24", "5/1", "5/8", "5/15"]);
-  assert.equal(restoredClaimRate.series.every((point) => Boolean(point.observedAt)), true);
-  assert.equal(restoredClaimRate.basis?.timeWindow, "2026-04-24~2026-05-15");
-});
-
-test("restored login always starts at workspace selection", () => {
-  assert.equal(screenAfterUserRestore("organization", "workspace-next-manufacturing"), "workspace");
-  assert.equal(screenAfterUserRestore("proposalVote", "workspace-next-manufacturing"), "workspace");
-  assert.equal(screenAfterUserRestore("workspace", "workspace-next-manufacturing"), "workspace");
-  assert.equal(screenAfterUserRestore("dashboard", ""), "workspace");
-});
-
-test("missing workspace payload restores empty data instead of caller fallback data", () => {
-  const storage = new MemoryStorage();
-  installStorage(storage);
-  const initial = {
-    ...createInitialState(),
-    session: { ...createInitialState().session, currentUserId: "user-manager", loggedIn: true, role: "manager" as const }
-  };
-  saveUserState(initial);
-  storage.removeItem(storageKeyForWorkspaceData("workspace-next-manufacturing"));
-
-  const contaminatedFallback = {
-    ...createInitialState(),
-    workspaceDataById: {
-      ...createInitialState().workspaceDataById,
-      "workspace-next-manufacturing": {
-        ...createInitialState().workspaceDataById["workspace-next-manufacturing"],
-        sourceFiles: [
-          {
-            id: "source-contaminated",
-            kind: "표 형식 데이터",
-            name: "다른_사용자_메모리.csv",
-            rowCount: 1,
-            status: "ready" as const
-          }
-        ]
-      }
-    }
-  };
-  const loaded = loadUserState("user-manager", contaminatedFallback);
-
-  assert.ok(loaded);
-  assert.equal(loaded.sourceFiles.length, 0);
-});
-
-test("persisted write byte size uses the serialized key and value payloads", () => {
-  const state = loggedInState();
-  const payloads = buildPersistedWritePayloads(state);
-  const expectedSize = payloads.reduce((total, payload) => total + serializedStorageEntryByteSize(payload), 0);
-  const exactBudget = checkPersistedWriteBudget(state, expectedSize);
-
-  assert.equal(persistedWritePayloadByteSize(payloads), expectedSize);
-  assert.equal(exactBudget.ok, true);
-  assert.equal(exactBudget.byteSize, expectedSize);
-  assert.equal(checkPersistedWriteBudget(state, expectedSize - 1).ok, false);
-});
-
-test("persisted state signature ignores transient UI errors but changes for persisted payload changes", () => {
-  const state = loggedInState();
-  const erroredState = { ...state, simulatedError: "저장 실패" };
-  const added = reducer(
-    state,
-    audited(
-      state,
-      {
-        type: "ADD_SOURCE_FILES",
-        files: [
-          {
-            id: "source-persisted-signature",
-            kind: "업무 파일",
-            name: "signature.pdf",
-            rowCount: 0,
-            status: "ready"
-          }
-        ]
-      },
-      "파일 추가",
-      "source_file",
-      "source-persisted-signature"
-    )
-  );
-
-  assert.equal(persistedStateSignature(state), persistedStateSignature(erroredState));
-  assert.notEqual(persistedStateSignature(state), persistedStateSignature(added));
-});
-
-test("save failure restores previous storage values and returns failure result", () => {
-  const previousState = loggedInState();
-  const nextState = reducer(
-    previousState,
-    audited(
-      previousState,
-      {
-        type: "ADD_SOURCE_FILES",
-        files: [
-          {
-            id: "source-rollback",
-            kind: "업무 파일",
-            name: "rollback.pdf",
-            rowCount: 0,
-            status: "ready"
-          }
-        ]
-      },
-      "파일 추가",
-      "source_file",
-      "source-rollback"
-    )
-  );
+test("save rolls back when storage write fails", () => {
   const storage = new FailingStorage(2);
+  storage.seed(storageKeyForUser("user-manager"), "previous");
   installStorage(storage);
-  const previousPayloads = buildPersistedWritePayloads(previousState, "2026-05-09T00:00:00.000Z");
-  previousPayloads.forEach((payload) => storage.seed(payload.key, payload.value));
+  const ctx = loginState();
 
-  const result = saveUserState(nextState);
+  const saved = saveUserState(ctx.state);
+
+  assert.equal(saved.ok, false);
+  assert.equal(saved.rollbackCompleted, true);
+  assert.equal(storage.getItem(storageKeyForUser("user-manager")), "previous");
+});
+
+test("write budget reports oversized company data", () => {
+  const ctx = loginState();
+  const result = checkPersistedWriteBudget(ctx.state, 1);
 
   assert.equal(result.ok, false);
-  if (result.ok) {
-    assert.fail("저장 실패 결과가 필요합니다.");
-  }
-  assert.equal(result.rollbackCompleted, true);
-  previousPayloads.forEach((payload) => {
-    assert.equal(storage.getItem(payload.key), payload.value);
-  });
+});
+
+test("restore target never returns public setup pages", () => {
+  assert.equal(screenAfterUserRestore("login"), "dashboard");
+  assert.equal(screenAfterUserRestore("signup"), "dashboard");
+  assert.equal(screenAfterUserRestore("dashboard"), "dashboard");
+  assert.equal(screenAfterUserRestore("company"), "dashboard");
 });

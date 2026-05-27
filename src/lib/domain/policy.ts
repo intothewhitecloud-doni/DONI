@@ -1,24 +1,22 @@
-import type { MembershipStatus, Proposal, ProposalStatus, PrototypeState, Role, WorkspaceMember } from "./types";
+import type { CompanyUser, CompanyUserStatus, Proposal, ProposalStatus, PrototypeState, Role } from "./types";
 
-export type MembershipManagementAction =
+export type CompanyUserManagementAction =
   | "approve"
   | "reject"
-  | "deactivate"
+  | "delete_account"
   | "update_role"
   | "update_title"
-  | "transfer_owner";
+  | "assign_category";
 
-const statusLabels: Record<MembershipStatus, string> = {
+const statusLabels: Record<CompanyUserStatus, string> = {
   active: "승인 완료",
-  inactive: "비활성화",
   pending: "승인 대기",
   rejected: "반려"
 };
 
 const roleLabels: Record<Role, string> = {
-  manager: "운영 관리자",
-  member: "일반 사용자",
-  owner: "워크스페이스 소유자"
+  manager: "기업 관리자",
+  owner: "기업 소유자"
 };
 
 const proposalStatusLabels: Record<ProposalStatus, string> = {
@@ -40,7 +38,7 @@ export function roleLabelForPolicy(role: Role): string {
   return roleLabels[role];
 }
 
-export function membershipStatusLabel(status: MembershipStatus): string {
+export function companyUserStatusLabel(status: CompanyUserStatus): string {
   return statusLabels[status];
 }
 
@@ -53,15 +51,11 @@ export function normalizeLegacyRole(role: Role | "admin" | string | undefined): 
     return "owner";
   }
 
-  if (role === "manager") {
-    return "manager";
-  }
-
-  return "member";
+  return "manager";
 }
 
-export function normalizeMembershipStatus(status: MembershipStatus | "invited" | string | undefined): MembershipStatus {
-  if (status === "active" || status === "inactive" || status === "pending" || status === "rejected") {
+export function normalizeCompanyUserStatus(status: CompanyUserStatus | "invited" | string | undefined): CompanyUserStatus {
+  if (status === "active" || status === "pending" || status === "rejected") {
     return status;
   }
 
@@ -72,138 +66,114 @@ export function normalizeMembershipStatus(status: MembershipStatus | "invited" |
   return "pending";
 }
 
-export function workspaceMemberForUser(
-  state: Pick<PrototypeState, "members">,
-  workspaceId: string,
+export function companyUserForUser(
+  state: Pick<PrototypeState, "companyUsers">,
   userId: string
-): WorkspaceMember | undefined {
-  return state.members.find((member) => member.workspaceId === workspaceId && member.userId === userId);
+): CompanyUser | undefined {
+  return state.companyUsers.find((companyUser) => companyUser.userId === userId);
 }
 
-export function activeWorkspaceMemberForUser(
-  state: Pick<PrototypeState, "members">,
-  workspaceId: string,
+export function activeCompanyUserForUser(
+  state: Pick<PrototypeState, "companyUsers">,
   userId: string
-): WorkspaceMember | undefined {
-  const member = workspaceMemberForUser(state, workspaceId, userId);
-  return member?.status === "active" ? member : undefined;
+): CompanyUser | undefined {
+  const companyUser = companyUserForUser(state, userId);
+  return companyUser?.status === "active" ? companyUser : undefined;
 }
 
-export function membershipById(state: Pick<PrototypeState, "members">, memberId: string): WorkspaceMember | undefined {
-  return state.members.find((member) => member.id === memberId);
+export function companyUserById(state: Pick<PrototypeState, "companyUsers">, companyUserId: string): CompanyUser | undefined {
+  return state.companyUsers.find((companyUser) => companyUser.id === companyUserId);
 }
 
-export function isActiveMembership(member: WorkspaceMember | undefined): member is WorkspaceMember {
-  return member?.status === "active";
+export function isActiveCompanyUser(companyUser: CompanyUser | undefined): companyUser is CompanyUser {
+  return companyUser?.status === "active";
 }
 
-export function canEnterWorkspace(state: Pick<PrototypeState, "members">, workspaceId: string, userId: string): boolean {
-  return Boolean(activeWorkspaceMemberForUser(state, workspaceId, userId));
+export function canEnterCompany(state: Pick<PrototypeState, "companyUsers">, userId: string): boolean {
+  return Boolean(activeCompanyUserForUser(state, userId));
 }
 
 export function isVotingRole(role: Role): boolean {
   return role === "owner" || role === "manager";
 }
 
-export function canSeeProposalList(member: WorkspaceMember | undefined): boolean {
-  return isActiveMembership(member);
+export function canSeeProposalList(companyUser: CompanyUser | undefined): boolean {
+  return isActiveCompanyUser(companyUser);
 }
 
-export function canOpenProposalDetail(member: WorkspaceMember | undefined): boolean {
-  return isActiveMembership(member) && isVotingRole(member.role);
+export function canOpenProposalDetail(companyUser: CompanyUser | undefined): boolean {
+  return isActiveCompanyUser(companyUser) && isVotingRole(companyUser.role);
 }
 
-export function proposalVoterUserIds(state: Pick<PrototypeState, "members">, workspaceId: string): string[] {
-  return state.members
-    .filter((member) => member.workspaceId === workspaceId && member.status === "active" && isVotingRole(member.role))
-    .map((member) => member.userId);
+export function proposalVoterUserIds(state: Pick<PrototypeState, "companyUsers">): string[] {
+  return state.companyUsers
+    .filter((companyUser) => companyUser.status === "active" && isVotingRole(companyUser.role))
+    .map((companyUser) => companyUser.userId);
 }
 
 export function canVoteOnProposal(
-  state: Pick<PrototypeState, "members" | "session" | "proposals">,
+  state: Pick<PrototypeState, "companyUsers" | "session" | "proposals">,
   proposalId: string,
-  userId = state.session.currentUserId,
-  workspaceId = state.session.workspaceId
+  userId = state.session.currentUserId
 ): boolean {
   const proposal = state.proposals.find((item) => item.id === proposalId);
-  const member = activeWorkspaceMemberForUser(state, workspaceId, userId);
-  return Boolean(proposal && canOpenProposalDetail(member) && proposal.voterUserIds.includes(userId));
+  const companyUser = activeCompanyUserForUser(state, userId);
+  return Boolean(proposal && canOpenProposalDetail(companyUser) && proposal.voterUserIds.includes(userId));
 }
 
 export function canFinalizeProposal(
-  state: Pick<PrototypeState, "members" | "session">,
-  userId = state.session.currentUserId,
-  workspaceId = state.session.workspaceId
+  state: Pick<PrototypeState, "companyUsers" | "session">,
+  userId = state.session.currentUserId
 ): boolean {
-  return canOpenProposalDetail(activeWorkspaceMemberForUser(state, workspaceId, userId));
+  return canOpenProposalDetail(activeCompanyUserForUser(state, userId));
 }
 
-export function canManageMembership(
-  actor: WorkspaceMember | undefined,
-  target: WorkspaceMember | undefined,
-  action: MembershipManagementAction,
+export function canManageCompanyUser(
+  actor: CompanyUser | undefined,
+  target: CompanyUser | undefined,
+  action: CompanyUserManagementAction,
   nextRole?: Role
 ): boolean {
-  if (!actor || !target || actor.workspaceId !== target.workspaceId || actor.id === target.id || actor.status !== "active") {
+  if (!actor || !target || actor.id === target.id || actor.status !== "active" || actor.role !== "owner") {
     return false;
   }
 
-  if (actor.role === "owner") {
-    if (action === "transfer_owner") {
-      return target.status === "active" && target.role !== "owner";
-    }
-
-    if (action === "approve") {
-      return target.status === "pending" || target.status === "rejected";
-    }
-
-    if (action === "reject") {
-      return target.status === "pending";
-    }
-
-    if (action === "deactivate") {
-      return target.status === "active" && target.role !== "owner";
-    }
-
-    if (action === "update_role") {
-      return target.status === "active" && target.role !== "owner" && nextRole !== "owner";
-    }
-
-    if (action === "update_title") {
-      return target.status === "active" && target.role !== "owner";
-    }
+  if (target.role === "owner") {
+    return false;
   }
 
-  if (actor.role === "manager") {
-    if (action === "approve") {
-      return target.role === "member" && (target.status === "pending" || target.status === "rejected");
-    }
+  if (action === "approve") {
+    return target.status === "pending" || target.status === "rejected";
+  }
 
-    if (action === "reject") {
-      return target.role === "member" && target.status === "pending";
-    }
+  if (action === "reject") {
+    return target.status === "pending";
+  }
 
-    if (action === "deactivate") {
-      return target.role === "member" && target.status === "active";
-    }
+  if (action === "delete_account") {
+    return true;
+  }
 
-    if (action === "update_title") {
-      return target.role === "member" && target.status === "active";
-    }
+  if (action === "update_role") {
+    return target.status === "active" && nextRole === "manager";
+  }
+
+  if (action === "update_title" || action === "assign_category") {
+    return target.status === "active";
   }
 
   return false;
 }
 
-export function actorMembershipForTarget(
-  state: Pick<PrototypeState, "members" | "session">,
-  target: WorkspaceMember | undefined
-): WorkspaceMember | undefined {
-  if (!target) {
+export function actorCompanyUserForTarget(
+  state: Pick<PrototypeState, "companyUsers" | "session">,
+  target: CompanyUser | undefined
+): CompanyUser | undefined {
+  if (!target || !state.session.loggedIn || !state.session.currentUserId) {
     return undefined;
   }
 
-  return activeWorkspaceMemberForUser(state, target.workspaceId, state.session.currentUserId);
+  return activeCompanyUserForUser(state, state.session.currentUserId);
 }
 
 export function normalizeProposalVoters<T extends Partial<Proposal> & Record<string, unknown>>(proposal: T): T & { voterUserIds: string[] } {
@@ -215,4 +185,3 @@ export function normalizeProposalVoters<T extends Partial<Proposal> & Record<str
     voterUserIds
   };
 }
-

@@ -1,11 +1,12 @@
-import { createEmptyWorkspaceData, projectWorkspaceData } from "../domain/state-machine";
-import type { AuthAccount, Proposal, PrototypeState, Screen, User, Workspace, WorkspaceMember, WorkspaceOperationalState } from "../domain/types";
-import { normalizeLegacyRole, normalizeMembershipStatus, normalizeProposalVoters } from "../domain/policy";
+import { initialPrototypeState } from "../domain/mock-data";
+import { normalizeCompanyData } from "../domain/state-machine";
+import type { AuthAccount, Company, CompanyUser, OrganizationCategory, PrototypeState, Screen, User } from "../domain/types";
+import { normalizeCompanyUserStatus, normalizeLegacyRole, normalizeProposalVoters } from "../domain/policy";
 
-const STORAGE_VERSION = 2;
-const USER_SESSION_PREFIX = "doni:user-session";
-const WORKSPACE_DIRECTORY_KEY = `doni:workspace-directory:v${STORAGE_VERSION}`;
-const WORKSPACE_DATA_PREFIX = "doni:workspace-data";
+const STORAGE_VERSION = 3;
+const USER_SESSION_PREFIX = "doni:company-console:user-session";
+const COMPANY_DIRECTORY_KEY = `doni:company-console:directory:v${STORAGE_VERSION}`;
+const COMPANY_DATA_PREFIX = "doni:company-console:data";
 const DEFAULT_PERSISTED_WRITE_BUDGET_BYTES = 4_500_000;
 
 export type PersistedWritePayload = {
@@ -27,31 +28,30 @@ type PersistedUserSession = {
   screen: Screen;
   userId: string;
   version: typeof STORAGE_VERSION;
-  workspaceId: string;
 };
 
-type PersistedWorkspaceDirectory = {
+type PersistedCompanyDirectory = {
   authAccounts?: AuthAccount[];
-  members: WorkspaceMember[];
+  company: Company;
+  companyUsers: CompanyUser[];
+  organizationCategories: OrganizationCategory[];
   savedAt: string;
   users?: User[];
   version: typeof STORAGE_VERSION;
-  workspaces: Workspace[];
 };
 
-type PersistedWorkspaceData = {
-  data: WorkspaceOperationalState;
+type PersistedCompanyData = {
+  data: PrototypeState;
   savedAt: string;
   version: typeof STORAGE_VERSION;
-  workspaceId: string;
 };
 
 export function storageKeyForUser(userId: string): string {
   return `${USER_SESSION_PREFIX}:v${STORAGE_VERSION}:${userId}`;
 }
 
-export function storageKeyForWorkspaceData(workspaceId: string): string {
-  return `${WORKSPACE_DATA_PREFIX}:v${STORAGE_VERSION}:${workspaceId}`;
+export function storageKeyForCompanyData(companyId: string): string {
+  return `${COMPANY_DATA_PREFIX}:v${STORAGE_VERSION}:${companyId}`;
 }
 
 function browserStorage(): Storage | undefined {
@@ -124,66 +124,83 @@ export function persistedWritePayloadSignature(payloads: PersistedWritePayload[]
   return hash.toString(16);
 }
 
+function directorySnapshot(state: Pick<PrototypeState, "authAccounts" | "company" | "companyUsers" | "organizationCategories" | "users">) {
+  return {
+    authAccounts: state.authAccounts,
+    company: state.company,
+    companyUsers: state.companyUsers,
+    organizationCategories: state.organizationCategories,
+    users: state.users
+  };
+}
+
+function hasDirectoryChanges(state: PrototypeState): boolean {
+  return JSON.stringify(directorySnapshot(state)) !== JSON.stringify(directorySnapshot(initialPrototypeState));
+}
+
+function buildCompanyDirectory(state: PrototypeState, savedAt: string): PersistedCompanyDirectory {
+  return {
+    ...directorySnapshot(state),
+    savedAt,
+    version: STORAGE_VERSION
+  };
+}
+
 export function buildPersistedWritePayloads(state: PrototypeState, savedAt = new Date().toISOString()): PersistedWritePayload[] {
-  if (!state.session.loggedIn || !state.session.currentUserId) {
+  const shouldPersistSession = state.session.loggedIn && Boolean(state.session.currentUserId);
+  const shouldPersistDirectory = shouldPersistSession || hasDirectoryChanges(state);
+  if (!shouldPersistDirectory) {
     return [];
   }
 
-  const directory: PersistedWorkspaceDirectory = {
-    authAccounts: state.authAccounts,
-    members: state.members,
-    savedAt,
-    users: state.users,
-    version: STORAGE_VERSION,
-    workspaces: state.workspaces
-  };
+  const directory = buildCompanyDirectory(state, savedAt);
+  if (!shouldPersistSession || !state.session.currentUserId) {
+    return [{ key: COMPANY_DIRECTORY_KEY, value: JSON.stringify(directory) }];
+  }
+
   const session: PersistedUserSession = {
     savedAt,
     screen: state.screen,
     userId: state.session.currentUserId,
-    version: STORAGE_VERSION,
-    workspaceId: state.session.workspaceId
+    version: STORAGE_VERSION
+  };
+  const companyData: PersistedCompanyData = {
+    data: { ...state, permissionDenied: undefined, simulatedError: undefined },
+    savedAt,
+    version: STORAGE_VERSION
   };
 
   return [
-    { key: WORKSPACE_DIRECTORY_KEY, value: JSON.stringify(directory) },
+    { key: COMPANY_DIRECTORY_KEY, value: JSON.stringify(directory) },
     { key: storageKeyForUser(state.session.currentUserId), value: JSON.stringify(session) },
-    ...Object.entries(state.workspaceDataById).map(([workspaceId, data]) => {
-      const workspaceData: PersistedWorkspaceData = {
-        data,
-        savedAt,
-        version: STORAGE_VERSION,
-        workspaceId
-      };
-
-      return { key: storageKeyForWorkspaceData(workspaceId), value: JSON.stringify(workspaceData) };
-    })
+    { key: storageKeyForCompanyData(state.company.id), value: JSON.stringify(companyData) }
   ];
 }
 
 export function persistedStateSignature(state: PrototypeState): string {
-  return persistedWritePayloadSignature(buildPersistedWritePayloads(state, ""));
+  const payloads = buildPersistedWritePayloads(state, "");
+  return payloads.length === 0 ? "" : persistedWritePayloadSignature(payloads);
 }
 
 export function checkPersistedWriteBudget(state: PrototypeState, budgetBytes?: number): PersistedWriteBudgetResult {
   const payloads = buildPersistedWritePayloads(state);
-  const byteSize = persistedWritePayloadByteSize(payloads);
+  const entryByteSize = persistedWritePayloadByteSize(payloads);
   const thresholdBytes = configuredPersistedWriteBudgetBytes(budgetBytes);
-  if (byteSize > thresholdBytes) {
+  if (entryByteSize > thresholdBytes) {
     return {
-      byteSize,
-      message: `저장 가능한 데이터 보관함 용량을 초과했습니다. 현재 예상 ${byteSize.toLocaleString("ko-KR")} bytes / 한도 ${thresholdBytes.toLocaleString("ko-KR")} bytes`,
+      byteSize: entryByteSize,
+      message: `저장 가능한 데이터 보관함 용량을 초과했습니다. 현재 예상 ${entryByteSize.toLocaleString("ko-KR")} bytes / 한도 ${thresholdBytes.toLocaleString("ko-KR")} bytes`,
       ok: false,
       thresholdBytes
     };
   }
 
-  return { byteSize, ok: true, thresholdBytes };
+  return { byteSize: entryByteSize, ok: true, thresholdBytes };
 }
 
 function parseUserSession(raw: string | null, userId: string): PersistedUserSession | undefined {
   const parsed = parseJson<Partial<PersistedUserSession>>(raw);
-  if (!parsed || parsed.version !== STORAGE_VERSION || parsed.userId !== userId || typeof parsed.workspaceId !== "string" || !parsed.screen) {
+  if (!parsed || parsed.version !== STORAGE_VERSION || parsed.userId !== userId || !parsed.screen) {
     return undefined;
   }
 
@@ -207,80 +224,61 @@ function normalizeAuthAccount(account: AuthAccount): AuthAccount {
   };
 }
 
-function normalizeMember(member: WorkspaceMember & { eligibleVoter?: boolean; status?: string; role?: string }): WorkspaceMember {
-  const { eligibleVoter: _legacyEligibleVoter, ...rest } = member;
+function normalizeCompanyUser(companyUser: CompanyUser & { status?: string; role?: string }): CompanyUser {
   return {
-    ...rest,
-    title: member.title ?? "",
-    role: normalizeLegacyRole(member.role),
-    status: normalizeMembershipStatus(member.status)
+    ...companyUser,
+    title: companyUser.title ?? "",
+    role: normalizeLegacyRole(companyUser.role),
+    status: normalizeCompanyUserStatus(companyUser.status)
   };
 }
 
-function normalizeWorkspace(workspace: Workspace & { industry?: string; decisionGoal?: string }): Workspace {
-  const { industry: _legacyIndustry, decisionGoal: _legacyDecisionGoal, ...rest } = workspace;
-  return rest;
-}
-
-function normalizeWorkspaceData(data: WorkspaceOperationalState): WorkspaceOperationalState {
-  return {
+function normalizePersistedCompanyData(data: PrototypeState): PrototypeState {
+  const normalized = normalizeCompanyData({
     ...data,
     proposals: data.proposals.map((proposal) => {
-      const normalized = normalizeProposalVoters(proposal as Partial<Proposal> & Record<string, unknown>);
+      const normalizedProposal = normalizeProposalVoters(proposal as Partial<typeof proposal> & Record<string, unknown>);
       return {
         ...proposal,
         votingRule: {
           ...proposal.votingRule,
           tieBreakerRole: normalizeLegacyRole(proposal.votingRule.tieBreakerRole)
         },
-        voterUserIds: normalized.voterUserIds
+        voterUserIds: normalizedProposal.voterUserIds
       };
     })
+  });
+  return {
+    ...data,
+    ...normalized,
+    authAccounts: data.authAccounts.map(normalizeAuthAccount),
+    users: data.users.map(normalizeUser),
+    companyUsers: data.companyUsers.map(normalizeCompanyUser)
   };
 }
 
-function parseWorkspaceDirectory(raw: string | null): PersistedWorkspaceDirectory | undefined {
-  const parsed = parseJson<Partial<PersistedWorkspaceDirectory>>(raw);
-  if (!parsed || parsed.version !== STORAGE_VERSION || !parsed.workspaces || !parsed.members) {
+function parseCompanyDirectory(raw: string | null): PersistedCompanyDirectory | undefined {
+  const parsed = parseJson<Partial<PersistedCompanyDirectory>>(raw);
+  if (!parsed || parsed.version !== STORAGE_VERSION || !parsed.company || !parsed.companyUsers) {
     return undefined;
   }
 
   return {
     ...parsed,
     authAccounts: parsed.authAccounts?.map(normalizeAuthAccount),
-    members: parsed.members.map(normalizeMember),
+    companyUsers: parsed.companyUsers.map(normalizeCompanyUser),
     users: parsed.users?.map(normalizeUser),
-    version: STORAGE_VERSION,
-    workspaces: parsed.workspaces.map(normalizeWorkspace)
-  } as PersistedWorkspaceDirectory;
+    version: STORAGE_VERSION
+  } as PersistedCompanyDirectory;
 }
 
-function parseWorkspaceData(raw: string | null, workspaceId: string): WorkspaceOperationalState | undefined {
-  const parsed = parseJson<Partial<PersistedWorkspaceData>>(raw);
-  if (!parsed || parsed.version !== STORAGE_VERSION || parsed.workspaceId !== workspaceId || !parsed.data) {
+function parseCompanyData(raw: string | null): PrototypeState | undefined {
+  const parsed = parseJson<Partial<PersistedCompanyData>>(raw);
+  if (!parsed || parsed.version !== STORAGE_VERSION || !parsed.data) {
     return undefined;
   }
 
-  return normalizeWorkspaceData(parsed.data);
-}
-
-function workspaceForUser(
-  userId: string,
-  workspaces: Workspace[],
-  members: WorkspaceMember[],
-  preferredWorkspaceId?: string
-): string {
-  const activeWorkspaceIds = new Set(
-    members
-      .filter((member) => member.userId === userId && member.status === "active")
-      .map((member) => member.workspaceId)
-  );
-
-  if (preferredWorkspaceId && activeWorkspaceIds.has(preferredWorkspaceId)) {
-    return preferredWorkspaceId;
-  }
-
-  return workspaces.find((workspace) => activeWorkspaceIds.has(workspace.id))?.id ?? "";
+  return normalizePersistedCompanyData(parsed.data);
 }
 
 export function loadUserState(userId: string, fallbackState: PrototypeState): PrototypeState | undefined {
@@ -289,56 +287,62 @@ export function loadUserState(userId: string, fallbackState: PrototypeState): Pr
     return undefined;
   }
 
-  const directory = parseWorkspaceDirectory(storage.getItem(WORKSPACE_DIRECTORY_KEY));
+  const directory = parseCompanyDirectory(storage.getItem(COMPANY_DIRECTORY_KEY));
   const session = parseUserSession(storage.getItem(storageKeyForUser(userId)), userId);
-  const workspaces = directory?.workspaces ?? fallbackState.workspaces;
-  const members = directory?.members ?? fallbackState.members;
-  const users = directory?.users ?? fallbackState.users;
-  const authAccounts = directory?.authAccounts ?? fallbackState.authAccounts;
-  const activeWorkspaceIds = new Set(
-    members
-      .filter((member) => member.userId === userId && member.status === "active")
-      .map((member) => member.workspaceId)
-  );
-  let hasPersistedWorkspaceData = false;
-  const workspaceDataById = workspaces.reduce<Record<string, WorkspaceOperationalState>>((dataById, workspace) => {
-    if (!activeWorkspaceIds.has(workspace.id)) {
-      return dataById;
-    }
-    const persistedWorkspaceData = parseWorkspaceData(storage.getItem(storageKeyForWorkspaceData(workspace.id)), workspace.id);
-    if (persistedWorkspaceData) {
-      hasPersistedWorkspaceData = true;
-    }
-    dataById[workspace.id] = persistedWorkspaceData ?? createEmptyWorkspaceData(workspace);
-    return dataById;
-  }, {});
-
-  const hasSharedState = Boolean(directory || session || hasPersistedWorkspaceData);
+  const companyId = directory?.company.id ?? fallbackState.company.id;
+  const persistedData = parseCompanyData(storage.getItem(storageKeyForCompanyData(companyId)));
+  const hasSharedState = Boolean(directory || session || persistedData);
   if (!hasSharedState) {
     return undefined;
   }
 
-  const workspaceId = workspaceForUser(userId, workspaces, members, session?.workspaceId);
-  const screen = "workspace";
+  const base = persistedData ?? fallbackState;
+  const companyUsers = directory?.companyUsers ?? base.companyUsers;
+  const activeCompanyUser = companyUsers.find((companyUser) => companyUser.userId === userId && companyUser.status === "active");
+  const screen = activeCompanyUser ? screenAfterUserRestore(session?.screen ?? base.screen) : "login";
 
-  return projectWorkspaceData(
-    {
-      ...fallbackState,
-      authAccounts,
-      members,
-      screen,
-      session: { ...fallbackState.session, currentUserId: userId, loggedIn: true, workspaceId },
-      users,
-      workspaces,
-      workspaceDataById
+  return normalizePersistedCompanyData({
+    ...base,
+    authAccounts: directory?.authAccounts ?? base.authAccounts,
+    company: directory?.company ?? base.company,
+    companyUsers,
+    organizationCategories: directory?.organizationCategories ?? base.organizationCategories,
+    screen,
+    session: {
+      ...base.session,
+      currentUserId: userId,
+      loggedIn: Boolean(activeCompanyUser),
+      role: activeCompanyUser?.role ?? base.session.role
     },
-    workspaceId
-  );
+    users: directory?.users ?? base.users
+  });
+}
+
+export function loadCompanyDirectoryState(fallbackState: PrototypeState): PrototypeState {
+  const storage = browserStorage();
+  if (!storage) {
+    return fallbackState;
+  }
+
+  const directory = parseCompanyDirectory(storage.getItem(COMPANY_DIRECTORY_KEY));
+  if (!directory) {
+    return fallbackState;
+  }
+
+  return normalizePersistedCompanyData({
+    ...fallbackState,
+    authAccounts: directory.authAccounts ?? fallbackState.authAccounts,
+    company: directory.company,
+    companyUsers: directory.companyUsers,
+    organizationCategories: directory.organizationCategories,
+    users: directory.users ?? fallbackState.users
+  });
 }
 
 export function saveUserState(state: PrototypeState): SaveUserStateResult {
-  const signature = persistedStateSignature(state);
-  if (!state.session.loggedIn || !state.session.currentUserId) {
+  const payloads = buildPersistedWritePayloads(state);
+  const signature = payloads.length === 0 ? "" : persistedWritePayloadSignature(payloads);
+  if (payloads.length === 0) {
     return { byteSize: 0, ok: true, signature: "", skipped: "not_logged_in" };
   }
 
@@ -347,8 +351,7 @@ export function saveUserState(state: PrototypeState): SaveUserStateResult {
     return { byteSize: 0, ok: true, signature: "", skipped: "storage_unavailable" };
   }
 
-  const payloads = buildPersistedWritePayloads(state);
-  const byteSize = persistedWritePayloadByteSize(payloads);
+  const entryByteSize = persistedWritePayloadByteSize(payloads);
   const previousValues = payloads.map((payload) => ({ key: payload.key, value: storage.getItem(payload.key) }));
 
   try {
@@ -356,7 +359,7 @@ export function saveUserState(state: PrototypeState): SaveUserStateResult {
       storage.setItem(payload.key, payload.value);
     }
 
-    return { byteSize, ok: true, signature };
+    return { byteSize: entryByteSize, ok: true, signature };
   } catch {
     let rollbackCompleted = true;
     for (const previousValue of previousValues) {
@@ -373,7 +376,7 @@ export function saveUserState(state: PrototypeState): SaveUserStateResult {
 
     console.warn("상태를 브라우저 저장소에 저장하지 못했습니다.");
     return {
-      byteSize,
+      byteSize: entryByteSize,
       message: rollbackCompleted
         ? "브라우저 저장소에 상태를 저장하지 못했습니다. 이전 저장 상태로 복구했습니다."
         : "브라우저 저장소에 상태를 저장하지 못했고 일부 이전 저장 상태를 복구하지 못했습니다.",
@@ -384,6 +387,6 @@ export function saveUserState(state: PrototypeState): SaveUserStateResult {
   }
 }
 
-export function screenAfterUserRestore(_screen: Screen, _workspaceId?: string): Screen {
-  return "workspace";
+export function screenAfterUserRestore(_screen: Screen): Screen {
+  return "dashboard";
 }

@@ -8,8 +8,8 @@ Verification used: `npm run check`, `npm audit --audit-level=moderate`, HTTP 200
 
 - [x] Public service intro page is the first screen.
 - [x] Login accepts configured credentials.
-- [x] Workspace can be selected as first-run setup.
-- [x] Company/onboarding data is visible as first-run setup.
+- [x] Approved company users enter the dashboard directly without an intermediate selection page.
+- [x] Company/onboarding data is visible in the single-company console flow.
 - [x] Initial dashboard starts with no Entity/Event definitions.
 - [x] Source data upload creates visible uploaded files.
 - [x] Analysis job progresses to review-ready.

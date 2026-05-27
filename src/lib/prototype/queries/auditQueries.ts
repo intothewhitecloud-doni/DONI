@@ -1,8 +1,8 @@
 import type { PrototypeState } from "../../domain/types";
-import { currentWorkspaceData } from "../selectors";
+import { currentCompanyData } from "../selectors";
 
 export function getTimelineForDecision(state: PrototypeState, decisionId?: string) {
-  const data = currentWorkspaceData(state);
+  const data = currentCompanyData(state);
   if (!decisionId) {
     return data.auditLogs;
   }
@@ -17,7 +17,7 @@ export function getTimelineForDecision(state: PrototypeState, decisionId?: strin
   return data.auditLogs.filter(
     (log) =>
       targetIds.has(log.targetId) ||
-      (log.targetType === "workspace" && log.action.includes("구조")) ||
+      (log.targetType === "company" && log.action.includes("구조")) ||
       (log.targetType === "verification_record" && verificationIds.includes(log.targetId))
   );
 }

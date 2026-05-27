@@ -4,7 +4,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
 import { MetricChart } from "../../components/ui/MetricChart";
-import { can } from "../../lib/prototype/permissions";
+import { canCurrentUser } from "../../lib/prototype/permissions";
 import { getDashboardView } from "../../lib/prototype/queries/dashboardQueries";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
@@ -12,8 +12,8 @@ export function DashboardScreen() {
   const { commands, state } = usePrototype();
   const view = getDashboardView(state);
   const hasDefinitions = state.entities.length > 0 && state.events.length > 0;
-  const canUploadSource = can(state.session.role, "source:upload");
-  const canOpenInsightDetail = can(state.session.role, "insight:proposal");
+  const canUploadSource = canCurrentUser(state, "source:upload");
+  const canOpenInsightDetail = canCurrentUser(state, "insight:proposal");
   const primaryWidget = view.primaryChartWidgets.length === 1 ? view.primaryChartWidgets[0] : undefined;
 
   if (!hasDefinitions) {

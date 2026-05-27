@@ -13,6 +13,7 @@ import {
   sampleWorkflowMetricBindings
 } from "./sample-analysis";
 import type { PrototypeState } from "./types";
+import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "./types";
 import { demoAccounts } from "./auth-fixtures";
 
 const now = "2026-05-07T09:00:00.000Z";
@@ -22,64 +23,50 @@ export const initialPrototypeState: PrototypeState = {
   session: {
     loggedIn: false,
     currentUserId: "user-manager",
-    workspaceId: "workspace-next-manufacturing",
     role: "manager"
   },
   authAccounts: demoAccounts,
   users: [
-    { email: "owner@next.example", id: "user-admin", name: "박민재", role: "owner" },
-    { email: "manager@next.example", id: "user-manager", name: "김도현", role: "manager" },
-    { email: "member@next.example", id: "user-member", name: "이하린", role: "member" }
+    { email: "owner@next.example", id: "user-owner", name: "박민재", role: "owner" },
+    { email: "manager@next.example", id: "user-manager", name: "김도현", role: "manager" }
   ],
-  workspaces: [
-    {
-      id: "workspace-next-manufacturing",
-      name: "넥스트 제조 그룹",
-      inviteCode: "DONI-NEXT-4821"
-    },
-    {
-      id: "workspace-health-supply",
-      name: "헬스케어 공급 협의체",
-      inviteCode: "DONI-HEALTH-9174"
-    }
-  ],
-  members: [
-    {
-      id: "member-admin",
-      userId: "user-admin",
-      workspaceId: "workspace-next-manufacturing",
-      role: "owner",
-      name: "박민재",
-      title: "워크스페이스 소유자",
-      status: "active"
-    },
-    {
-      id: "member-manager",
-      userId: "user-manager",
-      workspaceId: "workspace-next-manufacturing",
-      role: "manager",
-      name: "김도현",
-      title: "운영 의사결정 리드",
-      status: "active"
-    },
-    {
-      id: "member-member",
-      userId: "user-member",
-      workspaceId: "workspace-next-manufacturing",
-      role: "member",
-      name: "이하린",
-      title: "공급망 담당",
-      status: "active"
-    }
-  ],
-  workspaceDataById: {},
   company: {
-    name: "넥스트 제조 그룹",
-    industry: "제조 및 유통",
-    goal: "저마진 상품을 줄이고 공급망 지연 리스크를 조기에 발견",
+    id: "company-next-manufacturing",
+    name: "넥스트 제조",
+    code: "DONI-NEXT-4821",
     dataReadiness: "draft"
   },
-  sourceFiles: sampleSourceFiles,
+  companyUsers: [
+    {
+      id: "company-user-owner",
+      userId: "user-owner",
+      role: "owner",
+      name: "박민재",
+      email: "owner@next.example",
+      title: "기업 소유자",
+      status: "active",
+      organizationCategoryId: "org-operations"
+    },
+    {
+      id: "company-user-manager",
+      userId: "user-manager",
+      role: "manager",
+      name: "김도현",
+      email: "manager@next.example",
+      title: "운영 의사결정 리드",
+      status: "active",
+      organizationCategoryId: "org-operations"
+    }
+  ],
+  organizationCategories: [
+    { id: UNASSIGNED_ORGANIZATION_CATEGORY_ID, name: "미지정" },
+    { id: "org-operations", name: "운영" },
+    { id: "org-supply", name: "공급망" }
+  ],
+  sourceFiles: sampleSourceFiles.map((file) => ({
+    ...file,
+    organizationCategoryId: file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID
+  })),
   analysisJobs: [],
   evidence: sampleEvidence,
   candidates: sampleCandidates,
@@ -103,8 +90,8 @@ export const initialPrototypeState: PrototypeState = {
       at: now,
       actorId: "system",
       action: "초기 운영 데이터 준비",
-      targetType: "workspace",
-      targetId: "workspace-next-manufacturing",
+      targetType: "company",
+      targetId: "company-next-manufacturing",
       summary: "보관 파일 기반 운영 구조와 증거 데이터를 준비했습니다."
     }
   ],

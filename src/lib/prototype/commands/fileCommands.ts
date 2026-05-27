@@ -3,7 +3,7 @@ import { initialPrototypeState as preparedData } from "../../domain/mock-data";
 import { reducer } from "../../domain/state-machine";
 import type { PrototypeState, SourceFile } from "../../domain/types";
 import { commandMeta } from "../events";
-import { can } from "../permissions";
+import { canCurrentUser } from "../permissions";
 import { checkPersistedWriteBudget } from "../persistence";
 import { sourceFileKindForName, validateSourceFileRename } from "../sourceFiles";
 import type { PrototypeAction } from "../store";
@@ -11,6 +11,7 @@ import type { PrototypeAction } from "../store";
 type SourceFileInput = {
   name: string;
   size: number;
+  organizationCategoryId?: string;
   mimeType?: string;
   dataUrl?: string;
   textContent?: string;
@@ -32,6 +33,7 @@ function toSourceFile(file: SourceFileInput, index: number): SourceFile {
     kind: sourceFileKindForName(file.name),
     rowCount: file.rowCount ?? 0,
     status: "ready",
+    organizationCategoryId: file.organizationCategoryId,
     size: file.size,
     mimeType: file.mimeType,
     dataUrl: file.dataUrl,
@@ -41,8 +43,13 @@ function toSourceFile(file: SourceFileInput, index: number): SourceFile {
   };
 }
 
-export function addSourceFiles(state: PrototypeState, dispatch: Dispatch<PrototypeAction>, files: SourceFileInput[]): boolean {
-  if (!can(state.session.role, "source:upload")) {
+export function addSourceFiles(
+  state: PrototypeState,
+  dispatch: Dispatch<PrototypeAction>,
+  files: SourceFileInput[],
+  organizationCategoryId?: string
+): boolean {
+  if (!canCurrentUser(state, "source:upload")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 파일을 추가할 수 없습니다." });
     return false;
   }
@@ -55,6 +62,7 @@ export function addSourceFiles(state: PrototypeState, dispatch: Dispatch<Prototy
   const action: PrototypeAction = {
     type: "ADD_SOURCE_FILES",
     files: files.map(toSourceFile),
+    organizationCategoryId,
     notificationId: `notice-source-files-${Date.now()}`,
     ...commandMeta(state, "파일 추가", "source_file", "source-files", `${files.length}개 파일을 데이터 보관함에 추가했습니다.`)
   };
@@ -74,7 +82,7 @@ export function updateSourceFile(
   fileId: string,
   patch: Pick<SourceFile, "kind" | "name">
 ): boolean {
-  if (!can(state.session.role, "source:upload")) {
+  if (!canCurrentUser(state, "source:upload")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 파일 정보를 수정할 수 없습니다." });
     return false;
   }
@@ -102,7 +110,7 @@ export function updateSourceFile(
 }
 
 export function removeSourceFile(state: PrototypeState, dispatch: Dispatch<PrototypeAction>, fileId: string): boolean {
-  if (!can(state.session.role, "source:upload")) {
+  if (!canCurrentUser(state, "source:upload")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 파일을 제거할 수 없습니다." });
     return false;
   }
@@ -117,7 +125,7 @@ export function removeSourceFile(state: PrototypeState, dispatch: Dispatch<Proto
 }
 
 export function addPreparedSourceFiles(state: PrototypeState, dispatch: Dispatch<PrototypeAction>): boolean {
-  if (!can(state.session.role, "source:upload")) {
+  if (!canCurrentUser(state, "source:upload")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 파일을 추가할 수 없습니다." });
     return false;
   }
@@ -132,12 +140,12 @@ export function addPreparedSourceFiles(state: PrototypeState, dispatch: Dispatch
 }
 
 export function uploadSampleFiles(state: PrototypeState, dispatch: Dispatch<PrototypeAction>): boolean {
-  if (!can(state.session.role, "source:upload")) {
+  if (!canCurrentUser(state, "source:upload")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 소스 데이터를 업로드할 수 없습니다." });
     return false;
   }
 
-  if (!can(state.session.role, "analysis:start")) {
+  if (!canCurrentUser(state, "analysis:start")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 인공지능 분석을 시작할 수 없습니다." });
     return false;
   }

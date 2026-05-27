@@ -16,6 +16,7 @@ test("generateVerificationRecord requires a finalized decision", async () => {
     actions.push(action);
     state = reducer(state, action);
   };
+  loginWithCredentials(state, dispatch, "test", "test");
 
   const ok = await generateVerificationRecord(state, dispatch, "missing-decision");
 
@@ -30,6 +31,7 @@ test("generateVerificationRecord creates verification from finalized decision", 
     state = reducer(state, action);
   };
 
+  loginWithCredentials(state, dispatch, "test", "test");
   uploadSampleFiles(state, dispatch);
   startAnalysisJob(state, dispatch);
   confirmCandidates(state, dispatch);
@@ -37,9 +39,6 @@ test("generateVerificationRecord creates verification from finalized decision", 
   createProposalFromInsight(state, dispatch, insightId);
   const proposalId = state.proposals[0].id;
   castVote(state, dispatch, proposalId, "approve", "매니저 테스트");
-  loginWithCredentials(state, dispatch, "member01", "member01!");
-  castVote(state, dispatch, proposalId, "approve", "구성원 테스트");
-  loginWithCredentials(state, dispatch, "test", "test");
   finalizeProposal(state, dispatch, proposalId);
 
   const ok = await generateVerificationRecord(state, dispatch, state.decisions[0].id);

@@ -7,7 +7,7 @@ import {
 } from "../../domain/result-scenarios";
 import { displayTypeLabel } from "../../domain/type-catalog";
 import type { LinkTarget, PrototypeState } from "../../domain/types";
-import { currentWorkspaceData } from "../selectors";
+import { currentCompanyData } from "../selectors";
 
 type SummaryTone = "success" | "warning" | "danger" | "info";
 
@@ -53,7 +53,7 @@ export type DashboardRecentFlowItem = {
 };
 
 export function getDashboardView(state: PrototypeState) {
-  const data = currentWorkspaceData(state);
+  const data = currentCompanyData(state);
   const decisions = uniqueById(data.decisions);
   const proposals = uniqueById(data.proposals);
   const warningMetricValues = data.metricValues.filter((value) => value.status !== "normal");

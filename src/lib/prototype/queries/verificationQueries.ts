@@ -1,9 +1,9 @@
 import type { PrototypeState } from "../../domain/types";
-import { currentWorkspaceData } from "../selectors";
+import { currentCompanyData } from "../selectors";
 import { getTimelineForDecision } from "./auditQueries";
 
 export function getVerificationDetailView(state: PrototypeState) {
-  const data = currentWorkspaceData(state);
+  const data = currentCompanyData(state);
   const focusedRecordId = state.navigationFocus?.screen === "verificationDetail" ? state.navigationFocus.focusId : undefined;
   const record =
     data.verificationRecords.find((item) => item.id === focusedRecordId) ??

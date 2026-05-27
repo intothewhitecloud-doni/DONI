@@ -1,11 +1,11 @@
 import type { Dispatch } from "react";
 import type { PrototypeState } from "../../domain/types";
 import { commandMeta } from "../events";
-import { can } from "../permissions";
+import { canCurrentUser } from "../permissions";
 import type { PrototypeAction } from "../store";
 
 export function recordOutcome(state: PrototypeState, dispatch: Dispatch<PrototypeAction>, decisionId: string): boolean {
-  if (!can(state.session.role, "outcome:record")) {
+  if (!canCurrentUser(state, "outcome:record")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 실행 결과를 기록할 수 없습니다." });
     return false;
   }

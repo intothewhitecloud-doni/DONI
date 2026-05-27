@@ -2,7 +2,6 @@ export type Screen =
   | "home"
   | "login"
   | "signup"
-  | "workspace"
   | "upload"
   | "analysis"
   | "review"
@@ -18,7 +17,7 @@ export type Screen =
   | "decisionConfirm"
   | "verification"
   | "verificationDetail"
-  | "organization"
+  | "company"
   | "settings"
   | "outcome";
 
@@ -37,12 +36,17 @@ export interface LinkTarget {
   label: string;
 }
 
-export type Role = "owner" | "manager" | "member";
+export type Role = "owner" | "manager";
 
-export type MembershipStatus = "pending" | "active" | "rejected" | "inactive";
+export type CompanyUserStatus = "pending" | "active" | "rejected";
 
 export type PermissionAction =
-  | "workspace:select"
+  | "company:read"
+  | "company:manage"
+  | "company:user:manage"
+  | "company:organization:manage"
+  | "company:code:manage"
+  | "company:type:manage"
   | "source:upload"
   | "analysis:start"
   | "candidate:review"
@@ -52,7 +56,6 @@ export type PermissionAction =
   | "proposal:finalize"
   | "verification:create"
   | "outcome:record"
-  | "admin:manage"
   | "audit:read";
 
 export type CandidateType = "managed_object" | "workflow_event" | "relation" | "metric";
@@ -68,6 +71,8 @@ export type TrustCertificationStatus = "pending" | "certified" | "failed" | "not
 export type DomainTypeScope = "managed_object" | "workflow";
 export type DomainTypePresetColor = "blue" | "orange" | "pink" | "violet" | "emerald" | "slate";
 export type DomainTypeColor = DomainTypePresetColor | `#${string}`;
+
+export const UNASSIGNED_ORGANIZATION_CATEGORY_ID = "unassigned";
 
 export interface DomainTypeDefinition {
   id: string;
@@ -91,34 +96,39 @@ export interface AuthAccount {
   userId: string;
 }
 
-export interface Workspace {
+export interface Company {
   id: string;
   name: string;
-  inviteCode: string;
+  code: string;
+  dataReadiness: "draft" | "ready";
 }
 
-export interface WorkspaceMember {
+export interface OrganizationCategory {
+  id: string;
+  name: string;
+}
+
+export interface CompanyUser {
   id: string;
   userId: string;
-  workspaceId: string;
   role: Role;
   name: string;
+  email?: string;
   title: string;
-  status: MembershipStatus;
+  status: CompanyUserStatus;
+  organizationCategoryId: string;
 }
 
-export interface WorkspaceSession {
+export interface CompanySession {
   loggedIn: boolean;
   currentUserId: string;
-  workspaceId: string;
   role: Role;
 }
 
-export interface CompanyProfile {
+export interface ActorSnapshot {
+  userId?: string;
   name: string;
-  industry: string;
-  goal: string;
-  dataReadiness: "draft" | "ready";
+  role: Role | string;
 }
 
 export interface SourceFile {
@@ -127,6 +137,7 @@ export interface SourceFile {
   kind: string;
   rowCount: number;
   status: "ready" | "uploaded" | "parsed";
+  organizationCategoryId?: string;
   uploadedAt?: string;
   size?: number;
   mimeType?: string;
@@ -275,6 +286,7 @@ export interface VotingRule {
 export interface ProposalComment {
   id: string;
   authorId: string;
+  authorSnapshot?: ActorSnapshot;
   message: string;
   createdAt: string;
 }
@@ -288,6 +300,7 @@ export interface Proposal {
   expectedImpact: string;
   votingRule: VotingRule;
   voterUserIds: string[];
+  voterSnapshots?: ActorSnapshot[];
   deadline: string;
   createdAt: string;
   finalizedAt?: string;
@@ -299,6 +312,7 @@ export interface Vote {
   id: string;
   proposalId: string;
   voterId: string;
+  voterSnapshot?: ActorSnapshot;
   choice: VoteChoice;
   reason: string;
   votedAt: string;
@@ -311,6 +325,7 @@ export interface Decision {
   result: "approved" | "rejected";
   finalizedAt: string;
   summary: string;
+  actorSnapshot?: ActorSnapshot;
   canonicalHash?: string;
 }
 
@@ -338,12 +353,14 @@ export interface OutcomeRecord {
   status: "recorded" | "reanalyzed";
   summary: string;
   recordedAt: string;
+  actorSnapshot?: ActorSnapshot;
 }
 
 export interface AuditLog {
   id: string;
   at: string;
   actorId: string;
+  actorSnapshot?: ActorSnapshot;
   action: string;
   targetType: string;
   targetId: string;
@@ -356,8 +373,10 @@ export interface Notification {
   message: string;
 }
 
-export interface WorkspaceOperationalState {
-  company: CompanyProfile;
+export interface CompanyOperationalState {
+  company: Company;
+  companyUsers: CompanyUser[];
+  organizationCategories: OrganizationCategory[];
   sourceFiles: SourceFile[];
   analysisJobs: AnalysisJob[];
   evidence: EvidenceReference[];
@@ -407,7 +426,7 @@ export interface SelectionScope {
   candidateProvenance: Record<string, string[]>;
 }
 
-export interface WorkspaceResultBundle {
+export interface CompanyResultBundle {
   selection: SelectionProfile;
   scope: SelectionScope;
   entities: EntityInstance[];
@@ -422,40 +441,11 @@ export interface WorkspaceResultBundle {
   verificationRecords: VerificationRecord[];
 }
 
-export interface PrototypeState {
+export interface PrototypeState extends CompanyOperationalState {
   screen: Screen;
-  session: WorkspaceSession;
+  session: CompanySession;
   authAccounts: AuthAccount[];
   users: User[];
-  workspaces: Workspace[];
-  members: WorkspaceMember[];
-  workspaceDataById: Record<string, WorkspaceOperationalState>;
-  company: CompanyProfile;
-  sourceFiles: SourceFile[];
-  analysisJobs: AnalysisJob[];
-  evidence: EvidenceReference[];
-  candidates: ExtractionCandidate[];
-  managedObjectTypes: DomainTypeDefinition[];
-  workflowTypes: DomainTypeDefinition[];
-  entities: EntityInstance[];
-  events: EventRecord[];
-  relations: Relation[];
-  metricDefinitions: MetricDefinition[];
-  metricValues: MetricValue[];
-  workflowMetricBindings: WorkflowMetricBinding[];
-  insights: AIInsight[];
-  proposals: Proposal[];
-  votes: Vote[];
-  decisions: Decision[];
-  verificationRecords: VerificationRecord[];
-  outcomes: OutcomeRecord[];
-  auditLogs: AuditLog[];
-  notifications: Notification[];
-  activeCandidateType: CandidateType;
-  activeInsightId: string;
-  activeProposalId: string;
-  selection?: SelectionProfile;
-  scope?: SelectionScope;
   navigationFocus?: LinkTarget;
   permissionDenied?: string;
   simulatedError?: string;

@@ -5,7 +5,7 @@ import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
 import { buildProposalDraftFromInsight } from "../../lib/domain/result-scenarios";
 import type { EvidenceReference } from "../../lib/domain/types";
-import { can } from "../../lib/prototype/permissions";
+import { canCurrentUser } from "../../lib/prototype/permissions";
 import { proposalVoterUserIds } from "../../lib/prototype/policy";
 import { activeInsight, evidenceById } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
@@ -13,7 +13,7 @@ import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 export function InsightsScreen() {
   const { commands, state } = usePrototype();
   const hasFiles = state.sourceFiles.length > 0;
-  const canPrepareAnalysis = can(state.session.role, "source:upload") && can(state.session.role, "analysis:start");
+  const canPrepareAnalysis = canCurrentUser(state, "source:upload") && canCurrentUser(state, "analysis:start");
 
   if (state.insights.length === 0) {
     return (
@@ -74,7 +74,7 @@ export function InsightsScreen() {
 export function InsightDetailScreen() {
   const { commands, state } = usePrototype();
   const insight = activeInsight(state);
-  const canCreateProposal = can(state.session.role, "insight:proposal");
+  const canCreateProposal = canCurrentUser(state, "insight:proposal");
 
   if (!insight) {
     return (
@@ -193,8 +193,8 @@ function formatInsightEvidenceSource(evidence: EvidenceReference): string {
 export function ProposalCreateScreen() {
   const { commands, state } = usePrototype();
   const insight = activeInsight(state);
-  const canCreateProposal = can(state.session.role, "insight:proposal");
-  const voterUserIds = proposalVoterUserIds(state, state.session.workspaceId);
+  const canCreateProposal = canCurrentUser(state, "insight:proposal");
+  const voterUserIds = proposalVoterUserIds(state);
 
   if (!insight) {
     return (

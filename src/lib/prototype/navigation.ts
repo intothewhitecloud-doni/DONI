@@ -15,7 +15,7 @@ export const sidebarNavItems: SidebarNavItem[] = [
   { screen: "insights", label: "인사이트", short: "인" },
   { screen: "proposalVote", label: "의사결정", short: "의" },
   { screen: "verification", label: "검증 기록", short: "검" },
-  { screen: "organization", label: "조직 관리", short: "조" },
+  { screen: "company", label: "기업 관리", short: "기" },
   { screen: "settings", label: "설정", short: "설" }
 ];
 
@@ -23,7 +23,6 @@ const allSidebarScreens = sidebarNavItems.map((item) => item.screen);
 
 const sidebarScreensByRole: Record<Role, Screen[]> = {
   manager: allSidebarScreens,
-  member: allSidebarScreens,
   owner: allSidebarScreens
 };
 
@@ -43,14 +42,13 @@ const protectedScreens = [
   "decisionConfirm",
   "verification",
   "verificationDetail",
-  "organization",
+  "company",
   "settings",
   "outcome"
 ] satisfies Screen[];
 
 const protectedScreensByRole: Record<Role, Screen[]> = {
   manager: protectedScreens,
-  member: protectedScreens,
   owner: protectedScreens
 };
 
@@ -78,7 +76,7 @@ export function canAccessProtectedScreen(role: Role, screen: Screen): boolean {
   return protectedScreensByRole[role].includes(screen);
 }
 
-export function defaultScreenForRole(role: Role, requestedScreen?: Screen): Screen {
+export function defaultScreenForRole(_role: Role, _requestedScreen?: Screen): Screen {
   return "dashboard";
 }
 
@@ -90,17 +88,17 @@ export function screenRequiresLogin(screen: Screen): boolean {
   return screen !== "home" && screen !== "login" && screen !== "signup";
 }
 
-export function accessibleScreenForSession(loggedIn: boolean, role: Role, screen: Screen, hasActiveWorkspace = true): Screen {
+export function accessibleScreenForSession(loggedIn: boolean, role: Role, screen: Screen, hasActiveCompany = true): Screen {
   if (!loggedIn && screenRequiresLogin(screen)) {
     return "login";
   }
 
-  if (screen === "home" || screen === "login" || screen === "signup" || screen === "workspace") {
+  if (screen === "home" || screen === "login" || screen === "signup") {
     return screen;
   }
 
-  if (!hasActiveWorkspace) {
-    return "workspace";
+  if (!hasActiveCompany) {
+    return "login";
   }
 
   return permittedScreenForRole(role, screen);

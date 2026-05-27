@@ -1,9 +1,12 @@
 import type { Dispatch } from "react";
-import type { AuthAccount, PrototypeState, User, WorkspaceMember } from "../../domain/types";
+import type { AuthAccount, CompanyUser, PrototypeState, User } from "../../domain/types";
+import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../../domain/types";
 import { findAuthAccount } from "../authAccounts";
 import { commandMeta } from "../events";
 import { normalizedEmail } from "../policy";
 import type { PrototypeAction } from "../store";
+
+export const APPROVAL_PENDING_MESSAGE = "가입 신청이 등록되었습니다. 승인 완료 후 접속할 수 있습니다.";
 
 export function loginWithCredentials(
   state: PrototypeState,
@@ -32,35 +35,26 @@ function userIdFromEmail(email: string): string {
     hash = Math.imul(hash, 0x01000193);
   }
 
-  const slug = email.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "member";
+  const slug = email.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "company-user";
   return `user-${slug}-${(hash >>> 0).toString(16)}`;
-}
-
-export function requestWorkspaceAccess(
-  state: PrototypeState,
-  dispatch: Dispatch<PrototypeAction>,
-  payload: { code?: string; email: string; name: string; password: string }
-): boolean {
-  return signup(state, dispatch, payload);
 }
 
 export function signup(
   state: PrototypeState,
   dispatch: Dispatch<PrototypeAction>,
-  payload: { code?: string; email: string; name: string; password: string }
+  payload: { code: string; email: string; name: string; password: string }
 ): boolean {
   const email = normalizedEmail(payload.email);
-  const code = (payload.code ?? "").trim().toLowerCase();
+  const code = payload.code.trim().toLowerCase();
   const name = payload.name.trim();
   const password = payload.password.trim();
-  if (!email || !name || !password) {
-    dispatch({ type: "SET_PERMISSION_DENIED", message: "이름, 이메일, 비밀번호를 모두 입력해 주세요." });
+  if (!email || !name || !password || !code) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "이름, 이메일, 비밀번호, 회사코드를 모두 입력해 주세요." });
     return false;
   }
 
-  const workspace = code ? state.workspaces.find((item) => item.inviteCode.toLowerCase() === code) : undefined;
-  if (code && !workspace) {
-    dispatch({ type: "SET_PERMISSION_DENIED", message: "조직코드를 확인할 수 없습니다." });
+  if (state.company.code.toLowerCase() !== code) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "회사코드를 확인할 수 없습니다." });
     return false;
   }
 
@@ -75,38 +69,38 @@ export function signup(
     email,
     id: userIdFromEmail(email),
     name,
-    role: "member"
+    role: "manager"
   };
   const account: AuthAccount = existingAccount ?? {
     email,
     loginId: email,
     password,
-    role: "member",
+    role: "manager",
     userId: user.id
   };
-  const existingMember = workspace ? state.members.find((member) => member.workspaceId === workspace.id && member.userId === user.id) : undefined;
-  const member: WorkspaceMember | undefined = workspace ? {
-    id: existingMember?.id ?? `member-${workspace.id}-${user.id}`,
+  const existingCompanyUser = state.companyUsers.find((companyUser) => companyUser.userId === user.id);
+  const companyUser: CompanyUser = {
+    id: existingCompanyUser?.id ?? `company-user-${user.id}`,
     name,
-    role: existingMember?.role ?? "member",
-    status: existingMember?.status === "active" ? "active" : "pending",
-    title: existingMember?.title ?? "",
+    email,
+    role: existingCompanyUser?.role ?? "manager",
+    status: existingCompanyUser?.status === "active" ? "active" : "pending",
+    title: existingCompanyUser?.title ?? "",
     userId: user.id,
-    workspaceId: workspace.id
-  } : undefined;
+    organizationCategoryId: existingCompanyUser?.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID
+  };
 
   dispatch({
     type: "REGISTER_ACCOUNT",
     account,
-    member,
+    companyUser,
     user: { ...user, name },
-    workspaceId: workspace?.id,
     ...commandMeta(
       state,
       "회원가입",
-      "user",
+      "company_user",
       user.id,
-      workspace ? `${workspace.name} 워크스페이스 가입 신청을 함께 등록했습니다.` : "회원가입을 완료했습니다."
+      `${state.company.name} 기업 콘솔 가입 신청을 등록했습니다.`
     )
   });
   return true;
