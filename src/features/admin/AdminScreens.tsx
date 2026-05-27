@@ -64,7 +64,7 @@ export function CompanyManagementScreen() {
   }
 
   return (
-    <main className="space-y-8">
+    <div className="space-y-8">
       <SectionTitle
         eyebrow="기업 관리"
         title="기업 정보, 사용자, 조직 카테고리"
@@ -115,8 +115,8 @@ export function CompanyManagementScreen() {
             ))}
           </div>
         </div>
-        <div className="overflow-hidden rounded-lg border border-hairline">
-          <table className="w-full min-w-[900px] text-left text-sm">
+        <div className="overflow-x-auto rounded-lg border border-hairline">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="bg-surface-soft text-caption text-muted">
               <tr>
                 <th className="px-4 py-3">사용자</th>
@@ -169,16 +169,16 @@ export function CompanyManagementScreen() {
                     value={editingCategoryName}
                     onChange={(event) => setEditingCategoryName(event.target.value)}
                   />
-                  <button className="text-button text-primary" onClick={submitCategoryEdit}>저장</button>
-                  <button className="text-button text-muted" onClick={() => setEditingCategoryId("")}>취소</button>
+                  <button className="whitespace-nowrap text-button text-primary" onClick={submitCategoryEdit}>저장</button>
+                  <button className="whitespace-nowrap text-button text-muted" onClick={() => setEditingCategoryId("")}>취소</button>
                 </>
               ) : (
                 <>
                   <Badge tone={category.id === UNASSIGNED_ORGANIZATION_CATEGORY_ID ? "neutral" : "info"}>{category.name}</Badge>
                   {canManage && category.id !== UNASSIGNED_ORGANIZATION_CATEGORY_ID && (
                     <>
-                      <button className="text-button text-primary" onClick={() => startCategoryEdit(category.id, category.name)}>수정</button>
-                      <button className="text-button text-error" onClick={() => commands.deleteOrganizationCategory(category.id)}>삭제</button>
+                      <button className="whitespace-nowrap text-button text-primary" onClick={() => startCategoryEdit(category.id, category.name)}>수정</button>
+                      <button className="whitespace-nowrap text-button text-error" onClick={() => commands.deleteOrganizationCategory(category.id)}>삭제</button>
                     </>
                   )}
                 </>
@@ -199,7 +199,7 @@ export function CompanyManagementScreen() {
           </div>
         </Popup>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -254,7 +254,7 @@ function CompanyUserRow({
         )}
       </td>
       <td className="px-4 py-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-nowrap gap-2">
           {editable && <Button onClick={save}>저장</Button>}
           {pendingEditable && <Button onClick={() => commands.approveCompanyUser(companyUser.id)}>승인</Button>}
           {pendingEditable && <Button variant="secondary" onClick={() => commands.rejectCompanyUser(companyUser.id)}>반려</Button>}
@@ -268,11 +268,11 @@ function CompanyUserRow({
 
 export function SettingsScreen() {
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <SectionTitle eyebrow="설정" title="콘솔 설정" description="알림, 저장소, 화면 표시 옵션은 이후 단계에서 확장합니다." />
       <Card>
         <p className="text-sm text-slate-600">현재 프로토타입은 기업 단일 콘솔 구조로 동작합니다.</p>
       </Card>
-    </main>
+    </div>
   );
 }

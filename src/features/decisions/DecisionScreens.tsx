@@ -63,9 +63,9 @@ export function ProposalVoteScreen() {
     <div className="space-y-8">
       <Button variant="secondary" onClick={() => commands.navigate("proposalVote")}>목록으로 돌아가기</Button>
       <SectionTitle eyebrow="의사결정 > 투표" title={proposal.title} description={proposal.summary} />
-      <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <VoteStat label="승인" value={summary?.approve ?? 0} tone="success" />
             <VoteStat label="반려" value={summary?.reject ?? 0} tone="danger" />
             <VoteStat label="기권" value={summary?.abstain ?? 0} tone="neutral" />
@@ -103,10 +103,10 @@ export function ProposalVoteScreen() {
             const voterSnapshot =
               proposal.voterSnapshots?.find((snapshot) => snapshot.userId === userId) ?? proposal.voterSnapshots?.[index];
             return (
-              <div key={userId} className="flex items-center justify-between rounded-md border border-slate-200 p-3">
-                <div>
-                  <p className="font-semibold text-slate-900">{actorNameFromSnapshot(voterSnapshot, user?.name)}</p>
-                  <p className="text-xs text-slate-500">{actorDetailFromSnapshot(voterSnapshot, companyUser?.title)}</p>
+              <div key={userId} className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-slate-200 p-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-900">{actorNameFromSnapshot(voterSnapshot, user?.name)}</p>
+                  <p className="truncate text-xs text-slate-500">{actorDetailFromSnapshot(voterSnapshot, companyUser?.title)}</p>
                 </div>
                 <Badge tone={vote ? "success" : "neutral"}>{vote ? choiceLabels[vote.choice] : "대기"}</Badge>
               </div>
@@ -181,7 +181,7 @@ function ProposalList({ canOpenDetail, proposals }: { canOpenDetail: boolean; pr
               {canOpenDetail && (
                 <>
                   <p className="text-sm leading-6 text-slate-600">{proposal.summary}</p>
-                  <div className="grid gap-3 md:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <VoteStat label="승인" value={summary.approve} tone="success" />
                     <VoteStat label="반려" value={summary.reject} tone="danger" />
                     <VoteStat label="기권" value={summary.abstain} tone="neutral" />

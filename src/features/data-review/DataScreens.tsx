@@ -180,7 +180,7 @@ export function DataVaultScreen() {
           })}
         </div>
       </Card>
-      <div className="grid items-start gap-5 lg:grid-cols-[1fr_1.1fr]">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <Card className="min-w-0 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-slate-950">보관 파일</h2>
@@ -909,7 +909,7 @@ export function ManagedObjectsScreen() {
   return (
     <div className="space-y-8">
       <SectionTitle eyebrow="관리 대상" title="관리 대상 목록과 유형" description="관리 대상명을 검색하고 유형으로 필터링합니다. 유형은 분류와 관리를 위한 범주 정보입니다." />
-      <div className="grid items-start gap-5 lg:grid-cols-[380px_1fr]">
+      <div className="grid items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card className="space-y-4">
             <div className="flex items-center justify-between gap-3">
@@ -1037,7 +1037,7 @@ export function ManagedObjectsScreen() {
                   />
                 </div>
               </div>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 xl:grid-cols-2">
                 <LinkedList
                   title="연결 지표"
                   items={view.detail.metrics.map(({ definition, value }) => `${definition.name}: ${value?.value ?? "-"}${definition.unit}`)}
@@ -1503,7 +1503,7 @@ export function MetricsScreen() {
   return (
     <div className="space-y-8">
       <SectionTitle eyebrow="지표" title="계산 기준과 관련 안건" description="각 지표는 증거 위치, 계산식, 관련 인사이트와 연결됩니다." />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {state.metricDefinitions.map((definition) => {
           const value = state.metricValues.find((item) => item.metricId === definition.id);
           const relatedInsights = state.insights.filter((insight) => insight.relatedMetricIds.includes(definition.id));

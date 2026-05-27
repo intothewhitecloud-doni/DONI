@@ -29,7 +29,7 @@ export function InsightsScreen() {
                 : "데이터 보관함에 업무 파일을 추가하면 운영 신호를 분석할 수 있습니다."}
             </p>
           </div>
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {["파일 추가", "구조 분석", "후보 확정", "운영 신호 생성"].map((step, index) => (
               <div key={step} className="rounded-md border border-slate-200 bg-white p-3">
                 <Badge tone={index === 0 ? "warning" : "neutral"}>{index === 0 ? "다음 단계" : "대기"}</Badge>
@@ -50,7 +50,7 @@ export function InsightsScreen() {
   return (
     <div className="space-y-8">
       <SectionTitle eyebrow="인공지능 인사이트" title="검토가 필요한 운영 신호" description="인공지능은 결정을 내리지 않고, 근거와 함께 검토할 신호를 제안합니다." />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         {state.insights.map((insight) => (
           <Card key={insight.id} className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -108,7 +108,7 @@ export function InsightDetailScreen() {
   return (
     <div className="space-y-8">
       <SectionTitle eyebrow="인사이트 > 인사이트 상세" title={insight.title} description="탐지 내용, 원인 후보, 추천 조치, 증거를 함께 검토합니다." />
-      <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <div>
             <Badge tone="danger">높은 영향</Badge>
@@ -127,7 +127,7 @@ export function InsightDetailScreen() {
               </ul>
             </div>
           )}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <div>
               <h3 className="font-bold text-slate-900">원인 후보</h3>
               <ul className="mt-2 space-y-2 text-sm text-slate-600">
@@ -141,7 +141,7 @@ export function InsightDetailScreen() {
               </ul>
             </div>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-2">
             <LinkedInsightGroup title="연결 지표" items={linkedMetricItems} />
             <LinkedInsightGroup title="관리 대상" items={linkedObjects.map((object) => `${object.kind} · ${object.name}`)} />
             <LinkedInsightGroup title="업무 이벤트" items={linkedEvents.map((event) => `${event.name} · ${event.workflowType || "미지정"}`)} />
@@ -173,10 +173,10 @@ export function InsightDetailScreen() {
 
 function LinkedInsightGroup({ items, title }: { items: string[]; title: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3">
       <p className="text-xs font-bold text-slate-500">{title}</p>
       <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-700">
-        {items.map((item) => <li key={item}>{item}</li>)}
+        {items.map((item) => <li key={item} className="break-words">{item}</li>)}
       </ul>
     </div>
   );

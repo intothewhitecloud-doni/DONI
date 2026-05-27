@@ -105,10 +105,10 @@ export function VerificationDetailScreen() {
         <Card className="min-w-0 space-y-3">
           <h2 className="text-lg font-bold text-slate-950">감사 흐름</h2>
           {timeline.map((log) => (
-            <div key={log.id} className="rounded-md border border-slate-200 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-semibold text-slate-900">{log.action}</p>
-                <span className="text-xs text-slate-500">{new Date(log.at).toLocaleString("ko-KR")}</span>
+          <div key={log.id} className="rounded-md border border-slate-200 p-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <p className="min-w-0 truncate font-semibold text-slate-900" title={log.action}>{log.action}</p>
+                <span className="shrink-0 whitespace-nowrap text-xs text-slate-500">{new Date(log.at).toLocaleString("ko-KR")}</span>
               </div>
               <p className="mt-1 text-sm text-slate-600">{log.summary}</p>
             </div>

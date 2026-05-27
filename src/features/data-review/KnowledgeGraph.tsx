@@ -81,7 +81,7 @@ export function KnowledgeGraph({ detail, evidence, metrics, onSelectItem, select
 
   return (
     <div className="space-y-4">
-      <div className="h-[560px] overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="h-[clamp(420px,58vh,560px)] min-h-[420px] overflow-hidden rounded-md border border-slate-200 bg-white">
         {hasGraphConnections ? (
           <ReactFlow
             key={graphInstanceKey}

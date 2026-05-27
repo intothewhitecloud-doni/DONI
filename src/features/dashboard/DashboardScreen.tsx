@@ -25,7 +25,7 @@ export function DashboardScreen() {
           description="업무 데이터를 업로드하면 관리 대상과 업무 이벤트를 먼저 정리하고, 이어서 연결 관계와 지표를 분석해 의사결정 안건을 추천합니다."
         />
         <Card className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {["관리 대상", "업무 이벤트", "연결 관계", "지표", "의사결정 안건"].map((item, index) => (
               <div key={item} className="rounded-md border border-slate-200 bg-slate-50 p-4">
                 <Badge tone={index < 2 ? "warning" : "neutral"}>{index < 2 ? "정의 필요" : "대기"}</Badge>
@@ -57,11 +57,11 @@ export function DashboardScreen() {
       />
       <div className="grid gap-6 md:grid-cols-4">
         {view.summaryCards.map((card, index) => (
-          <MetricCard key={card.label} label={card.label} value={card.value} tone={card.tone} delay={(index + 1) / 10} />
+          <MetricCard key={card.label} label={card.label} value={card.value} tone={card.tone} delay={(index + 1) * 0.04} />
         ))}
       </div>
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-        <Card delay={0.5} className="space-y-4">
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <Card delay={0.08} className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-title-md text-slate-950">주요 인사이트</h2>
             <Badge tone={view.mainInsight?.severity === "high" ? "danger" : "warning"}>
@@ -76,11 +76,11 @@ export function DashboardScreen() {
               return (
                 <button
                   key={widget.id}
-                  className="rounded-md border border-hairline bg-white p-3 text-left shadow-sm transition hover:shadow-md"
+                  className="min-w-0 rounded-md border border-hairline bg-white p-3 text-left shadow-sm transition hover:shadow-md"
                   onClick={() => commands.navigateToTarget(widget.target)}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-700">{widget.title}</p>
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm font-semibold text-slate-700" title={widget.title}>{widget.title}</p>
                     <Badge tone={widget.status === "critical" ? "danger" : widget.status === "warning" ? "warning" : "success"}>
                       {chartTypeLabel(widget.chartType)}
                     </Badge>
@@ -99,7 +99,7 @@ export function DashboardScreen() {
             </Button>
           )}
         </Card>
-        <Card delay={0.6} className="space-y-4">
+        <Card delay={0.12} className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-title-md text-slate-950">최근 흐름</h2>
             <Button variant="secondary" onClick={() => commands.navigateToTarget(view.workflowListTarget)}>
@@ -111,8 +111,8 @@ export function DashboardScreen() {
               key={flow.id}
               className="rounded-md border border-hairline bg-white p-3 shadow-sm"
             >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-title-sm text-slate-900">{flow.title}</p>
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <p className="min-w-0 truncate text-title-sm text-slate-900" title={flow.title}>{flow.title}</p>
                 <Badge tone={flow.tone}>{flow.badge}</Badge>
               </div>
               <p className="mt-1 text-body-sm text-slate-600">{flow.description}</p>
@@ -120,7 +120,7 @@ export function DashboardScreen() {
           ))}
         </Card>
       </div>
-      <Card delay={0.65} className="space-y-4">
+      <Card delay={0.16} className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-950">{view.primaryChart.title}</h2>
@@ -150,11 +150,11 @@ export function DashboardScreen() {
         </div>
       </Card>
       {view.activeDecisionItems.length > 0 && (
-        <Card delay={0.9} className="space-y-3">
+        <Card delay={0.16} className="space-y-3">
           <h2 className="text-lg font-bold text-slate-950">진행 중인 의사결정</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {view.activeDecisionItems.map((item) => (
-              <div key={item.id} className="rounded-md border border-slate-200 bg-white p-4">
+              <div key={item.id} className="min-w-0 rounded-md border border-slate-200 bg-white p-4">
                 <Badge tone={item.tone}>{item.badge}</Badge>
                 <p className="mt-3 font-bold text-slate-950">{item.title}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
@@ -209,7 +209,7 @@ function PrimaryChartContext({
   const statusLabel = widget.status === "critical" ? "위험" : widget.status === "warning" ? "주의" : "정상";
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4">
+    <div className="min-w-0 rounded-md border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-slate-950">차트 요약</p>
         <Badge tone={widget.status === "critical" ? "danger" : widget.status === "warning" ? "warning" : "success"}>{statusLabel}</Badge>
@@ -220,7 +220,7 @@ function PrimaryChartContext({
         <SummaryStat label="변화" value={formatDelta(delta, widget.unit)} />
         {period && <SummaryStat label="관찰 기간" value={period} />}
       </div>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+      <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
           <p className="text-xs font-bold text-slate-500">연결 인사이트</p>
           <p className="mt-2 text-sm font-semibold leading-5 text-slate-900">{insightTitle ?? "연결 인사이트 없음"}</p>
@@ -242,7 +242,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
       <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-bold text-slate-950">{value}</p>
+      <p className="mt-1 truncate text-lg font-bold text-slate-950" title={value}>{value}</p>
     </div>
   );
 }
