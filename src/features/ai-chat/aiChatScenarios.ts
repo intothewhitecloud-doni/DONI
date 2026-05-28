@@ -1,8 +1,8 @@
 import type { EvidenceReference, MetricDefinition, MetricValue, PrototypeState, SourceFile } from "../../lib/domain/types";
-import type { AiChatAction, AiChatScenarioResponse } from "./aiChatTypes";
+import type { AiChatAction, AiChatAttachment, AiChatScenarioResponse } from "./aiChatTypes";
 
 type AiChatScenarioContext = {
-  attachedSourceFileIds: string[];
+  attachments: AiChatAttachment[];
   question: string;
   state: PrototypeState;
 };
@@ -135,7 +135,6 @@ export const aiChatScenarios: AiChatScenario[] = [
           sourceSummary || "표시할 보관 파일이 없습니다.",
           "주문/클레임 흐름은 주문_배송_클레임.xlsx를, 마진과 공급사 비교는 상품별_마진_공급사.csv를 먼저 보면 됩니다."
         ].join("\n\n"),
-        attachmentSourceFileIds: ["source-orders", "source-margin"],
         citationEvidenceIds: ["evidence-orders-delay", "evidence-claims", "evidence-margin", "evidence-supplier"],
         actionItems: [{ label: "데이터 보관함 열기", screen: "vault" }]
       };
@@ -194,11 +193,10 @@ export const aiChatScenarios: AiChatScenario[] = [
 export function buildAiChatResponse(context: AiChatScenarioContext): AiChatScenarioResponse {
   const scenario = findAiChatScenario(context.question);
   if (scenario) {
-    const response = scenario.buildResponse(context);
-    return mergeAttachmentContext(response, context);
+    return scenario.buildResponse(context);
   }
 
-  return mergeAttachmentContext(buildFallbackResponse(context), context);
+  return buildFallbackResponse(context);
 }
 
 export function findAiChatScenario(question: string): AiChatScenario | undefined {
@@ -216,10 +214,9 @@ export function findAiChatScenario(question: string): AiChatScenario | undefined
   });
 }
 
-function buildFallbackResponse({ attachedSourceFileIds, state }: AiChatScenarioContext): AiChatScenarioResponse {
-  const attachedFiles = state.sourceFiles.filter((file) => attachedSourceFileIds.includes(file.id));
-  const attachedText = attachedFiles.length > 0
-    ? `첨부된 보관 파일은 ${attachedFiles.map((file) => file.name).join(", ")}입니다. 현재 응답은 파일 원문을 새로 분석하지 않고, 기존 fixture 근거와 연결해서 답변합니다.`
+function buildFallbackResponse({ attachments }: AiChatScenarioContext): AiChatScenarioResponse {
+  const attachedText = attachments.length > 0
+    ? `첨부한 파일 ${attachments.map((file) => file.name).join(", ")}을 함께 둔 상태로 답변합니다. 현재 화면은 파일 원문을 새로 분석하지 않고 문맥 포함 상태만 표시합니다.`
     : "질문을 P-42, 고객A, 공급업체 A사, 마진, 클레임, 출처 파일 중 하나와 연결하면 더 구체적으로 답변할 수 있습니다.";
 
   return {
@@ -232,13 +229,6 @@ function buildFallbackResponse({ attachedSourceFileIds, state }: AiChatScenarioC
       insightAction("대표 인사이트 보기", "insight-product-margin"),
       { label: "지표 화면 보기", screen: "metrics" }
     ]
-  };
-}
-
-function mergeAttachmentContext(response: AiChatScenarioResponse, context: AiChatScenarioContext): AiChatScenarioResponse {
-  return {
-    ...response,
-    attachmentSourceFileIds: uniqueIds([...(response.attachmentSourceFileIds ?? []), ...context.attachedSourceFileIds])
   };
 }
 
@@ -319,10 +309,6 @@ function numbered(items: string[]): string {
 
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, "").replace(/[?.!,]/g, "");
-}
-
-function uniqueIds(ids: string[]): string[] {
-  return Array.from(new Set(ids.filter(Boolean)));
 }
 
 export function evidenceTitle(evidence?: EvidenceReference): string {

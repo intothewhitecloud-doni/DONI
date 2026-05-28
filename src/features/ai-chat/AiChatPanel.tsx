@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
-import type { EvidenceReference, SourceFile } from "../../lib/domain/types";
+import type { EvidenceReference } from "../../lib/domain/types";
 import type { AiChatAction, AiChatMessage } from "./aiChatTypes";
 import { aiChatScenarios, evidenceTitle } from "./aiChatScenarios";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
@@ -15,21 +15,9 @@ export function AiChatDock() {
   const chat = useAiChat();
   const { commands, state } = usePrototype();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const sourceFiles = state.sourceFiles;
-  const [selectedSourceFileId, setSelectedSourceFileId] = useState(sourceFiles[0]?.id ?? "");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [panelMounted, setPanelMounted] = useState(chat.isOpen);
   const [panelVisible, setPanelVisible] = useState(chat.isOpen);
-
-  useEffect(() => {
-    if (sourceFiles.length === 0) {
-      setSelectedSourceFileId("");
-      return;
-    }
-
-    if (!sourceFiles.some((file) => file.id === selectedSourceFileId)) {
-      setSelectedSourceFileId(sourceFiles[0].id);
-    }
-  }, [selectedSourceFileId, sourceFiles]);
 
   useEffect(() => {
     if (!chat.isOpen) {
@@ -51,11 +39,6 @@ export function AiChatDock() {
     return () => window.clearTimeout(timeout);
   }, [chat.isOpen]);
 
-  const attachedFiles = useMemo(
-    () => sourceFiles.filter((file) => chat.attachedSourceFileIds.includes(file.id)),
-    [chat.attachedSourceFileIds, sourceFiles]
-  );
-
   function handleAction(action: AiChatAction) {
     if (action.target) {
       commands.navigateToTarget(action.target);
@@ -74,6 +57,12 @@ export function AiChatDock() {
 
     event.preventDefault();
     chat.submitQuestion();
+  }
+
+  function handleFileInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    chat.attachFiles(files);
+    event.currentTarget.value = "";
   }
 
   return (
@@ -160,48 +149,35 @@ export function AiChatDock() {
                 ))}
               </div>
 
-              {sourceFiles.length > 0 && (
-                <div className="mb-3 rounded-md border border-hairline-soft bg-white p-2">
-                  <div className="flex gap-2">
-                    <select
-                      className="min-w-0 flex-1 rounded-md border border-hairline-soft bg-white px-2 py-2 text-body-sm text-ink"
-                      value={selectedSourceFileId}
-                      onChange={(event) => setSelectedSourceFileId(event.target.value)}
-                    >
-                      {sourceFiles.map((file) => (
-                        <option key={file.id} value={file.id}>{file.name}</option>
-                      ))}
-                    </select>
-                    <Button
-                      className="h-10 px-3"
-                      disabled={!selectedSourceFileId || chat.attachedSourceFileIds.includes(selectedSourceFileId) || Boolean(chat.pendingAssistant)}
-                      variant="secondary"
-                      onClick={() => chat.attachSourceFile(selectedSourceFileId)}
-                    >
-                      첨부
-                    </Button>
+              <div className="relative rounded-md border border-hairline bg-white p-2 shadow-sm">
+                <input ref={fileInputRef} className="hidden" type="file" multiple onChange={handleFileInputChange} />
+                <button
+                  aria-label="파일 첨부"
+                  className="absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-md border border-hairline-soft bg-surface-soft text-title-sm text-ink transition hover:bg-blue-50 hover:text-brand-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={Boolean(chat.pendingAssistant)}
+                  title="파일 첨부"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <PlusIcon />
+                </button>
+                {chat.attachments.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1.5 pr-10">
+                    {chat.attachments.map((file) => (
+                      <button
+                        key={file.id}
+                        className="max-w-full rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-left text-xs font-semibold text-blue-700"
+                        type="button"
+                        onClick={() => chat.detachFile(file.id)}
+                        title="첨부 해제"
+                      >
+                        <span className="inline-block max-w-[240px] truncate align-bottom">{file.name}</span> x
+                      </button>
+                    ))}
                   </div>
-                  {attachedFiles.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {attachedFiles.map((file) => (
-                        <button
-                          key={file.id}
-                          className="max-w-full rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-left text-xs font-semibold text-blue-700"
-                          type="button"
-                          onClick={() => chat.detachSourceFile(file.id)}
-                          title="첨부 해제"
-                        >
-                          <span className="inline-block max-w-[220px] truncate align-bottom">{file.name}</span> x
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="rounded-md border border-hairline bg-white p-2 shadow-sm">
+                )}
                 <textarea
-                  className="max-h-32 min-h-20 w-full resize-none border-0 bg-transparent px-1 py-1 text-body-sm text-ink outline-none placeholder:text-muted-soft"
+                  className="max-h-32 min-h-20 w-full resize-none border-0 bg-transparent px-1 py-1 pr-10 text-body-sm text-ink outline-none placeholder:text-muted-soft"
                   placeholder="분석 결과에 대해 질문하세요"
                   value={chat.draft}
                   disabled={Boolean(chat.pendingAssistant)}
@@ -251,9 +227,7 @@ function ChatMessageBubble({
   const citations = (message.citationEvidenceIds ?? [])
     .map((evidenceId) => state.evidence.find((item) => item.id === evidenceId))
     .filter((item): item is EvidenceReference => Boolean(item));
-  const attachedFiles = (message.attachmentSourceFileIds ?? [])
-    .map((sourceFileId) => state.sourceFiles.find((file) => file.id === sourceFileId))
-    .filter((item): item is SourceFile => Boolean(item));
+  const attachedFiles = message.attachments ?? [];
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -326,6 +300,14 @@ function ThinkingIndicator() {
         <span className="size-1.5 animate-bounce rounded-full bg-muted-soft" />
       </span>
     </div>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+    </svg>
   );
 }
 

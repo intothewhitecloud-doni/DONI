@@ -8,6 +8,12 @@ export type AiChatAction = {
   target?: LinkTarget;
 };
 
+export type AiChatAttachment = {
+  id: string;
+  name: string;
+  type?: string;
+};
+
 export type AiChatMessage = {
   id: string;
   role: AiChatRole;
@@ -16,7 +22,7 @@ export type AiChatMessage = {
   scenarioId?: string;
   citationEvidenceIds?: string[];
   actionItems?: AiChatAction[];
-  attachmentSourceFileIds?: string[];
+  attachments?: AiChatAttachment[];
 };
 
 export type AiChatPendingAssistant = AiChatMessage & {
@@ -27,14 +33,13 @@ export type AiChatPendingAssistant = AiChatMessage & {
 
 export type AiChatScenarioResponse = {
   actionItems?: AiChatAction[];
-  attachmentSourceFileIds?: string[];
   citationEvidenceIds?: string[];
   content: string;
   scenarioId?: string;
 };
 
 export type AiChatSessionState = {
-  attachedSourceFileIds: string[];
+  attachments: AiChatAttachment[];
   draft: string;
   isOpen: boolean;
   messages: AiChatMessage[];

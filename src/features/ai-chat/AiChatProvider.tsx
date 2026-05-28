@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { buildAiChatResponse } from "./aiChatScenarios";
-import type { AiChatMessage, AiChatPendingAssistant, AiChatSessionState } from "./aiChatTypes";
+import type { AiChatAttachment, AiChatMessage, AiChatPendingAssistant, AiChatSessionState } from "./aiChatTypes";
 
 const STORAGE_VERSION = 1;
 const STORAGE_PREFIX = "doni:ai-chat";
@@ -17,10 +17,10 @@ type PersistedAiChatSession = AiChatSessionState & {
 };
 
 type AiChatContextValue = AiChatSessionState & {
-  attachSourceFile(sourceFileId: string): void;
+  attachFiles(files: File[]): void;
   clearMessages(): void;
   closeChat(): void;
-  detachSourceFile(sourceFileId: string): void;
+  detachFile(attachmentId: string): void;
   openChat(): void;
   pendingAssistant?: AiChatPendingAssistant;
   setDraft(draft: string): void;
@@ -32,7 +32,7 @@ const AiChatContext = createContext<AiChatContextValue | undefined>(undefined);
 
 function defaultSession(): AiChatSessionState {
   return {
-    attachedSourceFileIds: [],
+    attachments: [],
     draft: "",
     isOpen: false,
     messages: []
@@ -63,7 +63,7 @@ function parsePersistedSession(raw: string | null): AiChatSessionState | undefin
     }
 
     return {
-      attachedSourceFileIds: Array.isArray(parsed.attachedSourceFileIds) ? parsed.attachedSourceFileIds.filter(isString) : [],
+      attachments: Array.isArray(parsed.attachments) ? parsed.attachments.filter(isAiChatAttachment) : [],
       draft: typeof parsed.draft === "string" ? parsed.draft : "",
       isOpen: Boolean(parsed.isOpen),
       messages: parsed.messages.filter(isAiChatMessage)
@@ -73,8 +73,13 @@ function parsePersistedSession(raw: string | null): AiChatSessionState | undefin
   }
 }
 
-function isString(value: unknown): value is string {
-  return typeof value === "string";
+function isAiChatAttachment(value: unknown): value is AiChatAttachment {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<AiChatAttachment>;
+  return typeof candidate.id === "string" && typeof candidate.name === "string";
 }
 
 function isAiChatMessage(message: unknown): message is AiChatMessage {
@@ -95,10 +100,22 @@ function messageId(role: AiChatMessage["role"]): string {
   return `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function attachmentId(file: File): string {
+  return `file-${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function fileAttachment(file: File): AiChatAttachment {
+  return {
+    id: attachmentId(file),
+    name: file.name,
+    type: file.type || undefined
+  };
+}
+
 function assistantMessageFromPending(pending: AiChatPendingAssistant): AiChatMessage {
   return {
     actionItems: pending.actionItems,
-    attachmentSourceFileIds: pending.attachmentSourceFileIds,
+    attachments: pending.attachments,
     citationEvidenceIds: pending.citationEvidenceIds,
     content: pending.fullContent,
     createdAt: pending.createdAt,
@@ -207,23 +224,24 @@ export function AiChatProvider({ children }: PropsWithChildren) {
     setSession((current) => ({ ...current, draft }));
   }, []);
 
-  const attachSourceFile = useCallback((sourceFileId: string) => {
+  const attachFiles = useCallback((files: File[]) => {
     setSession((current) => {
-      if (!sourceFileId || current.attachedSourceFileIds.includes(sourceFileId)) {
+      if (files.length === 0) {
         return current;
       }
 
+      const incoming = files.map(fileAttachment);
       return {
         ...current,
-        attachedSourceFileIds: [...current.attachedSourceFileIds, sourceFileId]
+        attachments: [...current.attachments, ...incoming]
       };
     });
   }, []);
 
-  const detachSourceFile = useCallback((sourceFileId: string) => {
+  const detachFile = useCallback((attachmentId: string) => {
     setSession((current) => ({
       ...current,
-      attachedSourceFileIds: current.attachedSourceFileIds.filter((id) => id !== sourceFileId)
+      attachments: current.attachments.filter((attachment) => attachment.id !== attachmentId)
     }));
   }, []);
 
@@ -237,19 +255,17 @@ export function AiChatProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const validAttachmentIds = session.attachedSourceFileIds.filter((sourceFileId) =>
-      state.sourceFiles.some((file) => file.id === sourceFileId)
-    );
+    const attachments = session.attachments;
     const createdAt = new Date().toISOString();
     const userMessage: AiChatMessage = {
       id: messageId("user"),
       role: "user",
       content,
       createdAt,
-      attachmentSourceFileIds: validAttachmentIds
+      attachments
     };
     const response = buildAiChatResponse({
-      attachedSourceFileIds: validAttachmentIds,
+      attachments,
       question: content,
       state
     });
@@ -260,8 +276,7 @@ export function AiChatProvider({ children }: PropsWithChildren) {
       createdAt: new Date().toISOString(),
       scenarioId: response.scenarioId,
       citationEvidenceIds: response.citationEvidenceIds,
-      actionItems: response.actionItems,
-      attachmentSourceFileIds: response.attachmentSourceFileIds
+      actionItems: response.actionItems
     };
     setPendingAssistant({
       ...assistantMessage,
@@ -271,18 +286,18 @@ export function AiChatProvider({ children }: PropsWithChildren) {
     });
     setSession((current) => ({
       ...current,
-      attachedSourceFileIds: [],
+      attachments: [],
       draft: "",
       isOpen: true,
       messages: [...current.messages, userMessage]
     }));
-  }, [pendingAssistant, session.attachedSourceFileIds, session.draft, state]);
+  }, [pendingAssistant, session.attachments, session.draft, state]);
 
   const clearMessages = useCallback(() => {
     setPendingAssistant(undefined);
     setSession((current) => ({
       ...current,
-      attachedSourceFileIds: [],
+      attachments: [],
       draft: "",
       messages: []
     }));
@@ -291,17 +306,17 @@ export function AiChatProvider({ children }: PropsWithChildren) {
   const value = useMemo<AiChatContextValue>(
     () => ({
       ...session,
-      attachSourceFile,
+      attachFiles,
       clearMessages,
       closeChat,
-      detachSourceFile,
+      detachFile,
       openChat,
       pendingAssistant,
       setDraft,
       submitQuestion,
       toggleChat
     }),
-    [attachSourceFile, clearMessages, closeChat, detachSourceFile, openChat, pendingAssistant, session, setDraft, submitQuestion, toggleChat]
+    [attachFiles, clearMessages, closeChat, detachFile, openChat, pendingAssistant, session, setDraft, submitQuestion, toggleChat]
   );
 
   return <AiChatContext.Provider value={value}>{children}</AiChatContext.Provider>;
