@@ -219,7 +219,7 @@ export function findAiChatScenario(question: string): AiChatScenario | undefined
 function buildFallbackResponse({ attachedSourceFileIds, state }: AiChatScenarioContext): AiChatScenarioResponse {
   const attachedFiles = state.sourceFiles.filter((file) => attachedSourceFileIds.includes(file.id));
   const attachedText = attachedFiles.length > 0
-    ? `첨부된 보관 파일은 ${attachedFiles.map((file) => file.name).join(", ")}입니다. 이 프로토타입은 파일 원문을 새로 분석하지 않고, 기존 fixture 근거와 연결해서 답변합니다.`
+    ? `첨부된 보관 파일은 ${attachedFiles.map((file) => file.name).join(", ")}입니다. 현재 응답은 파일 원문을 새로 분석하지 않고, 기존 fixture 근거와 연결해서 답변합니다.`
     : "질문을 P-42, 고객A, 공급업체 A사, 마진, 클레임, 출처 파일 중 하나와 연결하면 더 구체적으로 답변할 수 있습니다.";
 
   return {

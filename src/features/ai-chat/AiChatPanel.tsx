@@ -9,12 +9,16 @@ import { aiChatScenarios, evidenceTitle } from "./aiChatScenarios";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { useAiChat } from "./AiChatProvider";
 
+const CHAT_PANEL_TRANSITION_MS = 220;
+
 export function AiChatDock() {
   const chat = useAiChat();
   const { commands, state } = usePrototype();
   const scrollRef = useRef<HTMLDivElement>(null);
   const sourceFiles = state.sourceFiles;
   const [selectedSourceFileId, setSelectedSourceFileId] = useState(sourceFiles[0]?.id ?? "");
+  const [panelMounted, setPanelMounted] = useState(chat.isOpen);
+  const [panelVisible, setPanelVisible] = useState(chat.isOpen);
 
   useEffect(() => {
     if (sourceFiles.length === 0) {
@@ -34,6 +38,18 @@ export function AiChatDock() {
 
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [chat.isOpen, chat.messages.length]);
+
+  useEffect(() => {
+    if (chat.isOpen) {
+      setPanelMounted(true);
+      const frame = window.requestAnimationFrame(() => setPanelVisible(true));
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    setPanelVisible(false);
+    const timeout = window.setTimeout(() => setPanelMounted(false), CHAT_PANEL_TRANSITION_MS);
+    return () => window.clearTimeout(timeout);
+  }, [chat.isOpen]);
 
   const attachedFiles = useMemo(
     () => sourceFiles.filter((file) => chat.attachedSourceFileIds.includes(file.id)),
@@ -64,7 +80,7 @@ export function AiChatDock() {
     <>
       <button
         aria-label={chat.isOpen ? "AI 채팅 닫기" : "AI 채팅 열기"}
-        className={`fixed right-0 top-28 z-50 flex h-24 w-12 flex-col items-center justify-center gap-1 rounded-l-md border border-r-0 border-hairline bg-ink text-white shadow-soft transition hover:bg-primary-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+        className={`fixed right-0 top-28 z-50 flex h-24 w-12 flex-col items-center justify-center gap-1 rounded-l-md border border-r-0 border-hairline bg-ink text-white shadow-soft transition duration-200 ease-out hover:bg-primary-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none ${
           chat.isOpen ? "translate-x-full" : "translate-x-0"
         }`}
         type="button"
@@ -74,20 +90,28 @@ export function AiChatDock() {
         <span className="text-[11px] font-semibold leading-none">Chat</span>
       </button>
 
-      {chat.isOpen && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
+      {panelMounted && (
+        <div
+          aria-hidden={!chat.isOpen}
+          className={`fixed inset-0 z-50 pointer-events-none transition-opacity duration-200 ease-out motion-reduce:transition-none ${
+            panelVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
           <button
             aria-label="AI 채팅 닫기"
-            className="absolute inset-0 bg-slate-950/20 pointer-events-auto lg:hidden"
+            className={`absolute inset-0 bg-slate-950/20 lg:hidden ${panelVisible ? "pointer-events-auto" : "pointer-events-none"}`}
             type="button"
             onClick={chat.closeChat}
           />
-          <aside className="pointer-events-auto absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-hairline bg-white shadow-[0_0_42px_rgba(15,23,42,0.18)]">
+          <aside
+            className={`absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-hairline bg-white shadow-[0_0_42px_rgba(15,23,42,0.18)] transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none ${
+              panelVisible ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-full opacity-0"
+            }`}
+          >
             <header className="flex min-h-16 items-center justify-between gap-3 border-b border-hairline-soft px-4 py-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-title-md text-ink">DONI AI</h2>
-                  <Badge tone="info">프로토타입</Badge>
                 </div>
                 <p className="mt-1 truncate text-caption text-muted">지표, 인사이트, 연결 근거를 확인합니다</p>
               </div>
@@ -120,7 +144,7 @@ export function AiChatDock() {
                     key={scenario.id}
                     className="shrink-0 rounded-full border border-hairline bg-white px-3 py-1.5 text-caption font-semibold text-ink transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     type="button"
-                    onClick={() => chat.submitQuestion(scenario.prompt)}
+                    onClick={() => chat.setDraft(scenario.prompt)}
                   >
                     {scenario.shortLabel}
                   </button>
@@ -175,7 +199,7 @@ export function AiChatDock() {
                   onKeyDown={handleComposerKeyDown}
                 />
                 <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 truncate text-xs text-muted">프로토타입 응답 세트 기준</p>
+                  <p className="min-w-0 truncate text-xs text-muted">Enter로 보내기 · Shift+Enter 줄바꿈</p>
                   <Button className="h-9 px-4" disabled={!chat.draft.trim()} onClick={() => chat.submitQuestion()}>
                     보내기
                   </Button>
@@ -190,8 +214,6 @@ export function AiChatDock() {
 }
 
 function EmptyChatState() {
-  const chat = useAiChat();
-
   return (
     <div className="space-y-5">
       <div className="rounded-lg border border-hairline-soft bg-surface-soft p-4">
@@ -200,18 +222,6 @@ function EmptyChatState() {
         <p className="mt-2 text-body-sm leading-6 text-muted">
           현재 보관 파일, 지표, 인사이트, 연결 관계를 기준으로 답변합니다.
         </p>
-      </div>
-      <div className="grid gap-2">
-        {aiChatScenarios.map((scenario) => (
-          <button
-            key={scenario.id}
-            className="rounded-md border border-hairline bg-white px-3 py-3 text-left text-body-sm font-semibold text-ink transition hover:bg-blue-50 hover:text-brand-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            type="button"
-            onClick={() => chat.submitQuestion(scenario.prompt)}
-          >
-            {scenario.prompt}
-          </button>
-        ))}
       </div>
     </div>
   );

@@ -67,10 +67,6 @@ export function HomeScreen() {
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col">
         <header className="flex items-center justify-between gap-4">
           <img src="/assets/logo.svg" alt="DONI" className="h-10 w-auto" />
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => commands.navigate("login")}>로그인</Button>
-            <Button onClick={() => commands.navigate("signup")}>도입 신청</Button>
-          </div>
         </header>
 
         <section className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
@@ -84,7 +80,6 @@ export function HomeScreen() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Button onClick={() => commands.navigate("login")}>콘솔 접속</Button>
-              <Button variant="secondary" onClick={() => commands.navigate("signup")}>회사코드로 신청</Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {homeHighlights.map((item) => (
@@ -212,9 +207,18 @@ export function LoginScreen() {
           </div>
           <ul className="mt-3 grid gap-2">
             {demoAccounts.map((account) => (
-              <li key={account.loginId} className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-hairline-soft bg-white px-3 py-2">
-                <span className="truncate font-semibold text-ink">{account.loginId} / {account.password}</span>
-                <Badge tone={account.role === "owner" ? "success" : "info"}>{account.role === "owner" ? "기업 소유자" : "기업 관리자"}</Badge>
+              <li key={account.loginId}>
+                <button
+                  className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md border border-hairline-soft bg-white px-3 py-2 text-left transition hover:border-primary/40 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  type="button"
+                  onClick={() => {
+                    setLoginId(account.loginId);
+                    setPassword(account.password);
+                  }}
+                >
+                  <span className="truncate font-semibold text-ink">{account.loginId} / {account.password}</span>
+                  <Badge tone={account.role === "owner" ? "success" : "info"}>{account.role === "owner" ? "기업 소유자" : "기업 관리자"}</Badge>
+                </button>
               </li>
             ))}
           </ul>
@@ -231,7 +235,7 @@ export function LoginScreen() {
           {loginFeedback}
         </div>
       )}
-      <AuthField label="아이디 또는 이메일">
+      <AuthField label="아이디">
         <input
           aria-invalid={Boolean(loginFeedback)}
           className={authInputClass(Boolean(loginFeedback))}
