@@ -23,17 +23,22 @@ const statusFilters: Array<{ label: string; value: CompanyUserStatus | "all" }> 
   { label: "반려", value: "rejected" }
 ];
 
+function emptyUserFilterMessage(statusFilter: CompanyUserStatus | "all"): string {
+  const label = statusFilters.find((filter) => filter.value === statusFilter)?.label ?? "선택한 상태";
+  return statusFilter === "all" ? "등록된 사용자가 없습니다." : `${label} 상태의 사용자가 없습니다.`;
+}
+
 export function CompanyManagementScreen() {
   const { commands, state } = usePrototype();
   const actor = currentCompanyUser(state);
   const canManage = actor?.role === "owner" && actor.status === "active";
-  const [companyName, setCompanyName] = useState(state.company.name);
   const [statusFilter, setStatusFilter] = useState<CompanyUserStatus | "all">("all");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingCategoryName, setEditingCategoryName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | undefined>();
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const users = useMemo(
     () => state.companyUsers.filter((companyUser) => statusFilter === "all" || companyUser.status === statusFilter),
@@ -46,10 +51,6 @@ export function CompanyManagementScreen() {
     }),
     [state.companyUsers, state.organizationCategories, state.sourceFiles]
   );
-
-  function saveCompany() {
-    commands.updateCompanyProfile({ name: companyName });
-  }
 
   function addCategory() {
     if (commands.addOrganizationCategory(newCategoryName)) {
@@ -86,6 +87,16 @@ export function CompanyManagementScreen() {
     }
   }
 
+  async function copyCompanyCode() {
+    try {
+      await navigator.clipboard.writeText(state.company.code);
+      setCodeCopied(true);
+      window.setTimeout(() => setCodeCopied(false), 1400);
+    } catch {
+      setCodeCopied(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <SectionTitle
@@ -95,27 +106,22 @@ export function CompanyManagementScreen() {
       />
 
       <Card className="space-y-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-2">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0 space-y-2">
             <p className="text-caption text-muted">기업 정보</p>
-            <label className="block text-sm font-medium text-slate-700">
-              기업명
-              <input
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 md:w-96"
-                disabled={!canManage}
-                value={companyName}
-                onChange={(event) => setCompanyName(event.target.value)}
-              />
-            </label>
+            <h2 className="truncate text-title-lg text-ink">{state.company.name}</h2>
+            <p className="text-body-sm text-muted">기업명은 승인된 콘솔 기준 정보로 유지됩니다.</p>
           </div>
-          {canManage && <Button onClick={saveCompany}>기업 정보 저장</Button>}
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button variant="secondary" onClick={copyCompanyCode}>{codeCopied ? "복사됨" : "코드 복사"}</Button>
+            {canManage && <Button onClick={commands.regenerateCompanyCode}>새 코드 발급</Button>}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-surface-soft p-4">
-          <div>
+        <div className="rounded-md border border-hairline-soft bg-surface-soft p-4">
+          <div className="min-w-0">
             <p className="text-caption text-muted">회사코드</p>
-            <p className="font-mono text-title-sm text-ink">{state.company.code}</p>
+            <p className="mt-1 truncate font-mono text-title-sm text-ink">{state.company.code}</p>
           </div>
-          {canManage && <Button variant="secondary" onClick={commands.regenerateCompanyCode}>새 코드 발급</Button>}
         </div>
       </Card>
 
@@ -161,27 +167,34 @@ export function CompanyManagementScreen() {
           </div>
         </div>
         <div className="overflow-x-auto rounded-lg border border-hairline">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="bg-surface-soft text-caption text-muted">
               <tr>
                 <th className="px-4 py-3">사용자</th>
                 <th className="px-4 py-3">역할</th>
                 <th className="px-4 py-3">상태</th>
                 <th className="px-4 py-3">조직</th>
-                <th className="px-4 py-3">직책</th>
                 <th className="px-4 py-3">관리</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((companyUser) => (
-                <CompanyUserRow
-                  key={companyUser.id}
-                  canManage={canManage}
-                  companyUser={companyUser}
-                  isCurrentUser={companyUser.userId === state.session.currentUserId}
-                  onDelete={() => setDeleteTarget(companyUser)}
-                />
-              ))}
+              {users.length > 0 ? (
+                users.map((companyUser) => (
+                  <CompanyUserRow
+                    key={companyUser.id}
+                    canManage={canManage}
+                    companyUser={companyUser}
+                    isCurrentUser={companyUser.userId === state.session.currentUserId}
+                    onDelete={() => setDeleteTarget(companyUser)}
+                  />
+                ))
+              ) : (
+                <tr className="border-t border-hairline">
+                  <td className="px-4 py-8 text-center text-body-sm text-muted" colSpan={5}>
+                    {emptyUserFilterMessage(statusFilter)}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -214,7 +227,6 @@ function CompanyUserRow({
   onDelete: () => void;
 }) {
   const { commands, state } = usePrototype();
-  const [title, setTitle] = useState(companyUser.title);
   const [organizationCategoryId, setOrganizationCategoryId] = useState(companyUser.organizationCategoryId);
   const category = state.organizationCategories.find((item) => item.id === companyUser.organizationCategoryId);
   const categoryOptions = organizationCategoryOptionsForSelection(
@@ -226,7 +238,12 @@ function CompanyUserRow({
   const pendingEditable = canManage && !isCurrentUser && companyUser.status === "pending";
 
   function save() {
-    commands.updateCompanyUser({ companyUserId: companyUser.id, role: companyUser.role, title, organizationCategoryId });
+    commands.updateCompanyUser({
+      companyUserId: companyUser.id,
+      role: companyUser.role,
+      title: companyUser.title,
+      organizationCategoryId
+    });
   }
 
   return (
@@ -248,13 +265,6 @@ function CompanyUserRow({
           </select>
         ) : (
           <Badge tone="neutral">{category?.name ?? "미지정"}</Badge>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        {editable ? (
-          <input className="w-40 rounded-md border border-slate-200 px-2 py-1" value={title} onChange={(event) => setTitle(event.target.value)} />
-        ) : (
-          companyUser.title || "미지정"
         )}
       </td>
       <td className="px-4 py-3">
