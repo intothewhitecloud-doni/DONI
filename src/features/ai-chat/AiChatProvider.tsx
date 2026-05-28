@@ -3,10 +3,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { buildAiChatResponse } from "./aiChatScenarios";
-import type { AiChatMessage, AiChatSessionState } from "./aiChatTypes";
+import type { AiChatMessage, AiChatPendingAssistant, AiChatSessionState } from "./aiChatTypes";
 
 const STORAGE_VERSION = 1;
 const STORAGE_PREFIX = "doni:ai-chat";
+const THINKING_DELAY_MS = 1600;
+const STREAMING_INTERVAL_MS = 18;
+const STREAMING_CHUNK_SIZE = 2;
 
 type PersistedAiChatSession = AiChatSessionState & {
   savedAt: string;
@@ -19,6 +22,7 @@ type AiChatContextValue = AiChatSessionState & {
   closeChat(): void;
   detachSourceFile(sourceFileId: string): void;
   openChat(): void;
+  pendingAssistant?: AiChatPendingAssistant;
   setDraft(draft: string): void;
   submitQuestion(question?: string): void;
   toggleChat(): void;
@@ -91,6 +95,19 @@ function messageId(role: AiChatMessage["role"]): string {
   return `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function assistantMessageFromPending(pending: AiChatPendingAssistant): AiChatMessage {
+  return {
+    actionItems: pending.actionItems,
+    attachmentSourceFileIds: pending.attachmentSourceFileIds,
+    citationEvidenceIds: pending.citationEvidenceIds,
+    content: pending.fullContent,
+    createdAt: pending.createdAt,
+    id: pending.id,
+    role: pending.role,
+    scenarioId: pending.scenarioId
+  };
+}
+
 export function AiChatProvider({ children }: PropsWithChildren) {
   const { state } = usePrototype();
   const key = useMemo(
@@ -99,10 +116,12 @@ export function AiChatProvider({ children }: PropsWithChildren) {
   );
   const [session, setSession] = useState<AiChatSessionState>(() => defaultSession());
   const [hydratedKey, setHydratedKey] = useState("");
+  const [pendingAssistant, setPendingAssistant] = useState<AiChatPendingAssistant | undefined>();
 
   useEffect(() => {
     const loaded = parsePersistedSession(browserStorage()?.getItem(key) ?? null);
     setSession(loaded ?? defaultSession());
+    setPendingAssistant(undefined);
     setHydratedKey(key);
   }, [key]);
 
@@ -123,6 +142,54 @@ export function AiChatProvider({ children }: PropsWithChildren) {
       // Chat persistence is best-effort; the interactive session should keep working.
     }
   }, [hydratedKey, key, session]);
+
+  useEffect(() => {
+    if (!pendingAssistant || pendingAssistant.phase !== "thinking") {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setPendingAssistant((current) => current && current.id === pendingAssistant.id
+        ? { ...current, phase: "streaming" }
+        : current
+      );
+    }, THINKING_DELAY_MS);
+    return () => window.clearTimeout(timeout);
+  }, [pendingAssistant]);
+
+  useEffect(() => {
+    if (!pendingAssistant || pendingAssistant.phase !== "streaming") {
+      return;
+    }
+
+    if (pendingAssistant.displayContent.length >= pendingAssistant.fullContent.length) {
+      const assistantMessage = assistantMessageFromPending(pendingAssistant);
+      setSession((current) => ({
+        ...current,
+        messages: current.messages.some((message) => message.id === assistantMessage.id)
+          ? current.messages
+          : [...current.messages, assistantMessage]
+      }));
+      setPendingAssistant(undefined);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setPendingAssistant((current) => {
+        if (!current || current.id !== pendingAssistant.id) {
+          return current;
+        }
+
+        const nextLength = Math.min(current.fullContent.length, current.displayContent.length + STREAMING_CHUNK_SIZE);
+        return {
+          ...current,
+          content: current.fullContent.slice(0, nextLength),
+          displayContent: current.fullContent.slice(0, nextLength)
+        };
+      });
+    }, STREAMING_INTERVAL_MS);
+    return () => window.clearTimeout(timeout);
+  }, [pendingAssistant]);
 
   const openChat = useCallback(() => {
     setSession((current) => ({ ...current, isOpen: true }));
@@ -161,50 +228,58 @@ export function AiChatProvider({ children }: PropsWithChildren) {
   }, []);
 
   const submitQuestion = useCallback((question?: string) => {
-    setSession((current) => {
-      const content = (question ?? current.draft).trim();
-      if (!content) {
-        return current;
-      }
+    if (pendingAssistant) {
+      return;
+    }
 
-      const validAttachmentIds = current.attachedSourceFileIds.filter((sourceFileId) =>
-        state.sourceFiles.some((file) => file.id === sourceFileId)
-      );
-      const createdAt = new Date().toISOString();
-      const userMessage: AiChatMessage = {
-        id: messageId("user"),
-        role: "user",
-        content,
-        createdAt,
-        attachmentSourceFileIds: validAttachmentIds
-      };
-      const response = buildAiChatResponse({
-        attachedSourceFileIds: validAttachmentIds,
-        question: content,
-        state
-      });
-      const assistantMessage: AiChatMessage = {
-        id: messageId("assistant"),
-        role: "assistant",
-        content: response.content,
-        createdAt: new Date().toISOString(),
-        scenarioId: response.scenarioId,
-        citationEvidenceIds: response.citationEvidenceIds,
-        actionItems: response.actionItems,
-        attachmentSourceFileIds: response.attachmentSourceFileIds
-      };
+    const content = (question ?? session.draft).trim();
+    if (!content) {
+      return;
+    }
 
-      return {
-        ...current,
-        attachedSourceFileIds: [],
-        draft: "",
-        isOpen: true,
-        messages: [...current.messages, userMessage, assistantMessage]
-      };
+    const validAttachmentIds = session.attachedSourceFileIds.filter((sourceFileId) =>
+      state.sourceFiles.some((file) => file.id === sourceFileId)
+    );
+    const createdAt = new Date().toISOString();
+    const userMessage: AiChatMessage = {
+      id: messageId("user"),
+      role: "user",
+      content,
+      createdAt,
+      attachmentSourceFileIds: validAttachmentIds
+    };
+    const response = buildAiChatResponse({
+      attachedSourceFileIds: validAttachmentIds,
+      question: content,
+      state
     });
-  }, [state]);
+    const assistantMessage: AiChatMessage = {
+      id: messageId("assistant"),
+      role: "assistant",
+      content: "",
+      createdAt: new Date().toISOString(),
+      scenarioId: response.scenarioId,
+      citationEvidenceIds: response.citationEvidenceIds,
+      actionItems: response.actionItems,
+      attachmentSourceFileIds: response.attachmentSourceFileIds
+    };
+    setPendingAssistant({
+      ...assistantMessage,
+      displayContent: "",
+      fullContent: response.content,
+      phase: "thinking"
+    });
+    setSession((current) => ({
+      ...current,
+      attachedSourceFileIds: [],
+      draft: "",
+      isOpen: true,
+      messages: [...current.messages, userMessage]
+    }));
+  }, [pendingAssistant, session.attachedSourceFileIds, session.draft, state]);
 
   const clearMessages = useCallback(() => {
+    setPendingAssistant(undefined);
     setSession((current) => ({
       ...current,
       attachedSourceFileIds: [],
@@ -221,11 +296,12 @@ export function AiChatProvider({ children }: PropsWithChildren) {
       closeChat,
       detachSourceFile,
       openChat,
+      pendingAssistant,
       setDraft,
       submitQuestion,
       toggleChat
     }),
-    [attachSourceFile, clearMessages, closeChat, detachSourceFile, openChat, session, setDraft, submitQuestion, toggleChat]
+    [attachSourceFile, clearMessages, closeChat, detachSourceFile, openChat, pendingAssistant, session, setDraft, submitQuestion, toggleChat]
   );
 
   return <AiChatContext.Provider value={value}>{children}</AiChatContext.Provider>;

@@ -9,7 +9,7 @@ import { aiChatScenarios, evidenceTitle } from "./aiChatScenarios";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { useAiChat } from "./AiChatProvider";
 
-const CHAT_PANEL_TRANSITION_MS = 220;
+const CHAT_PANEL_TRANSITION_MS = 360;
 
 export function AiChatDock() {
   const chat = useAiChat();
@@ -37,7 +37,7 @@ export function AiChatDock() {
     }
 
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [chat.isOpen, chat.messages.length]);
+  }, [chat.isOpen, chat.messages.length, chat.pendingAssistant?.displayContent.length, chat.pendingAssistant?.phase]);
 
   useEffect(() => {
     if (chat.isOpen) {
@@ -80,7 +80,7 @@ export function AiChatDock() {
     <>
       <button
         aria-label={chat.isOpen ? "AI 채팅 닫기" : "AI 채팅 열기"}
-        className={`fixed right-0 top-28 z-50 flex h-24 w-12 flex-col items-center justify-center gap-1 rounded-l-md border border-r-0 border-hairline bg-ink text-white shadow-soft transition duration-200 ease-out hover:bg-primary-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none ${
+        className={`fixed right-0 top-28 z-50 flex h-24 w-12 flex-col items-center justify-center gap-1 rounded-l-md border border-r-0 border-hairline bg-ink text-white shadow-soft transition duration-[360ms] ease-out hover:bg-primary-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 motion-reduce:transition-none ${
           chat.isOpen ? "translate-x-full" : "translate-x-0"
         }`}
         type="button"
@@ -93,7 +93,7 @@ export function AiChatDock() {
       {panelMounted && (
         <div
           aria-hidden={!chat.isOpen}
-          className={`fixed inset-0 z-50 pointer-events-none transition-opacity duration-200 ease-out motion-reduce:transition-none ${
+          className={`fixed inset-0 z-50 pointer-events-none transition-opacity duration-[360ms] ease-out motion-reduce:transition-none ${
             panelVisible ? "opacity-100" : "opacity-0"
           }`}
         >
@@ -104,7 +104,7 @@ export function AiChatDock() {
             onClick={chat.closeChat}
           />
           <aside
-            className={`absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-hairline bg-white shadow-[0_0_42px_rgba(15,23,42,0.18)] transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none ${
+            className={`absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-hairline bg-white shadow-[0_0_42px_rgba(15,23,42,0.18)] transition-[transform,opacity] duration-[360ms] ease-out motion-reduce:transition-none ${
               panelVisible ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-full opacity-0"
             }`}
           >
@@ -133,6 +133,14 @@ export function AiChatDock() {
                   {chat.messages.map((message) => (
                     <ChatMessageBubble key={message.id} actionHandler={handleAction} message={message} />
                   ))}
+                  {chat.pendingAssistant && (
+                    <ChatMessageBubble
+                      key={chat.pendingAssistant.id}
+                      actionHandler={handleAction}
+                      isPendingAssistant
+                      message={chat.pendingAssistant}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -142,7 +150,8 @@ export function AiChatDock() {
                 {aiChatScenarios.slice(0, 4).map((scenario) => (
                   <button
                     key={scenario.id}
-                    className="shrink-0 rounded-full border border-hairline bg-white px-3 py-1.5 text-caption font-semibold text-ink transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="shrink-0 rounded-full border border-hairline bg-white px-3 py-1.5 text-caption font-semibold text-ink transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={Boolean(chat.pendingAssistant)}
                     type="button"
                     onClick={() => chat.setDraft(scenario.prompt)}
                   >
@@ -165,7 +174,7 @@ export function AiChatDock() {
                     </select>
                     <Button
                       className="h-10 px-3"
-                      disabled={!selectedSourceFileId || chat.attachedSourceFileIds.includes(selectedSourceFileId)}
+                      disabled={!selectedSourceFileId || chat.attachedSourceFileIds.includes(selectedSourceFileId) || Boolean(chat.pendingAssistant)}
                       variant="secondary"
                       onClick={() => chat.attachSourceFile(selectedSourceFileId)}
                     >
@@ -195,12 +204,13 @@ export function AiChatDock() {
                   className="max-h-32 min-h-20 w-full resize-none border-0 bg-transparent px-1 py-1 text-body-sm text-ink outline-none placeholder:text-muted-soft"
                   placeholder="분석 결과에 대해 질문하세요"
                   value={chat.draft}
+                  disabled={Boolean(chat.pendingAssistant)}
                   onChange={(event) => chat.setDraft(event.target.value)}
                   onKeyDown={handleComposerKeyDown}
                 />
                 <div className="flex items-center justify-between gap-3">
                   <p className="min-w-0 truncate text-xs text-muted">Enter로 보내기 · Shift+Enter 줄바꿈</p>
-                  <Button className="h-9 px-4" disabled={!chat.draft.trim()} onClick={() => chat.submitQuestion()}>
+                  <Button className="h-9 px-4" disabled={!chat.draft.trim() || Boolean(chat.pendingAssistant)} onClick={() => chat.submitQuestion()}>
                     보내기
                   </Button>
                 </div>
@@ -229,9 +239,11 @@ function EmptyChatState() {
 
 function ChatMessageBubble({
   actionHandler,
+  isPendingAssistant = false,
   message
 }: {
   actionHandler: (action: AiChatAction) => void;
+  isPendingAssistant?: boolean;
   message: AiChatMessage;
 }) {
   const { state } = usePrototype();
@@ -246,11 +258,20 @@ function ChatMessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[92%] rounded-lg border p-3 ${isUser ? "border-ink bg-ink text-white" : "border-hairline-soft bg-white text-body shadow-sm"}`}>
-        <div className="space-y-2 text-body-sm leading-6">
-          {message.content.split("\n\n").map((paragraph) => (
-            <p key={paragraph} className="whitespace-pre-line">{paragraph}</p>
-          ))}
-        </div>
+        {isPendingAssistant && !message.content ? (
+          <ThinkingIndicator />
+        ) : (
+          <div className="space-y-2 text-body-sm leading-6">
+            {message.content.split("\n\n").map((paragraph, index) => (
+              <p key={`${index}-${paragraph}`} className="whitespace-pre-line">
+                {paragraph}
+                {isPendingAssistant && index === message.content.split("\n\n").length - 1 && (
+                  <span className="ml-0.5 inline-block h-4 w-1 translate-y-0.5 animate-pulse rounded-full bg-primary align-baseline" />
+                )}
+              </p>
+            ))}
+          </div>
+        )}
         {attachedFiles.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {attachedFiles.map((file) => (
@@ -263,7 +284,7 @@ function ChatMessageBubble({
             ))}
           </div>
         )}
-        {!isUser && citations.length > 0 && (
+        {!isUser && !isPendingAssistant && citations.length > 0 && (
           <div className="mt-3 space-y-2">
             <p className="text-xs font-bold text-muted">출처</p>
             {citations.map((evidence) => (
@@ -275,7 +296,7 @@ function ChatMessageBubble({
             ))}
           </div>
         )}
-        {!isUser && message.actionItems && message.actionItems.length > 0 && (
+        {!isUser && !isPendingAssistant && message.actionItems && message.actionItems.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             {message.actionItems.map((action) => (
               <Button
@@ -291,6 +312,19 @@ function ChatMessageBubble({
         )}
         <p className={`mt-2 text-[11px] ${isUser ? "text-white/60" : "text-muted-soft"}`}>{formatMessageTime(message.createdAt)}</p>
       </div>
+    </div>
+  );
+}
+
+function ThinkingIndicator() {
+  return (
+    <div className="flex items-center gap-2 py-1 text-body-sm text-muted">
+      <span>답변을 준비 중입니다</span>
+      <span className="flex items-center gap-1" aria-hidden="true">
+        <span className="size-1.5 animate-bounce rounded-full bg-muted-soft [animation-delay:-160ms]" />
+        <span className="size-1.5 animate-bounce rounded-full bg-muted-soft [animation-delay:-80ms]" />
+        <span className="size-1.5 animate-bounce rounded-full bg-muted-soft" />
+      </span>
     </div>
   );
 }

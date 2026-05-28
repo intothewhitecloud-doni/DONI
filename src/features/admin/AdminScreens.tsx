@@ -7,6 +7,10 @@ import { Card, SectionTitle } from "../../components/ui/Card";
 import { Popup } from "../../components/ui/Popup";
 import type { CompanyUser, CompanyUserStatus } from "../../lib/domain/types";
 import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../../lib/domain/types";
+import {
+  organizationCategoryOptionsForSelection,
+  visibleOrganizationCategories
+} from "../../lib/prototype/organizationCategories";
 import { companyUserStatusLabel } from "../../lib/prototype/policy";
 import { roleLabel } from "../../lib/prototype/permissions";
 import { currentCompanyUser } from "../../lib/prototype/selectors";
@@ -29,10 +33,18 @@ export function CompanyManagementScreen() {
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingCategoryName, setEditingCategoryName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | undefined>();
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
 
   const users = useMemo(
     () => state.companyUsers.filter((companyUser) => statusFilter === "all" || companyUser.status === statusFilter),
     [state.companyUsers, statusFilter]
+  );
+  const organizationCategories = useMemo(
+    () => visibleOrganizationCategories(state.organizationCategories, {
+      companyUsers: state.companyUsers,
+      sourceFiles: state.sourceFiles
+    }),
+    [state.companyUsers, state.organizationCategories, state.sourceFiles]
   );
 
   function saveCompany() {
@@ -54,6 +66,17 @@ export function CompanyManagementScreen() {
     if (editingCategoryId && commands.updateOrganizationCategory(editingCategoryId, editingCategoryName)) {
       setEditingCategoryId("");
       setEditingCategoryName("");
+    }
+  }
+
+  function cancelCategoryEdit() {
+    setEditingCategoryId("");
+    setEditingCategoryName("");
+  }
+
+  function deleteOrganizationCategory(categoryId: string) {
+    if (commands.deleteOrganizationCategory(categoryId)) {
+      cancelCategoryEdit();
     }
   }
 
@@ -101,9 +124,9 @@ export function CompanyManagementScreen() {
           <SectionTitle
             eyebrow="사용자 관리"
             title="기업 사용자"
-            description="계정 삭제는 이 기업 콘솔의 사용자 계정 자체를 제거합니다. 과거 기록에는 이름/역할 스냅샷이 남습니다."
+            description="계정 삭제는 이 기업 콘솔의 사용자 계정 자체를 제거합니다. 조직 카테고리는 헤더의 관리 메뉴에서 조정합니다."
           />
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {statusFilters.map((filter) => (
               <Button
                 key={filter.value}
@@ -113,6 +136,28 @@ export function CompanyManagementScreen() {
                 {filter.label}
               </Button>
             ))}
+            {canManage && (
+              <div className="relative">
+                <Button variant={categoryMenuOpen ? "primary" : "secondary"} onClick={() => setCategoryMenuOpen((open) => !open)}>
+                  조직 관리
+                </Button>
+                {categoryMenuOpen && (
+                  <OrganizationCategoryMenu
+                    categories={organizationCategories}
+                    editingCategoryId={editingCategoryId}
+                    editingCategoryName={editingCategoryName}
+                    newCategoryName={newCategoryName}
+                    onAdd={addCategory}
+                    onCancelEdit={cancelCategoryEdit}
+                    onDelete={deleteOrganizationCategory}
+                    onEditNameChange={setEditingCategoryName}
+                    onNewNameChange={setNewCategoryName}
+                    onStartEdit={startCategoryEdit}
+                    onSubmitEdit={submitCategoryEdit}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto rounded-lg border border-hairline">
@@ -139,52 +184,6 @@ export function CompanyManagementScreen() {
               ))}
             </tbody>
           </table>
-        </div>
-      </Card>
-
-      <Card className="space-y-5">
-        <SectionTitle
-          eyebrow="조직 카테고리"
-          title="분류/표시용 조직"
-          description="조직은 이름만 관리합니다. 삭제하면 연결된 사용자와 파일이 미지정으로 이동합니다."
-        />
-        {canManage && (
-          <div className="flex flex-col gap-2 md:flex-row">
-            <input
-              className="flex-1 rounded-md border border-slate-200 px-3 py-2"
-              placeholder="새 조직 이름"
-              value={newCategoryName}
-              onChange={(event) => setNewCategoryName(event.target.value)}
-            />
-            <Button onClick={addCategory}>조직 추가</Button>
-          </div>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {state.organizationCategories.map((category) => (
-            <div key={category.id} className="flex items-center gap-2 rounded-full border border-hairline bg-white px-3 py-2">
-              {editingCategoryId === category.id ? (
-                <>
-                  <input
-                    className="w-40 rounded-md border border-slate-200 px-2 py-1 text-sm"
-                    value={editingCategoryName}
-                    onChange={(event) => setEditingCategoryName(event.target.value)}
-                  />
-                  <button className="whitespace-nowrap text-button text-primary" onClick={submitCategoryEdit}>저장</button>
-                  <button className="whitespace-nowrap text-button text-muted" onClick={() => setEditingCategoryId("")}>취소</button>
-                </>
-              ) : (
-                <>
-                  <Badge tone={category.id === UNASSIGNED_ORGANIZATION_CATEGORY_ID ? "neutral" : "info"}>{category.name}</Badge>
-                  {canManage && category.id !== UNASSIGNED_ORGANIZATION_CATEGORY_ID && (
-                    <>
-                      <button className="whitespace-nowrap text-button text-primary" onClick={() => startCategoryEdit(category.id, category.name)}>수정</button>
-                      <button className="whitespace-nowrap text-button text-error" onClick={() => commands.deleteOrganizationCategory(category.id)}>삭제</button>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
         </div>
       </Card>
 
@@ -218,6 +217,11 @@ function CompanyUserRow({
   const [title, setTitle] = useState(companyUser.title);
   const [organizationCategoryId, setOrganizationCategoryId] = useState(companyUser.organizationCategoryId);
   const category = state.organizationCategories.find((item) => item.id === companyUser.organizationCategoryId);
+  const categoryOptions = organizationCategoryOptionsForSelection(
+    state.organizationCategories,
+    { companyUsers: state.companyUsers, sourceFiles: state.sourceFiles },
+    organizationCategoryId
+  );
   const editable = canManage && !isCurrentUser && companyUser.role !== "owner" && companyUser.status === "active";
   const pendingEditable = canManage && !isCurrentUser && companyUser.status === "pending";
 
@@ -238,7 +242,7 @@ function CompanyUserRow({
       <td className="px-4 py-3">
         {editable ? (
           <select className="rounded-md border border-slate-200 px-2 py-1" value={organizationCategoryId} onChange={(event) => setOrganizationCategoryId(event.target.value)}>
-            {state.organizationCategories.map((category) => (
+            {categoryOptions.map((category) => (
               <option key={category.id} value={category.id}>{category.name}</option>
             ))}
           </select>
@@ -263,6 +267,106 @@ function CompanyUserRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function OrganizationCategoryMenu({
+  categories,
+  editingCategoryId,
+  editingCategoryName,
+  newCategoryName,
+  onAdd,
+  onCancelEdit,
+  onDelete,
+  onEditNameChange,
+  onNewNameChange,
+  onStartEdit,
+  onSubmitEdit
+}: {
+  categories: Array<{ id: string; name: string }>;
+  editingCategoryId: string;
+  editingCategoryName: string;
+  newCategoryName: string;
+  onAdd: () => void;
+  onCancelEdit: () => void;
+  onDelete: (categoryId: string) => void;
+  onEditNameChange: (name: string) => void;
+  onNewNameChange: (name: string) => void;
+  onStartEdit: (categoryId: string, name: string) => void;
+  onSubmitEdit: () => void;
+}) {
+  return (
+    <div className="absolute right-0 top-12 z-30 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-hairline bg-white p-3 text-left shadow-[0_18px_48px_rgba(15,23,42,0.16)]">
+      <div className="flex items-center justify-between gap-3 border-b border-hairline-soft pb-3">
+        <div className="min-w-0">
+          <p className="text-title-sm text-ink">조직 카테고리</p>
+          <p className="mt-1 text-caption text-muted">사용자 표의 조직 속성을 관리합니다</p>
+        </div>
+        <Badge tone="neutral">{categories.length}개</Badge>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <input
+          className="min-w-0 flex-1 rounded-md border border-hairline-soft bg-white px-3 py-2 text-body-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          placeholder="새 조직 이름"
+          value={newCategoryName}
+          onChange={(event) => onNewNameChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              onAdd();
+            }
+          }}
+        />
+        <Button className="h-10 px-3" onClick={onAdd}>추가</Button>
+      </div>
+      <div className="mt-3 max-h-72 overflow-y-auto rounded-md border border-hairline-soft">
+        {categories.length === 0 ? (
+          <div className="p-3 text-body-sm text-muted">등록된 조직 카테고리가 없습니다.</div>
+        ) : (
+          categories.map((category) => {
+            const isUnassigned = category.id === UNASSIGNED_ORGANIZATION_CATEGORY_ID;
+            const editing = editingCategoryId === category.id;
+            return (
+              <div key={category.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-hairline-soft px-3 py-2 first:border-t-0">
+                {editing ? (
+                  <>
+                    <input
+                      className="min-w-0 rounded-md border border-hairline-soft px-2 py-1.5 text-body-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      value={editingCategoryName}
+                      onChange={(event) => onEditNameChange(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          onSubmitEdit();
+                        }
+                      }}
+                    />
+                    <div className="flex shrink-0 gap-1">
+                      <button className="whitespace-nowrap rounded-md px-2 py-1 text-button text-primary hover:bg-blue-50" type="button" onClick={onSubmitEdit}>저장</button>
+                      <button className="whitespace-nowrap rounded-md px-2 py-1 text-button text-muted hover:bg-surface-soft" type="button" onClick={onCancelEdit}>취소</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="min-w-0">
+                      <Badge tone={isUnassigned ? "neutral" : "info"}>{category.name}</Badge>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      {isUnassigned ? (
+                        <span className="whitespace-nowrap px-2 py-1 text-caption text-muted">기본값</span>
+                      ) : (
+                        <>
+                          <button className="whitespace-nowrap rounded-md px-2 py-1 text-button text-primary hover:bg-blue-50" type="button" onClick={() => onStartEdit(category.id, category.name)}>수정</button>
+                          <button className="whitespace-nowrap rounded-md px-2 py-1 text-button text-error hover:bg-error/10" type="button" onClick={() => onDelete(category.id)}>삭제</button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }
 

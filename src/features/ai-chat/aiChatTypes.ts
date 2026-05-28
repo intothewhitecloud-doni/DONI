@@ -19,6 +19,12 @@ export type AiChatMessage = {
   attachmentSourceFileIds?: string[];
 };
 
+export type AiChatPendingAssistant = AiChatMessage & {
+  displayContent: string;
+  fullContent: string;
+  phase: "thinking" | "streaming";
+};
+
 export type AiChatScenarioResponse = {
   actionItems?: AiChatAction[];
   attachmentSourceFileIds?: string[];

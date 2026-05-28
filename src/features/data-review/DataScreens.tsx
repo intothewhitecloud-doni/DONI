@@ -17,6 +17,7 @@ import {
 import { canCurrentUser } from "../../lib/prototype/permissions";
 import { getManagedObjectView } from "../../lib/prototype/queries/managedObjectQueries";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
+import { visibleOrganizationCategories } from "../../lib/prototype/organizationCategories";
 import {
   BINARY_SOURCE_FILE_LIMIT_BYTES,
   deriveSourceFileRenderType,
@@ -51,11 +52,17 @@ export function DataVaultScreen() {
   const [isReadingFiles, setIsReadingFiles] = useState(false);
   const [editingFile, setEditingFile] = useState({ kind: "", name: "" });
   const [fileFeedback, setFileFeedback] = useState("");
-  const [activeOrganizationCategoryId, setActiveOrganizationCategoryId] = useState(UNASSIGNED_ORGANIZATION_CATEGORY_ID);
-  const organizationCategories = state.organizationCategories;
+  const [activeOrganizationCategoryId, setActiveOrganizationCategoryId] = useState("");
+  const organizationCategories = useMemo(
+    () => visibleOrganizationCategories(state.organizationCategories, { sourceFiles: state.sourceFiles }),
+    [state.organizationCategories, state.sourceFiles]
+  );
+  const selectedOrganizationCategoryId = organizationCategories.some((category) => category.id === activeOrganizationCategoryId)
+    ? activeOrganizationCategoryId
+    : organizationCategories[0]?.id ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID;
   const visibleSourceFiles = useMemo(
-    () => state.sourceFiles.filter((file) => (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID) === activeOrganizationCategoryId),
-    [activeOrganizationCategoryId, state.sourceFiles]
+    () => state.sourceFiles.filter((file) => (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID) === selectedOrganizationCategoryId),
+    [selectedOrganizationCategoryId, state.sourceFiles]
   );
   const activeFile = useMemo(
     () => visibleSourceFiles.find((file) => file.id === activeFileId) ?? visibleSourceFiles[0],
@@ -79,7 +86,7 @@ export function DataVaultScreen() {
       return;
     }
 
-    setActiveOrganizationCategoryId(UNASSIGNED_ORGANIZATION_CATEGORY_ID);
+    setActiveOrganizationCategoryId(organizationCategories[0]?.id ?? "");
   }, [activeOrganizationCategoryId, organizationCategories]);
 
   useEffect(() => {
@@ -114,7 +121,7 @@ export function DataVaultScreen() {
         .map((result) => result.value);
 
       if (files.length > 0) {
-        if (commands.addSourceFiles(files, activeOrganizationCategoryId)) {
+        if (commands.addSourceFiles(files, selectedOrganizationCategoryId)) {
           input.value = "";
           setFileFeedback("");
         } else {
@@ -139,7 +146,7 @@ export function DataVaultScreen() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-950">파일 추가</h2>
-            <p className="mt-1 text-sm text-slate-600">현재 선택 조직: {organizationCategories.find((category) => category.id === activeOrganizationCategoryId)?.name ?? "미지정"}</p>
+            <p className="mt-1 text-sm text-slate-600">현재 선택 조직: {organizationCategories.find((category) => category.id === selectedOrganizationCategoryId)?.name ?? "미지정"}</p>
           </div>
           {canManageFiles && (
             <div className="flex flex-wrap gap-2">
@@ -171,7 +178,7 @@ export function DataVaultScreen() {
             return (
               <Button
                 key={category.id}
-                variant={activeOrganizationCategoryId === category.id ? "primary" : "secondary"}
+                variant={selectedOrganizationCategoryId === category.id ? "primary" : "secondary"}
                 onClick={() => setActiveOrganizationCategoryId(category.id)}
               >
                 {category.name} · {count}
