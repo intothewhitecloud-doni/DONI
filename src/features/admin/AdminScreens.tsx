@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
@@ -101,8 +101,7 @@ export function CompanyManagementScreen() {
     <div className="space-y-8">
       <SectionTitle
         eyebrow="기업 관리"
-        title="기업 정보, 사용자, 조직 카테고리"
-        description="조직은 권한이 아니라 분류/표시용 카테고리입니다. 기업 관리자는 이 화면을 조회만 할 수 있습니다."
+        title="기업 정보, 사용자, 조직"
       />
 
       <Card className="space-y-5">
@@ -110,7 +109,6 @@ export function CompanyManagementScreen() {
           <div className="min-w-0 space-y-2">
             <p className="text-caption text-muted">기업 정보</p>
             <h2 className="truncate text-title-lg text-ink">{state.company.name}</h2>
-            <p className="text-body-sm text-muted">기업명은 승인된 콘솔 기준 정보로 유지됩니다.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button variant="secondary" onClick={copyCompanyCode}>{codeCopied ? "복사됨" : "코드 복사"}</Button>
@@ -130,7 +128,7 @@ export function CompanyManagementScreen() {
           <SectionTitle
             eyebrow="사용자 관리"
             title="기업 사용자"
-            description="계정 삭제는 이 기업 콘솔의 사용자 계정 자체를 제거합니다. 조직 카테고리는 헤더의 관리 메뉴에서 조정합니다."
+            variant="section"
           />
           <div className="flex flex-wrap items-center gap-2">
             {statusFilters.map((filter) => (
@@ -142,61 +140,76 @@ export function CompanyManagementScreen() {
                 {filter.label}
               </Button>
             ))}
-            {canManage && (
-              <div className="relative">
-                <Button variant={categoryMenuOpen ? "primary" : "secondary"} onClick={() => setCategoryMenuOpen((open) => !open)}>
-                  조직 관리
-                </Button>
-                {categoryMenuOpen && (
-                  <OrganizationCategoryMenu
-                    categories={organizationCategories}
-                    editingCategoryId={editingCategoryId}
-                    editingCategoryName={editingCategoryName}
-                    newCategoryName={newCategoryName}
-                    onAdd={addCategory}
-                    onCancelEdit={cancelCategoryEdit}
-                    onDelete={deleteOrganizationCategory}
-                    onEditNameChange={setEditingCategoryName}
-                    onNewNameChange={setNewCategoryName}
-                    onStartEdit={startCategoryEdit}
-                    onSubmitEdit={submitCategoryEdit}
-                  />
-                )}
-              </div>
-            )}
           </div>
         </div>
-        <div className="overflow-x-auto rounded-lg border border-hairline">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="bg-surface-soft text-caption text-muted">
-              <tr>
-                <th className="px-4 py-3">사용자</th>
-                <th className="px-4 py-3">역할</th>
-                <th className="px-4 py-3">상태</th>
-                <th className="px-4 py-3">조직</th>
-                <th className="px-4 py-3">관리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.length > 0 ? (
-                users.map((companyUser) => (
-                  <CompanyUserRow
-                    key={companyUser.id}
-                    canManage={canManage}
-                    companyUser={companyUser}
-                    isCurrentUser={companyUser.userId === state.session.currentUserId}
-                    onDelete={() => setDeleteTarget(companyUser)}
-                  />
-                ))
-              ) : (
-                <tr className="border-t border-hairline">
-                  <td className="px-4 py-8 text-center text-body-sm text-muted" colSpan={5}>
-                    {emptyUserFilterMessage(statusFilter)}
-                  </td>
+        <div className="relative">
+          <div className="overflow-x-auto rounded-lg border border-hairline">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="bg-surface-soft text-caption text-muted">
+                <tr>
+                  <th className="px-4 py-3">사용자</th>
+                  <th className="px-4 py-3">역할</th>
+                  <th className="px-4 py-3">상태</th>
+                  <th className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span>조직</span>
+                      {canManage && (
+                        <button
+                          aria-expanded={categoryMenuOpen}
+                          aria-label="조직 관리"
+                          className={`inline-flex size-8 shrink-0 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                            categoryMenuOpen
+                              ? "border-primary bg-primary text-white"
+                              : "border-hairline-soft bg-white text-muted hover:bg-blue-50 hover:text-brand-accent"
+                          }`}
+                          title="조직 관리"
+                          type="button"
+                          onClick={() => setCategoryMenuOpen((open) => !open)}
+                        >
+                          <MenuIcon />
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-4 py-3">관리</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {users.length > 0 ? (
+                  users.map((companyUser) => (
+                    <CompanyUserRow
+                      key={companyUser.id}
+                      canManage={canManage}
+                      companyUser={companyUser}
+                      isCurrentUser={companyUser.userId === state.session.currentUserId}
+                      onDelete={() => setDeleteTarget(companyUser)}
+                    />
+                  ))
+                ) : (
+                  <tr className="border-t border-hairline">
+                    <td className="px-4 py-8 text-center text-body-sm text-muted" colSpan={5}>
+                      {emptyUserFilterMessage(statusFilter)}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canManage && categoryMenuOpen && (
+            <OrganizationCategoryMenu
+              categories={organizationCategories}
+              editingCategoryId={editingCategoryId}
+              editingCategoryName={editingCategoryName}
+              newCategoryName={newCategoryName}
+              onAdd={addCategory}
+              onCancelEdit={cancelCategoryEdit}
+              onDelete={deleteOrganizationCategory}
+              onEditNameChange={setEditingCategoryName}
+              onNewNameChange={setNewCategoryName}
+              onStartEdit={startCategoryEdit}
+              onSubmitEdit={submitCategoryEdit}
+            />
+          )}
         </div>
       </Card>
 
@@ -228,6 +241,8 @@ function CompanyUserRow({
 }) {
   const { commands, state } = usePrototype();
   const [organizationCategoryId, setOrganizationCategoryId] = useState(companyUser.organizationCategoryId);
+  const [saveFeedback, setSaveFeedback] = useState("");
+  const saveFeedbackTimeoutRef = useRef<number | undefined>(undefined);
   const category = state.organizationCategories.find((item) => item.id === companyUser.organizationCategoryId);
   const categoryOptions = organizationCategoryOptionsForSelection(
     state.organizationCategories,
@@ -237,13 +252,38 @@ function CompanyUserRow({
   const editable = canManage && !isCurrentUser && companyUser.role !== "owner" && companyUser.status === "active";
   const pendingEditable = canManage && !isCurrentUser && companyUser.status === "pending";
 
-  function save() {
-    commands.updateCompanyUser({
+  useEffect(() => {
+    setOrganizationCategoryId(companyUser.organizationCategoryId);
+  }, [companyUser.organizationCategoryId]);
+
+  useEffect(() => () => {
+    if (saveFeedbackTimeoutRef.current) {
+      window.clearTimeout(saveFeedbackTimeoutRef.current);
+    }
+  }, []);
+
+  function markSaved() {
+    setSaveFeedback("저장됨");
+    if (saveFeedbackTimeoutRef.current) {
+      window.clearTimeout(saveFeedbackTimeoutRef.current);
+    }
+    saveFeedbackTimeoutRef.current = window.setTimeout(() => setSaveFeedback(""), 1600);
+  }
+
+  function updateOrganization(nextOrganizationCategoryId: string) {
+    setOrganizationCategoryId(nextOrganizationCategoryId);
+    const saved = commands.updateCompanyUser({
       companyUserId: companyUser.id,
       role: companyUser.role,
       title: companyUser.title,
-      organizationCategoryId
+      organizationCategoryId: nextOrganizationCategoryId
     });
+
+    if (saved) {
+      markSaved();
+    } else {
+      setOrganizationCategoryId(companyUser.organizationCategoryId);
+    }
   }
 
   return (
@@ -258,18 +298,28 @@ function CompanyUserRow({
       <td className="px-4 py-3"><Badge tone={companyUser.status === "active" ? "success" : companyUser.status === "pending" ? "warning" : "neutral"}>{companyUserStatusLabel(companyUser.status)}</Badge></td>
       <td className="px-4 py-3">
         {editable ? (
-          <select className="rounded-md border border-slate-200 px-2 py-1" value={organizationCategoryId} onChange={(event) => setOrganizationCategoryId(event.target.value)}>
-            {categoryOptions.map((category) => (
-              <option key={category.id} value={category.id}>{category.name}</option>
-            ))}
-          </select>
+          <div className="flex min-w-[13rem] items-center gap-2">
+            <select
+              className="h-9 min-w-0 max-w-[10rem] rounded-md border border-hairline bg-white px-2 text-body-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              value={organizationCategoryId}
+              onChange={(event) => updateOrganization(event.target.value)}
+            >
+              {categoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+            {saveFeedback ? (
+              <span aria-live="polite" className="w-12 shrink-0 text-caption font-bold text-success" role="status">{saveFeedback}</span>
+            ) : (
+              <span aria-hidden="true" className="w-12 shrink-0" />
+            )}
+          </div>
         ) : (
           <Badge tone="neutral">{category?.name ?? "미지정"}</Badge>
         )}
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-nowrap gap-2">
-          {editable && <Button onClick={save}>저장</Button>}
           {pendingEditable && <Button onClick={() => commands.approveCompanyUser(companyUser.id)}>승인</Button>}
           {pendingEditable && <Button variant="secondary" onClick={() => commands.rejectCompanyUser(companyUser.id)}>반려</Button>}
           {canManage && !isCurrentUser && companyUser.role !== "owner" && <Button variant="danger" onClick={onDelete}>삭제</Button>}
@@ -306,11 +356,14 @@ function OrganizationCategoryMenu({
   onSubmitEdit: () => void;
 }) {
   return (
-    <div className="absolute right-0 top-12 z-30 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-hairline bg-white p-3 text-left shadow-[0_18px_48px_rgba(15,23,42,0.16)]">
+    <div
+      aria-label="조직 관리"
+      className="absolute right-3 top-12 z-30 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-hairline bg-white p-3 text-left shadow-[0_18px_48px_rgba(15,23,42,0.16)]"
+      role="dialog"
+    >
       <div className="flex items-center justify-between gap-3 border-b border-hairline-soft pb-3">
         <div className="min-w-0">
-          <p className="text-title-sm text-ink">조직 카테고리</p>
-          <p className="mt-1 text-caption text-muted">사용자 표의 조직 속성을 관리합니다</p>
+          <p className="text-title-sm text-ink">조직 관리</p>
         </div>
         <Badge tone="neutral">{categories.length}개</Badge>
       </div>
@@ -330,7 +383,7 @@ function OrganizationCategoryMenu({
       </div>
       <div className="mt-3 max-h-72 overflow-y-auto rounded-md border border-hairline-soft">
         {categories.length === 0 ? (
-          <div className="p-3 text-body-sm text-muted">등록된 조직 카테고리가 없습니다.</div>
+          <div className="p-3 text-body-sm text-muted">등록된 조직이 없습니다.</div>
         ) : (
           categories.map((category) => {
             const isUnassigned = category.id === UNASSIGNED_ORGANIZATION_CATEGORY_ID;
@@ -377,6 +430,14 @@ function OrganizationCategoryMenu({
         )}
       </div>
     </div>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 7h14M5 12h14M5 17h14" />
+    </svg>
   );
 }
 

@@ -169,7 +169,7 @@ export function addOrganizationCategory(state: PrototypeState, dispatch: Dispatc
     type: "ADD_ORGANIZATION_CATEGORY",
     name: normalizedName,
     notificationId: `notice-organization-category-add-${Date.now()}`,
-    ...commandMeta(state, "조직 추가", "organization_category", state.company.id, "조직 카테고리를 추가했습니다.")
+    ...commandMeta(state, "조직 추가", "organization_category", state.company.id, "조직을 추가했습니다.")
   });
   return true;
 }
@@ -203,7 +203,7 @@ export function updateOrganizationCategory(
     organizationCategoryId,
     name,
     notificationId: `notice-organization-category-update-${Date.now()}`,
-    ...commandMeta(state, "조직 수정", "organization_category", organizationCategoryId, "조직 카테고리를 수정했습니다.")
+    ...commandMeta(state, "조직 수정", "organization_category", organizationCategoryId, "조직을 수정했습니다.")
   });
   return true;
 }
@@ -221,7 +221,7 @@ export function deleteOrganizationCategory(
     type: "DELETE_ORGANIZATION_CATEGORY",
     organizationCategoryId,
     notificationId: `notice-organization-category-delete-${Date.now()}`,
-    ...commandMeta(state, "조직 삭제", "organization_category", organizationCategoryId, "조직 카테고리를 삭제했습니다.")
+    ...commandMeta(state, "조직 삭제", "organization_category", organizationCategoryId, "조직을 삭제했습니다.")
   });
   return true;
 }
