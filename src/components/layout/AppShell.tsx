@@ -9,6 +9,7 @@ import { DecisionConfirmScreen, ProposalVoteScreen } from "../../features/decisi
 import { InsightDetailScreen, InsightsScreen, ProposalCreateScreen } from "../../features/insights/InsightScreens";
 import { AnalysisScreen, HomeScreen, LoginScreen, ReviewScreen, SignupScreen } from "../../features/onboarding/OnboardingScreens";
 import { OutcomeScreen, VerificationDetailScreen, VerificationListScreen } from "../../features/verification/VerificationScreens";
+import { AiChatDock } from "../../features/ai-chat/AiChatPanel";
 import type { Screen } from "../../lib/domain/types";
 import { accessibleScreenForSession, activeSidebarScreen, sidebarItemsForRole } from "../../lib/prototype/navigation";
 import { roleLabel } from "../../lib/prototype/permissions";
@@ -45,6 +46,7 @@ export function AppShell({ screen }: { screen: Screen }) {
 
   return (
     <div className="min-h-screen bg-canvas text-body">
+      <AiChatDock />
       {mobileOpen && (
         <button
           aria-label="메뉴 닫기"
