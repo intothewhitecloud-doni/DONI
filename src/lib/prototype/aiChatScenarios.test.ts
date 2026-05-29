@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { initialPrototypeState } from "../domain/mock-data";
-import { buildAiChatResponse, findAiChatScenario } from "../../features/ai-chat/aiChatScenarios";
+import { aiChatScenarios, buildAiChatResponse, findAiChatScenario } from "../../features/ai-chat/aiChatScenarios";
+
+test("supplier A impact is the first recommended ai chat question", () => {
+  assert.equal(aiChatScenarios[0]?.id, "supplier-a-impact");
+  assert.equal(aiChatScenarios[0]?.prompt, "공급업체 A사가 어떤 영향을 줘?");
+});
 
 test("ai chat scenario answers include fixture citations and navigation actions", () => {
   const response = buildAiChatResponse({
@@ -21,6 +26,20 @@ test("ai chat scenario matching handles typed aliases", () => {
   const scenario = findAiChatScenario("공급업체 A 영향 알려줘");
 
   assert.equal(scenario?.id, "supplier-a-impact");
+});
+
+test("supplier A impact answer follows the requested operator-facing copy", () => {
+  const response = buildAiChatResponse({
+    attachments: [],
+    question: "공급업체 A사가 어떤 영향을 줘?",
+    state: initialPrototypeState
+  });
+
+  assert.equal(response.scenarioId, "supplier-a-impact");
+  assert.match(response.content, /핵심 공급 리스크/);
+  assert.match(response.content, /납품 준수율은 70~72%/);
+  assert.match(response.content, /추천 다음 액션/);
+  assert.match(response.content, /4\. 개선이 없을 경우 공급 조건 재협의 또는 대체 공급사 병행 검토/);
 });
 
 test("ai chat source scenario exposes source file attachment ids without file payloads", () => {

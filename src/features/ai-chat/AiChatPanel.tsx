@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
-import type { EvidenceReference } from "../../lib/domain/types";
-import type { AiChatAction, AiChatMessage } from "./aiChatTypes";
-import { aiChatScenarios, evidenceTitle } from "./aiChatScenarios";
+import type { Role } from "../../lib/domain/types";
+import type { AiChatMessage } from "./aiChatTypes";
+import { aiChatScenarios } from "./aiChatScenarios";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { useAiChat } from "./AiChatProvider";
 
@@ -13,11 +13,11 @@ const CHAT_PANEL_TRANSITION_MS = 360;
 
 export function AiChatDock() {
   const chat = useAiChat();
-  const { commands, state } = usePrototype();
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [panelMounted, setPanelMounted] = useState(chat.isOpen);
   const [panelVisible, setPanelVisible] = useState(chat.isOpen);
+  const [submittedFeedbackIds, setSubmittedFeedbackIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (!chat.isOpen) {
@@ -39,15 +39,21 @@ export function AiChatDock() {
     return () => window.clearTimeout(timeout);
   }, [chat.isOpen]);
 
-  function handleAction(action: AiChatAction) {
-    if (action.target) {
-      commands.navigateToTarget(action.target);
-      return;
-    }
+  function handleClearMessages() {
+    setSubmittedFeedbackIds(new Set());
+    chat.clearMessages();
+  }
 
-    if (action.screen) {
-      commands.navigate(action.screen);
-    }
+  function handleFeedback(messageId: string) {
+    setSubmittedFeedbackIds((current) => {
+      if (current.has(messageId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
+    });
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -105,7 +111,7 @@ export function AiChatDock() {
                 <p className="mt-1 truncate text-caption text-muted">지표, 인사이트, 연결 근거를 확인합니다</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button className="h-9 px-3" disabled={chat.messages.length === 0} variant="ghost" onClick={chat.clearMessages}>
+                <Button className="h-9 px-3" disabled={chat.messages.length === 0} variant="ghost" onClick={handleClearMessages}>
                   지우기
                 </Button>
                 <Button className="h-9 px-3" variant="secondary" onClick={chat.closeChat}>
@@ -120,14 +126,20 @@ export function AiChatDock() {
               ) : (
                 <div className="space-y-4">
                   {chat.messages.map((message) => (
-                    <ChatMessageBubble key={message.id} actionHandler={handleAction} message={message} />
+                    <ChatMessageBubble
+                      key={message.id}
+                      feedbackSubmitted={submittedFeedbackIds.has(message.id)}
+                      message={message}
+                      onFeedback={handleFeedback}
+                    />
                   ))}
                   {chat.pendingAssistant && (
                     <ChatMessageBubble
                       key={chat.pendingAssistant.id}
-                      actionHandler={handleAction}
                       isPendingAssistant
                       message={chat.pendingAssistant}
+                      feedbackSubmitted={submittedFeedbackIds.has(chat.pendingAssistant.id)}
+                      onFeedback={handleFeedback}
                     />
                   )}
                 </div>
@@ -214,19 +226,20 @@ function EmptyChatState() {
 }
 
 function ChatMessageBubble({
-  actionHandler,
+  feedbackSubmitted,
   isPendingAssistant = false,
-  message
+  message,
+  onFeedback
 }: {
-  actionHandler: (action: AiChatAction) => void;
+  feedbackSubmitted: boolean;
   isPendingAssistant?: boolean;
   message: AiChatMessage;
+  onFeedback: (messageId: string) => void;
 }) {
   const { state } = usePrototype();
   const isUser = message.role === "user";
-  const citations = (message.citationEvidenceIds ?? [])
-    .map((evidenceId) => state.evidence.find((item) => item.id === evidenceId))
-    .filter((item): item is EvidenceReference => Boolean(item));
+  const feedbackLabel = feedbackActionLabel(state.session.role);
+  const feedbackCompleteLabel = feedbackSubmitted ? feedbackStatusLabel(state.session.role) : "";
   const attachedFiles = message.attachments ?? [];
 
   return (
@@ -258,30 +271,21 @@ function ChatMessageBubble({
             ))}
           </div>
         )}
-        {!isUser && !isPendingAssistant && citations.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs font-bold text-muted">출처</p>
-            {citations.map((evidence) => (
-              <div key={evidence.id} className="rounded-md border border-hairline-soft bg-surface-soft p-2">
-                <p className="text-xs font-bold text-ink">{evidenceTitle(evidence)}</p>
-                <p className="mt-1 text-xs leading-5 text-muted">{formatEvidenceMeta(evidence)}</p>
-                <p className="mt-1 text-xs leading-5 text-body">{evidence.excerpt}</p>
-              </div>
-            ))}
-          </div>
-        )}
-        {!isUser && !isPendingAssistant && message.actionItems && message.actionItems.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {message.actionItems.map((action) => (
-              <Button
-                key={`${message.id}-${action.label}`}
-                className="h-9 px-3"
-                variant="secondary"
-                onClick={() => actionHandler(action)}
-              >
-                {action.label}
-              </Button>
-            ))}
+        {!isUser && !isPendingAssistant && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              className="h-9 px-3"
+              disabled={feedbackSubmitted}
+              variant="secondary"
+              onClick={() => onFeedback(message.id)}
+            >
+              {feedbackLabel}
+            </Button>
+            {feedbackCompleteLabel && (
+              <span aria-live="polite" className="text-xs font-semibold text-success" role="status">
+                {feedbackCompleteLabel}
+              </span>
+            )}
           </div>
         )}
         <p className={`mt-2 text-[11px] ${isUser ? "text-white/60" : "text-muted-soft"}`}>{formatMessageTime(message.createdAt)}</p>
@@ -311,13 +315,6 @@ function PlusIcon() {
   );
 }
 
-function formatEvidenceMeta(evidence: EvidenceReference): string {
-  const rows = evidence.rowNumbers && evidence.rowNumbers.length > 0 ? `${evidence.rowNumbers.join(", ")}행` : undefined;
-  const columns = evidence.columns && evidence.columns.length > 0 ? evidence.columns.join(", ") : undefined;
-  const confidence = typeof evidence.confidence === "number" ? `신뢰도 ${Math.round(evidence.confidence * 100)}%` : undefined;
-  return [evidence.sourceName ?? evidence.location, evidence.sheetName, rows, columns, confidence].filter(Boolean).join(" · ");
-}
-
 function formatMessageTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -325,4 +322,12 @@ function formatMessageTime(value: string): string {
   }
 
   return date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function feedbackActionLabel(role: Role): string {
+  return role === "owner" ? "공유하기" : "보고하기";
+}
+
+function feedbackStatusLabel(role: Role): string {
+  return role === "owner" ? "공유 요청이 접수되었습니다." : "보고 요청이 접수되었습니다.";
 }

@@ -1,4 +1,4 @@
-import type { EvidenceReference, MetricDefinition, MetricValue, PrototypeState, SourceFile } from "../../lib/domain/types";
+import type { MetricDefinition, MetricValue, PrototypeState, SourceFile } from "../../lib/domain/types";
 import type { AiChatAction, AiChatAttachment, AiChatScenarioResponse } from "./aiChatTypes";
 
 type AiChatScenarioContext = {
@@ -18,6 +18,30 @@ type AiChatScenario = {
 // Prototype Q&A behavior is intentionally centralized here so future question,
 // answer, source, and action changes do not require editing the chat panel UI.
 export const aiChatScenarios: AiChatScenario[] = [
+  {
+    id: "supplier-a-impact",
+    prompt: "공급업체 A사가 어떤 영향을 줘?",
+    shortLabel: "공급업체 A사",
+    aliases: ["공급업체 a", "공급업체 A", "공급사", "납품", "출고 지연", "납품준수율"],
+    buildResponse: () => ({
+      scenarioId: "supplier-a-impact",
+      content: [
+        "공급업체 A사는 현재 P-42 제품의 출고 지연과 생산 병목에 직접적인 영향을 주는 핵심 공급 리스크로 판단됩니다.",
+        "최근 데이터 기준으로 A사와 연결된 P-42의 납품 준수율은 70~72% 수준으로 낮고, 평균 주문 처리 시간은 36.8시간까지 증가했습니다.",
+        "이 영향은 출고 일정 지연, 긴급 대응 비용 증가, 고객 납기 불안정, 내부 운영관리 부담 증가로 이어질 가능성이 있습니다.",
+        "따라서 A사는 현재 '관리 필요 공급업체'로 분류하는 것이 적절합니다.",
+        [
+          "추천 다음 액션",
+          "",
+          "1. A사 납품 조건 재확인",
+          "2. P-42 대체 공급 가능성 검토",
+          "3. 2주간 납품 준수율과 주문 처리 시간 모니터링",
+          "4. 개선이 없을 경우 공급 조건 재협의 또는 대체 공급사 병행 검토"
+        ].join("\n")
+      ].join("\n\n"),
+      citationEvidenceIds: ["evidence-supplier", "evidence-orders-delay", "evidence-margin"]
+    })
+  },
   {
     id: "highest-risk-signal",
     prompt: "현재 가장 위험한 운영 신호는?",
@@ -91,32 +115,6 @@ export const aiChatScenarios: AiChatScenario[] = [
           insightAction("고객A 인사이트 보기", "insight-customer-claims"),
           metricAction("클레임률 보기", "metric-claim-rate"),
           objectAction("고객A 관리 대상 보기", "entity-customer-core")
-        ]
-      };
-    }
-  },
-  {
-    id: "supplier-a-impact",
-    prompt: "공급업체 A사가 어떤 영향을 줘?",
-    shortLabel: "공급업체 A사",
-    aliases: ["공급업체 a", "공급업체 A", "공급사", "납품", "출고 지연", "납품준수율"],
-    buildResponse: ({ state }) => {
-      const relation = state.relations.find((item) => item.id === "relation-supplier-product");
-      return {
-        scenarioId: "supplier-a-impact",
-        content: [
-          "공급업체 A사는 P-42 지연과 마진 압박을 잇는 핵심 연결점입니다.",
-          "근거 데이터에서는 P-42 납품준수율이 70~72%로 낮고, 주문 처리 시간이 36.8시간으로 상승했습니다.",
-          relation
-            ? `${relation.description} 영향은 '${relation.impact}'로 정리되어 있습니다.`
-            : "공급 지연은 상품군 비용과 고객 응대 부담을 동시에 밀어 올리는 흐름으로 해석됩니다.",
-          "따라서 공급 조건 재협의와 대체 공급 가능성 확인을 같은 액션 묶음으로 다루는 것이 적절합니다."
-        ].join("\n\n"),
-        citationEvidenceIds: ["evidence-supplier", "evidence-orders-delay", "evidence-margin"],
-        actionItems: [
-          insightAction("공급 지연 인사이트 보기", "insight-supplier-delay"),
-          objectAction("공급업체 A사 보기", "entity-supplier-a"),
-          metricAction("주문 처리 시간 보기", "metric-delay-time")
         ]
       };
     }
@@ -309,8 +307,4 @@ function numbered(items: string[]): string {
 
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, "").replace(/[?.!,]/g, "");
-}
-
-export function evidenceTitle(evidence?: EvidenceReference): string {
-  return evidence?.label ?? "근거";
 }
