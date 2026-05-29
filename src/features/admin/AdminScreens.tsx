@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card, SectionTitle } from "../../components/ui/Card";
@@ -22,6 +22,9 @@ const statusFilters: Array<{ label: string; value: CompanyUserStatus | "all" }> 
   { label: "승인 완료", value: "active" },
   { label: "반려", value: "rejected" }
 ];
+const ORGANIZATION_MENU_GAP = 8;
+const ORGANIZATION_MENU_MAX_WIDTH = 384;
+const VIEWPORT_MENU_PADDING = 16;
 
 function emptyUserFilterMessage(statusFilter: CompanyUserStatus | "all"): string {
   const label = statusFilters.find((filter) => filter.value === statusFilter)?.label ?? "선택한 상태";
@@ -38,7 +41,9 @@ export function CompanyManagementScreen() {
   const [editingCategoryName, setEditingCategoryName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | undefined>();
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [categoryMenuPosition, setCategoryMenuPosition] = useState<{ left: number; top: number }>();
   const [codeCopied, setCodeCopied] = useState(false);
+  const categoryMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   const users = useMemo(
     () => state.companyUsers.filter((companyUser) => statusFilter === "all" || companyUser.status === statusFilter),
@@ -79,6 +84,43 @@ export function CompanyManagementScreen() {
     if (commands.deleteOrganizationCategory(categoryId)) {
       cancelCategoryEdit();
     }
+  }
+
+  const updateCategoryMenuPosition = useCallback(() => {
+    const button = categoryMenuButtonRef.current;
+    if (!button || typeof window === "undefined") {
+      return;
+    }
+
+    const rect = button.getBoundingClientRect();
+    const menuWidth = Math.min(ORGANIZATION_MENU_MAX_WIDTH, window.innerWidth - VIEWPORT_MENU_PADDING * 2);
+    const maxLeft = window.innerWidth - menuWidth - VIEWPORT_MENU_PADDING;
+    const left = Math.max(VIEWPORT_MENU_PADDING, Math.min(rect.left, maxLeft));
+    setCategoryMenuPosition({
+      left,
+      top: rect.bottom + ORGANIZATION_MENU_GAP
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!categoryMenuOpen) {
+      return;
+    }
+
+    updateCategoryMenuPosition();
+    window.addEventListener("resize", updateCategoryMenuPosition);
+    window.addEventListener("scroll", updateCategoryMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateCategoryMenuPosition);
+      window.removeEventListener("scroll", updateCategoryMenuPosition, true);
+    };
+  }, [categoryMenuOpen, updateCategoryMenuPosition]);
+
+  function toggleCategoryMenu() {
+    if (!categoryMenuOpen) {
+      updateCategoryMenuPosition();
+    }
+    setCategoryMenuOpen((open) => !open);
   }
 
   function confirmDeleteAccount() {
@@ -155,6 +197,7 @@ export function CompanyManagementScreen() {
                       <span>조직</span>
                       {canManage && (
                         <button
+                          ref={categoryMenuButtonRef}
                           aria-expanded={categoryMenuOpen}
                           aria-label="조직 관리"
                           className={`inline-flex size-8 shrink-0 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
@@ -164,7 +207,7 @@ export function CompanyManagementScreen() {
                           }`}
                           title="조직 관리"
                           type="button"
-                          onClick={() => setCategoryMenuOpen((open) => !open)}
+                          onClick={toggleCategoryMenu}
                         >
                           <MenuIcon />
                         </button>
@@ -195,7 +238,7 @@ export function CompanyManagementScreen() {
               </tbody>
             </table>
           </div>
-          {canManage && categoryMenuOpen && (
+          {canManage && categoryMenuOpen && categoryMenuPosition && (
             <OrganizationCategoryMenu
               categories={organizationCategories}
               editingCategoryId={editingCategoryId}
@@ -208,6 +251,10 @@ export function CompanyManagementScreen() {
               onNewNameChange={setNewCategoryName}
               onStartEdit={startCategoryEdit}
               onSubmitEdit={submitCategoryEdit}
+              style={{
+                left: categoryMenuPosition.left,
+                top: categoryMenuPosition.top
+              }}
             />
           )}
         </div>
@@ -341,7 +388,8 @@ function OrganizationCategoryMenu({
   onEditNameChange,
   onNewNameChange,
   onStartEdit,
-  onSubmitEdit
+  onSubmitEdit,
+  style
 }: {
   categories: Array<{ id: string; name: string }>;
   editingCategoryId: string;
@@ -354,12 +402,14 @@ function OrganizationCategoryMenu({
   onNewNameChange: (name: string) => void;
   onStartEdit: (categoryId: string, name: string) => void;
   onSubmitEdit: () => void;
+  style: CSSProperties;
 }) {
   return (
     <div
       aria-label="조직 관리"
-      className="absolute right-3 top-12 z-30 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-hairline bg-white p-3 text-left shadow-[0_18px_48px_rgba(15,23,42,0.16)]"
+      className="fixed z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-hairline bg-white p-3 text-left shadow-[0_18px_48px_rgba(15,23,42,0.16)]"
       role="dialog"
+      style={style}
     >
       <div className="flex items-center justify-between gap-3 border-b border-hairline-soft pb-3">
         <div className="min-w-0">
