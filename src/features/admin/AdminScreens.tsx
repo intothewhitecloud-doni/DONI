@@ -407,7 +407,7 @@ function OrganizationCategoryMenu({
   return (
     <div
       aria-label="조직 관리"
-      className="fixed z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-hairline bg-white p-3 text-left shadow-[0_18px_48px_rgba(15,23,42,0.16)]"
+      className="fixed z-[45] w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-hairline bg-white p-3 text-left shadow-[0_18px_48px_rgba(15,23,42,0.16)]"
       role="dialog"
       style={style}
     >
