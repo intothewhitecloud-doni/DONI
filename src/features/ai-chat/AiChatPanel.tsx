@@ -337,9 +337,9 @@ function ChatVisualBlock({ block }: { block: AiChatVisualBlock }) {
       </div>
       <div className="mt-3 divide-y divide-hairline-soft">
         {block.rows.map((row) => (
-          <div className="grid min-w-0 grid-cols-[80px_minmax(0,1fr)] gap-2 py-2 first:pt-0 last:pb-0" key={`${block.id}-${row.label}-${row.value}`}>
-            <span className={`flex min-h-7 items-center justify-center rounded-full border px-2 py-1 text-center text-[11px] font-bold leading-4 ${visualToneClass(row.tone)}`}>
-              {row.label}
+          <div className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] gap-2 py-2 first:pt-0 last:pb-0" key={`${block.id}-${row.label}-${row.value}`}>
+            <span className={`flex min-h-7 items-center justify-center overflow-hidden rounded-full border px-2 py-1 text-center text-[11px] font-bold leading-4 ${visualToneClass(row.tone)}`}>
+              <span className="max-w-full truncate whitespace-nowrap">{row.label}</span>
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-ink" title={row.value}>{row.value}</p>
