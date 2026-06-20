@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
+import { MetricChart } from "../../components/ui/MetricChart";
 import type { Role } from "../../lib/domain/types";
-import type { AiChatMessage } from "./aiChatTypes";
+import type { AiChatMessage, AiChatVisualBlock, AiChatVisualTone } from "./aiChatTypes";
 import { aiChatScenarios } from "./aiChatScenarios";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { useAiChat } from "./AiChatProvider";
@@ -241,6 +242,7 @@ function ChatMessageBubble({
   const feedbackLabel = feedbackActionLabel(state.session.role);
   const feedbackCompleteLabel = feedbackSubmitted ? feedbackStatusLabel(state.session.role) : "";
   const attachedFiles = message.attachments ?? [];
+  const visualBlocks = !isUser && !isPendingAssistant ? message.visualBlocks ?? [] : [];
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -259,6 +261,7 @@ function ChatMessageBubble({
             ))}
           </div>
         )}
+        {visualBlocks.length > 0 && <ChatVisualBlocks blocks={visualBlocks} />}
         {attachedFiles.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {attachedFiles.map((file) => (
@@ -294,6 +297,61 @@ function ChatMessageBubble({
   );
 }
 
+function ChatVisualBlocks({ blocks }: { blocks: AiChatVisualBlock[] }) {
+  return (
+    <div className="mt-3 space-y-3">
+      {blocks.map((block) => <ChatVisualBlock block={block} key={block.id} />)}
+    </div>
+  );
+}
+
+function ChatVisualBlock({ block }: { block: AiChatVisualBlock }) {
+  if (block.type === "metric_chart") {
+    return (
+      <section aria-label={block.title} className="min-w-0 overflow-hidden rounded-md border border-hairline-soft bg-surface-soft px-3 py-3">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-bold text-ink">{block.title}</h3>
+            {block.description && <p className="mt-1 text-xs leading-5 text-muted">{block.description}</p>}
+          </div>
+          <Badge className="mt-0.5" tone={metricStatusTone(block.status)}>
+            {metricStatusLabel(block.status)}
+          </Badge>
+        </div>
+        {block.points.length > 0 ? (
+          <MetricChart compact chartType={block.chartType} id={block.id} points={block.points} status={block.status} unit={block.unit} />
+        ) : (
+          <p className="mt-3 rounded-md border border-hairline-soft bg-white px-3 py-2 text-xs font-semibold text-muted">
+            표시할 지표 데이터가 없습니다.
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label={block.title} className="min-w-0 overflow-hidden rounded-md border border-hairline-soft bg-surface-soft px-3 py-3">
+      <div className="min-w-0">
+        <h3 className="truncate text-sm font-bold text-ink">{block.title}</h3>
+        {block.description && <p className="mt-1 text-xs leading-5 text-muted">{block.description}</p>}
+      </div>
+      <div className="mt-3 divide-y divide-hairline-soft">
+        {block.rows.map((row) => (
+          <div className="grid min-w-0 grid-cols-[80px_minmax(0,1fr)] gap-2 py-2 first:pt-0 last:pb-0" key={`${block.id}-${row.label}-${row.value}`}>
+            <span className={`flex min-h-7 items-center justify-center rounded-full border px-2 py-1 text-center text-[11px] font-bold leading-4 ${visualToneClass(row.tone)}`}>
+              {row.label}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-ink" title={row.value}>{row.value}</p>
+              {row.detail && <p className="mt-0.5 text-xs leading-5 text-muted">{row.detail}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ThinkingIndicator() {
   return (
     <div className="flex items-center gap-2 py-1 text-body-sm text-muted">
@@ -313,6 +371,42 @@ function PlusIcon() {
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
     </svg>
   );
+}
+
+function metricStatusTone(status: "normal" | "warning" | "critical"): "success" | "warning" | "danger" {
+  if (status === "critical") {
+    return "danger";
+  }
+
+  if (status === "warning") {
+    return "warning";
+  }
+
+  return "success";
+}
+
+function metricStatusLabel(status: "normal" | "warning" | "critical"): string {
+  if (status === "critical") {
+    return "위험";
+  }
+
+  if (status === "warning") {
+    return "주의";
+  }
+
+  return "정상";
+}
+
+function visualToneClass(tone: AiChatVisualTone = "neutral"): string {
+  const classes: Record<AiChatVisualTone, string> = {
+    danger: "border-error/40 bg-error/10 text-error",
+    info: "border-brand-accent/40 bg-brand-accent/10 text-brand-accent",
+    neutral: "border-hairline bg-white text-ink",
+    success: "border-success/40 bg-success/10 text-success",
+    warning: "border-warning/40 bg-warning/10 text-warning"
+  };
+
+  return classes[tone];
 }
 
 function formatMessageTime(value: string): string {

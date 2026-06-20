@@ -186,19 +186,32 @@ function MetricLineChart({
 }
 
 function MetricPieChart({ points, status, unit }: { points: MetricChartPoint[]; status: MetricChartStatus; unit: string }) {
-  const maxValue = maxPointValue(points);
-  const current = points.at(-1)?.value ?? 0;
-  const percent = Math.min(100, Math.max(0, (current / maxValue) * 100));
+  const totalValue = Math.max(1, points.reduce((sum, point) => sum + Math.max(0, point.value), 0));
+  const primaryValue = Math.max(0, points[0]?.value ?? 0);
+  const percent = Math.min(100, Math.max(0, (primaryValue / totalValue) * 100));
   const colors = chartColors[status];
 
   return (
     <div className="mt-5 grid min-w-0 grid-cols-[96px_minmax(0,1fr)] items-center gap-4">
       <div
-        className="h-24 w-24 rounded-full border border-slate-200"
+        className="relative h-24 w-24 rounded-full border border-slate-200"
         style={{ background: `conic-gradient(${colors.stroke} ${percent * 3.6}deg, #e2e8f0 0deg)` }}
-      />
+      >
+        <div className="absolute inset-[22px] flex items-center justify-center rounded-full bg-white text-sm font-bold text-ink">
+          {Math.round(percent)}%
+        </div>
+      </div>
       <div className="min-w-0 space-y-2 text-sm text-muted">
-        {points.map((point) => <p key={point.label} className="truncate" title={`${point.label}: ${point.value}${unit}`}>{point.label}: {point.value}{unit}</p>)}
+        {points.map((point, index) => (
+          <p key={point.label} className="flex min-w-0 items-center gap-2 truncate" title={`${point.label}: ${point.value}${unit}`}>
+            <span
+              aria-hidden="true"
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: index === 0 ? colors.stroke : "#cbd5e1" }}
+            />
+            <span className="truncate">{point.label}: {point.value}{unit}</span>
+          </p>
+        ))}
       </div>
     </div>
   );

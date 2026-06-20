@@ -1,5 +1,5 @@
 import type { MetricDefinition, MetricValue, PrototypeState, SourceFile } from "../../lib/domain/types";
-import type { AiChatAction, AiChatAttachment, AiChatScenarioResponse } from "./aiChatTypes";
+import type { AiChatAction, AiChatAttachment, AiChatComparisonVisualRow, AiChatScenarioResponse, AiChatVisualBlock } from "./aiChatTypes";
 
 type AiChatScenarioContext = {
   attachments: AiChatAttachment[];
@@ -23,24 +23,52 @@ export const aiChatScenarios: AiChatScenario[] = [
     prompt: "공급업체 A사가 어떤 영향을 줘?",
     shortLabel: "공급업체 A사",
     aliases: ["공급업체 a", "공급업체 A", "공급사", "납품", "출고 지연", "납품준수율"],
-    buildResponse: () => ({
-      scenarioId: "supplier-a-impact",
-      content: [
-        "공급업체 A사는 현재 P-42 제품의 출고 지연과 생산 병목에 직접적인 영향을 주는 핵심 공급 리스크로 판단됩니다.",
-        "최근 데이터 기준으로 A사와 연결된 P-42의 납품 준수율은 70~72% 수준으로 낮고, 평균 주문 처리 시간은 36.8시간까지 증가했습니다.",
-        "이 영향은 출고 일정 지연, 긴급 대응 비용 증가, 고객 납기 불안정, 내부 운영관리 부담 증가로 이어질 가능성이 있습니다.",
-        "따라서 A사는 현재 '관리 필요 공급업체'로 분류하는 것이 적절합니다.",
-        [
-          "추천 다음 액션",
-          "",
-          "1. A사 납품 조건 재확인",
-          "2. P-42 대체 공급 가능성 검토",
-          "3. 2주간 납품 준수율과 주문 처리 시간 모니터링",
-          "4. 개선이 없을 경우 공급 조건 재협의 또는 대체 공급사 병행 검토"
-        ].join("\n")
-      ].join("\n\n"),
-      citationEvidenceIds: ["evidence-supplier", "evidence-orders-delay", "evidence-margin"]
-    })
+    buildResponse: ({ state }) => {
+      const delay = metricValue(state, "metric-delay-time");
+      return {
+        scenarioId: "supplier-a-impact",
+        content: [
+          "공급업체 A사는 현재 P-42 제품의 출고 지연과 생산 병목에 직접적인 영향을 주는 핵심 공급 리스크로 판단됩니다.",
+          "최근 데이터 기준으로 A사와 연결된 P-42의 납품 준수율은 70~72% 수준으로 낮고, 평균 주문 처리 시간은 36.8시간까지 증가했습니다.",
+          "이 영향은 출고 일정 지연, 긴급 대응 비용 증가, 고객 납기 불안정, 내부 운영관리 부담 증가로 이어질 가능성이 있습니다.",
+          "따라서 A사는 현재 '관리 필요 공급업체'로 분류하는 것이 적절합니다.",
+          [
+            "추천 다음 액션",
+            "",
+            "1. A사 납품 조건 재확인",
+            "2. P-42 대체 공급 가능성 검토",
+            "3. 2주간 납품 준수율과 주문 처리 시간 모니터링",
+            "4. 개선이 없을 경우 공급 조건 재협의 또는 대체 공급사 병행 검토"
+          ].join("\n")
+        ].join("\n\n"),
+        citationEvidenceIds: ["evidence-supplier", "evidence-orders-delay", "evidence-margin"],
+        visualBlocks: [
+          {
+            id: "visual-supplier-a-compliance",
+            type: "metric_chart",
+            title: "A사 납품 준수율",
+            description: "A사와 연결된 P-42 납품 준수율 72%를 준수/미준수 비율로 나눠 봅니다.",
+            chartType: "pie",
+            points: [
+              { label: "준수", value: 72 },
+              { label: "미준수", value: 28 }
+            ],
+            status: "warning",
+            unit: "%"
+          },
+          {
+            id: "visual-supplier-a-delay-time",
+            type: "metric_chart",
+            title: "평균 주문 처리 시간",
+            description: "이전 26시간에서 현재 36.8시간으로 늘어난 처리 시간 증가를 강조합니다.",
+            chartType: "bar",
+            points: previousCurrentPoints(delay, "이전", "현재"),
+            status: delay?.status ?? "warning",
+            unit: metricDefinition(state, "metric-delay-time")?.unit ?? "시간"
+          }
+        ]
+      };
+    }
   },
   {
     id: "highest-risk-signal",
@@ -64,6 +92,28 @@ export const aiChatScenarios: AiChatScenario[] = [
           insightAction("P-42 인사이트 보기", "insight-product-margin"),
           metricAction("평균 마진율 보기", "metric-margin"),
           metricAction("클레임률 보기", "metric-claim-rate")
+        ],
+        visualBlocks: [
+          comparisonVisualBlock("visual-highest-risk-priority", "위험 신호 우선순위", [
+            {
+              label: "1순위",
+              value: "P-42 마진 구조",
+              detail: metricDeltaDetail(state, "metric-margin"),
+              tone: "danger"
+            },
+            {
+              label: "2순위",
+              value: "고객A 클레임",
+              detail: metricDeltaDetail(state, "metric-claim-rate"),
+              tone: "danger"
+            },
+            {
+              label: "3순위",
+              value: "공급업체 A사 지연",
+              detail: metricDeltaDetail(state, "metric-delay-time"),
+              tone: "warning"
+            }
+          ], "지표 악화 폭과 고객 영향도를 함께 본 해석형 정렬입니다.")
         ]
       };
     }
@@ -91,6 +141,33 @@ export const aiChatScenarios: AiChatScenario[] = [
           metricAction("평균 마진율 보기", "metric-margin"),
           insightAction("마진 인사이트 보기", "insight-product-margin"),
           objectAction("P-42 관리 대상 보기", "entity-low-margin")
+        ],
+        visualBlocks: [
+          metricVisualBlock(state, "metric-margin", {
+            description: "상품군별 평균 마진율 비교입니다.",
+            id: "visual-p42-margin-comparison",
+            title: "P-42 마진 비교"
+          }),
+          comparisonVisualBlock("visual-p42-margin-factors", "마진 하락 요인", [
+            {
+              label: "할인율",
+              value: String(margin?.basis?.discountRange ?? "6.4~6.8%"),
+              detail: "P-42 주문군에 적용된 할인 구간",
+              tone: "warning"
+            },
+            {
+              label: "반품비용",
+              value: formatCurrencyManwon(margin?.basis?.returnCost),
+              detail: "마진을 직접 압박하는 비용 요인",
+              tone: "danger"
+            },
+            {
+              label: "공급 지연",
+              value: formatMetricValue(state, "metric-delay-time"),
+              detail: "출고 지연으로 긴급 대응 비용 가능성 증가",
+              tone: "warning"
+            }
+          ])
         ]
       };
     }
@@ -115,6 +192,27 @@ export const aiChatScenarios: AiChatScenario[] = [
           insightAction("고객A 인사이트 보기", "insight-customer-claims"),
           metricAction("클레임률 보기", "metric-claim-rate"),
           objectAction("고객A 관리 대상 보기", "entity-customer-core")
+        ],
+        visualBlocks: [
+          metricVisualBlock(state, "metric-claim-rate", {
+            description: "고객A 관련 클레임률이 기간별로 누적 상승한 흐름입니다.",
+            id: "visual-customer-a-claim-trend",
+            title: "고객A 클레임 추세"
+          }),
+          comparisonVisualBlock("visual-customer-a-impact", "고객A 영향 요약", [
+            {
+              label: "클레임률",
+              value: formatMetricValue(state, "metric-claim-rate"),
+              detail: metricDeltaDetail(state, "metric-claim-rate"),
+              tone: "danger"
+            },
+            {
+              label: "주문 처리 시간",
+              value: formatMetricValue(state, "metric-delay-time"),
+              detail: metricDeltaDetail(state, "metric-delay-time"),
+              tone: "warning"
+            }
+          ])
         ]
       };
     }
@@ -250,6 +348,87 @@ function metricLine(state: PrototypeState, metricId: string): string {
   return `${definition.name} ${value.value}${definition.unit}(${status}, ${trend})`;
 }
 
+function metricVisualBlock(
+  state: PrototypeState,
+  metricId: string,
+  options: { description?: string; id: string; title: string }
+): AiChatVisualBlock {
+  const definition = metricDefinition(state, metricId);
+  const value = metricValue(state, metricId);
+
+  return {
+    id: options.id,
+    type: "metric_chart",
+    title: options.title,
+    description: options.description,
+    chartType: chartTypeForVisual(value?.chartType),
+    points: chartPoints(definition?.name ?? "현재", value),
+    status: value?.status ?? "normal",
+    unit: definition?.unit ?? ""
+  };
+}
+
+function comparisonVisualBlock(
+  id: string,
+  title: string,
+  rows: AiChatComparisonVisualRow[],
+  description?: string
+): AiChatVisualBlock {
+  return {
+    id,
+    type: "comparison",
+    title,
+    description,
+    rows
+  };
+}
+
+function chartPoints(metricName: string, value?: MetricValue) {
+  if (!value) {
+    return [];
+  }
+
+  if (value.series.length > 0) {
+    return value.series.map((point) => ({
+      label: point.label,
+      value: point.value,
+      observedAt: point.observedAt
+    }));
+  }
+
+  return [
+    { label: "이전", value: value.previousValue },
+    { label: metricName, value: value.value }
+  ];
+}
+
+function previousCurrentPoints(value: MetricValue | undefined, previousLabel: string, currentLabel: string) {
+  if (!value) {
+    return [];
+  }
+
+  return [
+    { label: previousLabel, value: value.previousValue },
+    { label: currentLabel, value: value.value }
+  ];
+}
+
+function chartTypeForVisual(chartType?: MetricValue["chartType"]): Exclude<MetricValue["chartType"], "table"> {
+  return chartType && chartType !== "table" ? chartType : "bar";
+}
+
+function metricDeltaDetail(state: PrototypeState, metricId: string): string {
+  const definition = metricDefinition(state, metricId);
+  const value = metricValue(state, metricId);
+  if (!definition || !value) {
+    return "비교 가능한 지표 없음";
+  }
+
+  const delta = Number((value.value - value.previousValue).toFixed(1));
+  const sign = delta > 0 ? "+" : "";
+  return `이전 ${value.previousValue}${definition.unit} -> 현재 ${value.value}${definition.unit} (${sign}${delta}${definition.unit})`;
+}
+
 function formatMetricValue(state: PrototypeState, metricId: string): string {
   const definition = metricDefinition(state, metricId);
   const value = metricValue(state, metricId);
@@ -258,6 +437,14 @@ function formatMetricValue(state: PrototypeState, metricId: string): string {
   }
 
   return `${value.value}${definition.unit}`;
+}
+
+function formatCurrencyManwon(value: number | string | undefined): string {
+  if (typeof value !== "number") {
+    return "-";
+  }
+
+  return `${Math.round(value / 10000).toLocaleString("ko-KR")}만원`;
 }
 
 function confidenceLabel(confidence?: number): string {

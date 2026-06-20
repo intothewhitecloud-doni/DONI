@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
+import { createAssistantMessageFromPending, createUserMessage, isAiChatVisualBlock } from "./aiChatMessages";
 import { buildAiChatResponse } from "./aiChatScenarios";
 import type { AiChatAttachment, AiChatMessage, AiChatPendingAssistant, AiChatSessionState } from "./aiChatTypes";
 
@@ -88,11 +89,15 @@ function isAiChatMessage(message: unknown): message is AiChatMessage {
   }
 
   const candidate = message as Partial<AiChatMessage>;
+  const hasValidVisualBlocks = candidate.visualBlocks === undefined ||
+    (Array.isArray(candidate.visualBlocks) && candidate.visualBlocks.every(isAiChatVisualBlock));
+
   return (
     typeof candidate.id === "string" &&
     typeof candidate.content === "string" &&
     typeof candidate.createdAt === "string" &&
-    (candidate.role === "assistant" || candidate.role === "user")
+    (candidate.role === "assistant" || candidate.role === "user") &&
+    hasValidVisualBlocks
   );
 }
 
@@ -109,19 +114,6 @@ function fileAttachment(file: File): AiChatAttachment {
     id: attachmentId(file),
     name: file.name,
     type: file.type || undefined
-  };
-}
-
-function assistantMessageFromPending(pending: AiChatPendingAssistant): AiChatMessage {
-  return {
-    actionItems: pending.actionItems,
-    attachments: pending.attachments,
-    citationEvidenceIds: pending.citationEvidenceIds,
-    content: pending.fullContent,
-    createdAt: pending.createdAt,
-    id: pending.id,
-    role: pending.role,
-    scenarioId: pending.scenarioId
   };
 }
 
@@ -180,7 +172,7 @@ export function AiChatProvider({ children }: PropsWithChildren) {
     }
 
     if (pendingAssistant.displayContent.length >= pendingAssistant.fullContent.length) {
-      const assistantMessage = assistantMessageFromPending(pendingAssistant);
+      const assistantMessage = createAssistantMessageFromPending(pendingAssistant);
       setSession((current) => ({
         ...current,
         messages: current.messages.some((message) => message.id === assistantMessage.id)
@@ -257,13 +249,12 @@ export function AiChatProvider({ children }: PropsWithChildren) {
 
     const attachments = session.attachments;
     const createdAt = new Date().toISOString();
-    const userMessage: AiChatMessage = {
+    const userMessage = createUserMessage({
       id: messageId("user"),
-      role: "user",
       content,
       createdAt,
       attachments
-    };
+    });
     const response = buildAiChatResponse({
       attachments,
       question: content,
@@ -276,7 +267,8 @@ export function AiChatProvider({ children }: PropsWithChildren) {
       createdAt: new Date().toISOString(),
       scenarioId: response.scenarioId,
       citationEvidenceIds: response.citationEvidenceIds,
-      actionItems: response.actionItems
+      actionItems: response.actionItems,
+      visualBlocks: response.visualBlocks
     };
     setPendingAssistant({
       ...assistantMessage,
