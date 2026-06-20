@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "check": "npm run typecheck && npm run test:policy && npm run build",
-    "test:policy": "node -e \"require('node:fs').rmSync('.omx/test-build',{recursive:true,force:true})\" && tsc -p tsconfig.policy-test.json && node --test .omx/test-build/src",
+    "test:policy": "node -e \"require('node:fs').rmSync('.omx/test-build',{recursive:true,force:true})\" && tsc -p tsconfig.policy-test.json && node --test \".omx/test-build/src/**/*.test.js\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
