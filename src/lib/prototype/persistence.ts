@@ -1,6 +1,6 @@
 import { initialPrototypeState } from "../domain/mock-data";
-import { normalizeCompanyData } from "../domain/state-machine";
-import type { AuthAccount, Company, CompanyUser, OrganizationCategory, PrototypeState, Screen, User } from "../domain/types";
+import { companyDataFromState, normalizeCompanyData } from "../domain/state-machine";
+import type { AuthAccount, Company, CompanyOperationalState, CompanyUser, OrganizationCategory, PrototypeState, Screen, StructureMapViewState, User } from "../domain/types";
 import { normalizeCompanyUserStatus, normalizeLegacyRole, normalizeProposalVoters } from "../domain/policy";
 
 const STORAGE_VERSION = 3;
@@ -26,6 +26,7 @@ export type SaveUserStateResult =
 type PersistedUserSession = {
   savedAt: string;
   screen: Screen;
+  structureMapView?: StructureMapViewState;
   userId: string;
   version: typeof STORAGE_VERSION;
 };
@@ -41,7 +42,7 @@ type PersistedCompanyDirectory = {
 };
 
 type PersistedCompanyData = {
-  data: PrototypeState;
+  data: CompanyOperationalState;
   savedAt: string;
   version: typeof STORAGE_VERSION;
 };
@@ -161,11 +162,12 @@ export function buildPersistedWritePayloads(state: PrototypeState, savedAt = new
   const session: PersistedUserSession = {
     savedAt,
     screen: state.screen,
+    structureMapView: state.structureMapView,
     userId: state.session.currentUserId,
     version: STORAGE_VERSION
   };
   const companyData: PersistedCompanyData = {
-    data: { ...state, permissionDenied: undefined, simulatedError: undefined },
+    data: companyDataFromState(state),
     savedAt,
     version: STORAGE_VERSION
   };
@@ -272,13 +274,16 @@ function parseCompanyDirectory(raw: string | null): PersistedCompanyDirectory | 
   } as PersistedCompanyDirectory;
 }
 
-function parseCompanyData(raw: string | null): PrototypeState | undefined {
+function parseCompanyData(raw: string | null): CompanyOperationalState | undefined {
   const parsed = parseJson<Partial<PersistedCompanyData>>(raw);
   if (!parsed || parsed.version !== STORAGE_VERSION || !parsed.data) {
     return undefined;
   }
 
-  return normalizePersistedCompanyData(parsed.data);
+  const { structureMapView: _legacyStructureMapView, ...companyData } = parsed.data as CompanyOperationalState & {
+    structureMapView?: StructureMapViewState;
+  };
+  return normalizeCompanyData(companyData);
 }
 
 export function loadUserState(userId: string, fallbackState: PrototypeState): PrototypeState | undefined {
@@ -296,7 +301,7 @@ export function loadUserState(userId: string, fallbackState: PrototypeState): Pr
     return undefined;
   }
 
-  const base = persistedData ?? fallbackState;
+  const base = persistedData ? { ...fallbackState, ...persistedData } : fallbackState;
   const companyUsers = directory?.companyUsers ?? base.companyUsers;
   const activeCompanyUser = companyUsers.find((companyUser) => companyUser.userId === userId && companyUser.status === "active");
   const screen = activeCompanyUser ? screenAfterUserRestore(session?.screen ?? base.screen) : "login";
@@ -314,6 +319,7 @@ export function loadUserState(userId: string, fallbackState: PrototypeState): Pr
       loggedIn: Boolean(activeCompanyUser),
       role: activeCompanyUser?.role ?? base.session.role
     },
+    structureMapView: session?.structureMapView ?? base.structureMapView,
     users: directory?.users ?? base.users
   });
 }

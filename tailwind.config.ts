@@ -60,6 +60,7 @@ const config: Config = {
         "display-lg": ["48px", { lineHeight: "1.1", letterSpacing: "0", fontWeight: "600" }],
         "display-md": ["36px", { lineHeight: "1.15", letterSpacing: "0", fontWeight: "600" }],
         "display-sm": ["28px", { lineHeight: "1.2", letterSpacing: "0", fontWeight: "600" }],
+        "page-title": ["24px", { lineHeight: "1.25", letterSpacing: "0", fontWeight: "600" }],
         "title-lg": ["22px", { lineHeight: "1.3", letterSpacing: "0", fontWeight: "600" }],
         "title-md": ["18px", { lineHeight: "1.4", letterSpacing: "0", fontWeight: "600" }],
         "title-sm": ["16px", { lineHeight: "1.4", letterSpacing: "0", fontWeight: "600" }],

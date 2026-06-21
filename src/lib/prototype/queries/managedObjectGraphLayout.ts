@@ -5,6 +5,7 @@ import type {
   ManagedObjectGraphLegendItem,
   ManagedObjectGraphNode
 } from "./managedObjectQueries";
+import { workflowSequence } from "./graphRules";
 
 export type ManagedObjectGraphLaneKind = "category" | "managed_object" | "workflow" | "metric" | "insight";
 export type ManagedObjectGraphEdgePriority = "primaryInfluence" | "containedStructural" | "downstream";
@@ -62,7 +63,7 @@ const nodeWidth = 172;
 const nodeHeight = 76;
 const rowGap = 148;
 const managedObjectLayerGap = 280;
-const workflowOrder = ["event-order", "event-order-p08", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
+const workflowOrder: string[] = [...workflowSequence];
 
 const laneX: Record<ManagedObjectGraphLaneKind, number> = {
   category: 32,

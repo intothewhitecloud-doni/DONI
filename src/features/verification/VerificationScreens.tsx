@@ -13,7 +13,7 @@ export function VerificationListScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="검증 기록" title="의사결정 검증 상태" description="최종 의사결정의 표준 데이터, 해시, 감사 흐름을 확인합니다." />
+      <SectionTitle eyebrow="검증 기록" title="의사결정 검증 상태" />
       {state.verificationRecords.length === 0 ? (
         <Card className="space-y-4">
           <p className="text-sm text-slate-600">아직 생성된 검증 기록이 없습니다.</p>
@@ -51,7 +51,7 @@ export function VerificationDetailScreen() {
   if (!decision || !record) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="검증 기록 > 상세" title="검증할 의사결정이 없습니다" description="투표 결과 확정과 검증 기록 생성을 먼저 진행하세요." />
+        <SectionTitle eyebrow="검증 기록 > 상세" title="검증할 의사결정이 없습니다" />
         <Button onClick={() => commands.navigate("proposalVote")}>의사결정으로 이동</Button>
       </div>
     );
@@ -60,7 +60,7 @@ export function VerificationDetailScreen() {
   return (
     <div className="space-y-8">
       <Button variant="secondary" onClick={() => commands.navigate("verification")}>목록으로 돌아가기</Button>
-      <SectionTitle eyebrow="검증 기록 > 상세" title="결과 해시와 감사 흐름" description="인공지능이 의사결정의 근거, 지표, 관계 일관성을 확인하고 검증 기록을 생성합니다." />
+      <SectionTitle eyebrow="검증 기록 > 상세" title="결과 해시와 감사 흐름" />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Card className="min-w-0 space-y-4">
           <Badge tone="success">검증 완료</Badge>
@@ -136,7 +136,7 @@ export function OutcomeScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="검증 기록 > 결과 재분석" title="실행 결과와 인공지능 재분석" description="의사결정 후 지표 변화를 기록하고 후속 인사이트 상태를 갱신합니다." />
+      <SectionTitle eyebrow="검증 기록 > 결과 재분석" title="실행 결과와 인공지능 재분석" />
       <Card className="space-y-4">
         {outcome ? (
           <>

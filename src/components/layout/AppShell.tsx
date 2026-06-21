@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { Badge } from "../ui/Badge";
 import { CompanyManagementScreen, SettingsScreen } from "../../features/admin/AdminScreens";
+import { AiCanvasScreen } from "../../features/ai-chat/AiCanvasScreen";
 import { DashboardScreen } from "../../features/dashboard/DashboardScreen";
 import { DataVaultScreen, ManagedObjectsScreen, MetricsScreen, WorkflowScreen } from "../../features/data-review/DataScreens";
+import { StructureMapScreen } from "../../features/data-review/StructureMapScreen";
 import { DecisionConfirmScreen, ProposalVoteScreen } from "../../features/decisions/DecisionScreens";
 import { InsightDetailScreen, InsightsScreen, ProposalCreateScreen } from "../../features/insights/InsightScreens";
 import { AnalysisScreen, HomeScreen, LoginScreen, ReviewScreen, SignupScreen } from "../../features/onboarding/OnboardingScreens";
 import { OutcomeScreen, VerificationDetailScreen, VerificationListScreen } from "../../features/verification/VerificationScreens";
-import { AiChatDock } from "../../features/ai-chat/AiChatPanel";
 import type { Screen } from "../../lib/domain/types";
 import { accessibleScreenForSession, activeSidebarScreen, sidebarItemsForRole } from "../../lib/prototype/navigation";
 import { roleLabel } from "../../lib/prototype/permissions";
@@ -28,6 +29,7 @@ export function AppShell({ screen }: { screen: Screen }) {
   const visibleNavItems = sidebarItemsForRole(displayRole);
   const screenToRender = accessibleScreenForSession(state.session.loggedIn, displayRole, screen, hasActiveCompanySession(state));
   const activeScreen = activeSidebarScreen(screenToRender);
+  const structureMapShell = screenToRender === "structureMap";
 
   useEffect(() => {
     if (screenToRender !== screen && state.screen !== screenToRender) {
@@ -46,7 +48,6 @@ export function AppShell({ screen }: { screen: Screen }) {
 
   return (
     <div className="min-h-screen bg-canvas text-body">
-      <AiChatDock />
       {mobileOpen && (
         <button
           aria-label="메뉴 닫기"
@@ -56,21 +57,21 @@ export function AppShell({ screen }: { screen: Screen }) {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-hairline bg-white px-4 py-5 shadow-[4px_0_24px_rgba(0,0,0,0.03)] transition-transform duration-200 lg:w-20 lg:translate-x-0 lg:px-3 xl:w-64 xl:px-4 ${mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-40 w-64 border-r border-hairline bg-white px-3 py-3 shadow-[4px_0_24px_rgba(0,0,0,0.03)] transition-transform duration-200 lg:w-16 lg:translate-x-0 lg:px-2 xl:w-48 xl:px-2.5 ${mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-col items-start gap-1.5 lg:items-center xl:items-start">
-            <img src="/assets/logo.svg" alt="DONI" className="h-12 w-auto lg:h-10 xl:h-12" />
+            <img src="/assets/logo.svg" alt="DONI" className="h-9 w-auto lg:h-7 xl:h-9" />
             <p className="pl-0.5 text-caption text-muted lg:hidden xl:block">기업 운영 콘솔</p>
           </div>
           <button className="shrink-0 rounded-md px-2 py-1 text-button lg:hidden" type="button" onClick={() => setMobileOpen(false)}>닫기</button>
         </div>
-        <nav className="mt-8 space-y-1">
+        <nav className="mt-5 space-y-0.5">
           {visibleNavItems.map((item) => (
             <button
               key={item.screen}
-              className={`flex w-full min-w-0 items-center gap-3 rounded-md px-3 py-2 text-left text-nav-link transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:justify-center lg:px-2 xl:justify-start xl:px-3 ${activeScreen === item.screen ? "bg-brand-accent/10 text-brand-accent font-semibold shadow-sm" : "text-muted hover:bg-surface-soft hover:text-ink"
+              className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-nav-link transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:justify-center lg:px-1.5 xl:justify-start xl:px-2 ${activeScreen === item.screen ? "bg-brand-accent/10 text-brand-accent font-semibold shadow-sm" : "text-muted hover:bg-surface-soft hover:text-ink"
                 }`}
               onClick={() => {
                 commands.navigate(item.screen);
@@ -79,14 +80,14 @@ export function AppShell({ screen }: { screen: Screen }) {
               title={item.label}
               type="button"
             >
-              <span className={`flex size-7 items-center justify-center rounded-md text-caption shadow-sm ${activeScreen === item.screen ? "bg-brand-accent text-white" : "bg-canvas border border-hairline text-ink"}`}>{item.short}</span>
+              <span className={`flex size-6 items-center justify-center rounded-md text-caption shadow-sm ${activeScreen === item.screen ? "bg-brand-accent text-white" : "bg-canvas border border-hairline text-ink"}`}>{item.short}</span>
               <span className="min-w-0 truncate lg:hidden xl:block">{item.label}</span>
             </button>
           ))}
         </nav>
       </aside>
-      <header className="fixed inset-x-0 top-0 z-20 border-b border-hairline bg-white/95 backdrop-blur shadow-[0_4px_24px_rgba(0,0,0,0.03)] lg:left-20 xl:left-64">
-        <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 sm:px-5 xl:px-8">
+      <header className="fixed inset-x-0 top-0 z-20 border-b border-hairline bg-white/95 backdrop-blur shadow-[0_4px_24px_rgba(0,0,0,0.03)] lg:left-16 xl:left-48">
+        <div className="flex min-h-12 items-center justify-between gap-3 px-4 py-1.5 sm:px-5 xl:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <button className="shrink-0 rounded-md border border-hairline px-3 py-2 text-button lg:hidden" type="button" onClick={() => setMobileOpen(true)}>메뉴</button>
             <CompanyPill companyName={company.name} />
@@ -98,9 +99,15 @@ export function AppShell({ screen }: { screen: Screen }) {
           </div>
         </div>
       </header>
-      <main className="min-h-screen px-4 pb-12 pt-24 sm:px-5 lg:pl-[6.5rem] lg:pr-5 xl:pl-[17.5rem] xl:pr-8">
+      <main
+        className={
+          structureMapShell
+            ? "shell-content-frame h-screen overflow-hidden pb-4 pt-16"
+            : "shell-content-frame min-h-screen pb-10 pt-16"
+        }
+      >
         <Notice />
-        <div className="mx-auto w-full max-w-[1180px] 2xl:max-w-[1280px]">
+        <div className={`w-full ${screenToRender === "structureMap" ? "h-full max-w-none" : "max-w-none"}`}>
           {renderScreen(screenToRender)}
         </div>
       </main>
@@ -141,7 +148,7 @@ function Notice() {
   }
 
   return (
-    <div className="fixed left-4 right-4 top-20 z-50 rounded-lg border border-warning/30 bg-warning/10 p-4 text-body-sm text-warning shadow-soft sm:left-auto sm:max-w-sm">
+    <div className="fixed left-4 right-4 top-16 z-50 rounded-lg border border-warning/30 bg-warning/10 p-4 text-body-sm text-warning shadow-soft sm:left-auto sm:max-w-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0">{message}</p>
         <button className="shrink-0 whitespace-nowrap font-bold hover:text-ink" type="button" onClick={commands.clearNotice}>닫기</button>
@@ -168,6 +175,10 @@ function renderScreen(screen: Screen) {
       return <DashboardScreen />;
     case "vault":
       return <DataVaultScreen />;
+    case "structureMap":
+      return <StructureMapScreen />;
+    case "ai":
+      return <AiCanvasScreen />;
     case "objects":
       return <ManagedObjectsScreen />;
     case "workflow":

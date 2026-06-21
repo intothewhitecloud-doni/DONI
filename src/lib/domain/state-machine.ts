@@ -38,12 +38,22 @@ import type {
   PrototypeState,
   Role,
   Screen,
+  StructureMapNodePatch,
+  StructureMapRelationInput,
+  StructureMapRelationPatch,
+  StructureMapViewState,
   SourceFile,
   User,
   VerificationRecord,
   VoteChoice
 } from "./types";
-import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "./types";
+import {
+  createDefaultStructureMapViewState,
+  defaultStructureMapEdgeTypes,
+  defaultStructureMapLayoutModes,
+  defaultStructureMapNodeTypes,
+  UNASSIGNED_ORGANIZATION_CATEGORY_ID
+} from "./types";
 
 type ActionMeta = {
   auditLog?: AuditLog;
@@ -72,6 +82,13 @@ export type PrototypeAction = ActionMeta &
     | { type: "ADD_SOURCE_FILES"; files: SourceFile[]; organizationCategoryId?: string }
     | { type: "UPDATE_SOURCE_FILE"; fileId: string; patch: Pick<SourceFile, "kind" | "name"> & { organizationCategoryId?: string } }
     | { type: "REMOVE_SOURCE_FILE"; fileId: string }
+    | { type: "SET_STRUCTURE_MAP_VIEW"; patch: Partial<StructureMapViewState> }
+    | { type: "UPDATE_STRUCTURE_MAP_NODE"; nodeId: string; patch: StructureMapNodePatch }
+    | { type: "UPDATE_STRUCTURE_MAP_RELATION"; relationId: string; patch: StructureMapRelationPatch }
+    | { type: "ADD_STRUCTURE_MAP_RELATION"; relation: StructureMapRelationInput }
+    | { type: "DELETE_STRUCTURE_MAP_RELATION"; relationId: string }
+    | { type: "HIDE_STRUCTURE_MAP_ITEM"; itemId: string; kind: "node" | "edge" }
+    | { type: "UNHIDE_STRUCTURE_MAP_ITEM"; itemId: string; kind: "node" | "edge" }
     | { type: "ADD_DOMAIN_TYPE"; scope: DomainTypeScope; label: string; color?: string }
     | { type: "UPDATE_DOMAIN_TYPE"; scope: DomainTypeScope; typeId: string; label: string; color?: string }
     | { type: "DELETE_DOMAIN_TYPE"; scope: DomainTypeScope; typeId: string }
@@ -320,6 +337,68 @@ export function normalizeCompanyData(data: CompanyOperationalState): CompanyOper
   };
 }
 
+export function normalizeStructureMapViewState(view?: Partial<StructureMapViewState>): StructureMapViewState {
+  const defaults = createDefaultStructureMapViewState();
+  const nodeTypeSet = new Set(defaultStructureMapNodeTypes);
+  const edgeTypeSet = new Set(defaultStructureMapEdgeTypes);
+  const depth = view?.depth === 1 || view?.depth === 2 || view?.depth === 3 || view?.depth === "all" ? view.depth : defaults.depth;
+  const layoutMode =
+    view?.layoutMode === "semantic-lanes" || view?.layoutMode === "clustered" || view?.layoutMode === "risk-first"
+      ? view.layoutMode
+      : defaults.layoutMode;
+  const savedPositions = normalizeStructureMapSavedPositions(view?.savedPositions);
+
+  return {
+    searchQuery: typeof view?.searchQuery === "string" ? view.searchQuery : defaults.searchQuery,
+    nodeTypes: Array.isArray(view?.nodeTypes) ? view.nodeTypes.filter((type) => nodeTypeSet.has(type)) : defaults.nodeTypes,
+    edgeTypes: Array.isArray(view?.edgeTypes) ? view.edgeTypes.filter((type) => edgeTypeSet.has(type)) : defaults.edgeTypes,
+    depth,
+    layoutMode,
+    selectedItemId: typeof view?.selectedItemId === "string" ? view.selectedItemId : undefined,
+    hiddenNodeIds: Array.isArray(view?.hiddenNodeIds) ? Array.from(new Set(view.hiddenNodeIds.filter((id) => typeof id === "string"))) : defaults.hiddenNodeIds,
+    hiddenEdgeIds: Array.isArray(view?.hiddenEdgeIds) ? Array.from(new Set(view.hiddenEdgeIds.filter((id) => typeof id === "string"))) : defaults.hiddenEdgeIds,
+    savedPositions
+  };
+}
+
+function isStructureMapPoint(value: unknown): value is { x: number; y: number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { x?: unknown }).x === "number" &&
+    Number.isFinite((value as { x: number }).x) &&
+    typeof (value as { y?: unknown }).y === "number" &&
+    Number.isFinite((value as { y: number }).y)
+  );
+}
+
+function normalizeStructureMapPositionMap(value: unknown): Record<string, { x: number; y: number }> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, { x: number; y: number }] => isStructureMapPoint(entry[1])));
+}
+
+function normalizeStructureMapSavedPositions(value: unknown): StructureMapViewState["savedPositions"] {
+  const defaults = createDefaultStructureMapViewState().savedPositions;
+  if (!value || typeof value !== "object") {
+    return defaults;
+  }
+
+  const entries = Object.entries(value);
+  const looksLikeLegacyFlatMap = entries.some(([, position]) => isStructureMapPoint(position));
+  if (looksLikeLegacyFlatMap) {
+    return {
+      ...defaults,
+      "semantic-lanes": normalizeStructureMapPositionMap(value)
+    };
+  }
+
+  return Object.fromEntries(
+    defaultStructureMapLayoutModes.map((mode) => [mode, normalizeStructureMapPositionMap((value as Partial<StructureMapViewState["savedPositions"]>)[mode])])
+  ) as StructureMapViewState["savedPositions"];
+}
+
 function latestJob(state: PrototypeState): AnalysisJob | undefined {
   return state.analysisJobs[0];
 }
@@ -530,6 +609,213 @@ function normalizeSourceFile(file: SourceFile): SourceFile {
   };
 }
 
+function structureMapNodeExists(state: PrototypeState, nodeId: string): boolean {
+  return (
+    state.entities.some((entity) => entity.id === nodeId) ||
+    state.events.some((event) => event.id === nodeId) ||
+    state.metricDefinitions.some((metric) => metric.id === nodeId) ||
+    state.insights.some((insight) => insight.id === nodeId)
+  );
+}
+
+function updateStructureMapNode(state: PrototypeState, nodeId: string, patch: StructureMapNodePatch): PrototypeState {
+  if (state.entities.some((entity) => entity.id === nodeId)) {
+    return {
+      ...state,
+      entities: state.entities.map((entity) =>
+        entity.id === nodeId
+          ? {
+              ...entity,
+              kind: patch.kind ?? entity.kind,
+              name: patch.name ?? entity.name,
+              owner: patch.owner ?? entity.owner,
+              status: patch.status ?? entity.status,
+              summary: patch.summary ?? entity.summary
+            }
+          : entity
+      ),
+      permissionDenied: undefined
+    };
+  }
+
+  if (state.events.some((event) => event.id === nodeId)) {
+    return {
+      ...state,
+      events: state.events.map((event) =>
+        event.id === nodeId
+          ? {
+              ...event,
+              durationHours: typeof patch.durationHours === "number" ? patch.durationHours : event.durationHours,
+              name: patch.name ?? event.name,
+              occurredAt: patch.occurredAt ?? event.occurredAt,
+              workflowType: patch.workflowType ?? event.workflowType
+            }
+          : event
+      ),
+      permissionDenied: undefined
+    };
+  }
+
+  if (state.metricDefinitions.some((metric) => metric.id === nodeId)) {
+    return {
+      ...state,
+      metricDefinitions: state.metricDefinitions.map((metric) =>
+        metric.id === nodeId
+          ? {
+              ...metric,
+              formula: patch.formula ?? metric.formula,
+              name: patch.name ?? metric.name,
+              relatedObjectIds: patch.relatedObjectIds ?? metric.relatedObjectIds,
+              unit: patch.unit ?? metric.unit
+            }
+          : metric
+      ),
+      permissionDenied: undefined
+    };
+  }
+
+  if (state.insights.some((insight) => insight.id === nodeId)) {
+    return {
+      ...state,
+      insights: state.insights.map((insight) =>
+        insight.id === nodeId
+          ? {
+              ...insight,
+              reason: patch.reason ?? insight.reason,
+              recommendedActions: patch.recommendedActions ?? insight.recommendedActions,
+              severity: patch.severity ?? insight.severity,
+              status: isInsightStatus(patch.status) ? patch.status : insight.status,
+              title: patch.title ?? insight.title
+            }
+          : insight
+      ),
+      permissionDenied: undefined
+    };
+  }
+
+  return { ...state, permissionDenied: "수정할 구조 맵 노드를 찾지 못했습니다." };
+}
+
+function updateStructureMapRelation(state: PrototypeState, relationId: string, patch: StructureMapRelationPatch): PrototypeState {
+  const relation = state.relations.find((item) => item.id === relationId);
+  if (!relation) {
+    return { ...state, permissionDenied: "수정할 관계를 찾지 못했습니다." };
+  }
+
+  const fromId = patch.fromId ?? relation.fromId;
+  const toId = patch.toId ?? relation.toId;
+  if (!structureMapNodeExists(state, fromId) || !structureMapNodeExists(state, toId)) {
+    return { ...state, permissionDenied: "관계의 시작 또는 끝 노드를 찾지 못했습니다." };
+  }
+
+  const type = patch.type === undefined ? relation.type : patch.type.trim();
+  if (!type) {
+    return { ...state, permissionDenied: "관계 유형을 입력해 주세요." };
+  }
+
+  return {
+    ...state,
+    relations: state.relations.map((item) =>
+      item.id === relationId
+        ? {
+            ...item,
+            confidence: patch.confidence ?? item.confidence,
+            description: patch.description ?? item.description,
+            fromId,
+            impact: patch.impact ?? item.impact,
+            metricIds: patch.metricIds ?? item.metricIds,
+            relationKind: patch.relationKind ?? item.relationKind,
+            status: patch.status ?? item.status,
+            strength: patch.strength ?? item.strength,
+            toId,
+            type
+          }
+        : item
+    ),
+    permissionDenied: undefined
+  };
+}
+
+function addStructureMapRelation(state: PrototypeState, relation: StructureMapRelationInput, action: ActionMeta): PrototypeState {
+  if (!structureMapNodeExists(state, relation.fromId) || !structureMapNodeExists(state, relation.toId)) {
+    return { ...state, permissionDenied: "관계의 시작 또는 끝 노드를 찾지 못했습니다." };
+  }
+
+  const normalizedType = relation.type.trim();
+  if (!normalizedType) {
+    return { ...state, permissionDenied: "관계 유형을 입력해 주세요." };
+  }
+
+  const id = uniqueStructureRelationId(state, relation.id, normalizedType, action);
+  return {
+    ...state,
+    relations: [
+      {
+        ...relation,
+        id,
+        type: normalizedType,
+        evidenceIds: relation.evidenceIds ?? []
+      },
+      ...state.relations
+    ],
+    permissionDenied: undefined
+  };
+}
+
+function deleteStructureMapRelation(state: PrototypeState, relationId: string): PrototypeState {
+  if (!state.relations.some((relation) => relation.id === relationId)) {
+    return { ...state, permissionDenied: "삭제할 관계를 찾지 못했습니다." };
+  }
+
+  return {
+    ...state,
+    entities: state.entities.map((entity) => ({ ...entity, relationIds: entity.relationIds.filter((id) => id !== relationId) })),
+    insights: state.insights.map((insight) => ({ ...insight, relatedRelationIds: insight.relatedRelationIds.filter((id) => id !== relationId) })),
+    relations: state.relations.filter((relation) => relation.id !== relationId),
+    structureMapView: normalizeStructureMapViewState({
+      ...state.structureMapView,
+      hiddenEdgeIds: state.structureMapView.hiddenEdgeIds.filter((id) => id !== `edge-${relationId}`),
+      selectedItemId: state.structureMapView.selectedItemId === `edge-${relationId}` ? undefined : state.structureMapView.selectedItemId
+    }),
+    permissionDenied: undefined
+  };
+}
+
+function withStructureMapHiddenItem(state: PrototypeState, itemId: string, kind: "node" | "edge", hidden: boolean): PrototypeState {
+  const key = kind === "node" ? "hiddenNodeIds" : "hiddenEdgeIds";
+  const currentIds = state.structureMapView[key];
+  const nextIds = hidden ? Array.from(new Set([...currentIds, itemId])) : currentIds.filter((id) => id !== itemId);
+  return {
+    ...state,
+    structureMapView: normalizeStructureMapViewState({
+      ...state.structureMapView,
+      [key]: nextIds,
+      selectedItemId: hidden && state.structureMapView.selectedItemId === itemId ? undefined : state.structureMapView.selectedItemId
+    }),
+    permissionDenied: undefined
+  };
+}
+
+function uniqueStructureRelationId(state: PrototypeState, requestedId: string | undefined, relationType: string, action: ActionMeta): string {
+  if (requestedId && !state.relations.some((relation) => relation.id === requestedId)) {
+    return requestedId;
+  }
+
+  const stem = relationType.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "") || "relation";
+  const timestamp = at(action).replace(/[^0-9]/g, "").slice(0, 14) || "manual";
+  let id = `relation-structure-${stem}-${timestamp}`;
+  let index = 2;
+  while (state.relations.some((relation) => relation.id === id)) {
+    id = `relation-structure-${stem}-${timestamp}-${index}`;
+    index += 1;
+  }
+  return id;
+}
+
+function isInsightStatus(value: string | undefined): value is PrototypeState["insights"][number]["status"] {
+  return value === "new" || value === "reviewing" || value === "proposal_created" || value === "paused" || value === "resolved";
+}
+
 function upsertCompanyUser(state: PrototypeState, companyUser: CompanyUser): CompanyUser[] {
   return [companyUser, ...state.companyUsers.filter((item) => item.id !== companyUser.id && item.userId !== companyUser.userId)];
 }
@@ -626,6 +912,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       const restoredState: PrototypeState = {
         ...state,
         ...normalizeCompanyData(action.state),
+        structureMapView: normalizeStructureMapViewState(action.state.structureMapView),
         screen: restoredCompanyUser ? action.screen : "login",
         session: {
           ...action.state.session,
@@ -979,6 +1266,34 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         },
         action
       );
+
+    case "SET_STRUCTURE_MAP_VIEW":
+      return {
+        ...state,
+        structureMapView: normalizeStructureMapViewState({
+          ...state.structureMapView,
+          ...action.patch
+        }),
+        permissionDenied: undefined
+      };
+
+    case "UPDATE_STRUCTURE_MAP_NODE":
+      return withAudit(updateStructureMapNode(state, action.nodeId, action.patch), action);
+
+    case "UPDATE_STRUCTURE_MAP_RELATION":
+      return withAudit(updateStructureMapRelation(state, action.relationId, action.patch), action);
+
+    case "ADD_STRUCTURE_MAP_RELATION":
+      return withAudit(addStructureMapRelation(state, action.relation, action), action);
+
+    case "DELETE_STRUCTURE_MAP_RELATION":
+      return withAudit(deleteStructureMapRelation(state, action.relationId), action);
+
+    case "HIDE_STRUCTURE_MAP_ITEM":
+      return withStructureMapHiddenItem(state, action.itemId, action.kind, true);
+
+    case "UNHIDE_STRUCTURE_MAP_ITEM":
+      return withStructureMapHiddenItem(state, action.itemId, action.kind, false);
 
     case "ADD_DOMAIN_TYPE": {
       if (!isActiveCompanyOwner(state)) {

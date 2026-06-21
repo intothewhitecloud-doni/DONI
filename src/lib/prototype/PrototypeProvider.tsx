@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type PropsWithChildren } from "react";
-import type { CandidateType, DomainTypeScope, LinkTarget, PrototypeState, Role, Screen, VoteChoice } from "../domain/types";
+import type { CandidateType, DomainTypeScope, LinkTarget, PrototypeState, Role, Screen, StructureMapNodePatch, StructureMapRelationInput, StructureMapRelationPatch, StructureMapViewState, VoteChoice } from "../domain/types";
 import { advanceAnalysisJob, confirmCandidates, editCandidate, excludeCandidate, setCandidateType, startAnalysisJob } from "./commands/analysisCommands";
 import { LOGIN_FAILED_MESSAGE, loginWithCredentials, logout, signup } from "./commands/authCommands";
 import { addSourceFiles, removeSourceFile, updateSourceFile, uploadSampleFiles } from "./commands/fileCommands";
@@ -20,6 +20,15 @@ import {
 } from "./commands/organizationCommands";
 import { recordOutcome } from "./commands/outcomeCommands";
 import { castVote, finalizeProposal } from "./commands/proposalCommands";
+import {
+  addStructureMapRelation,
+  deleteStructureMapRelation,
+  hideStructureMapItem,
+  setStructureMapView,
+  unhideStructureMapItem,
+  updateStructureMapNode,
+  updateStructureMapRelation
+} from "./commands/structureMapCommands";
 import { addDomainType, deleteDomainType, updateDomainType } from "./commands/typeCommands";
 import { generateVerificationRecord } from "./commands/verificationCommands";
 import { findAuthAccount } from "./authAccounts";
@@ -52,6 +61,13 @@ interface PrototypeCommands {
   ): boolean;
   updateSourceFile(fileId: string, patch: { name: string; kind: string; organizationCategoryId?: string }): boolean;
   removeSourceFile(fileId: string): boolean;
+  setStructureMapView(patch: Partial<StructureMapViewState>): void;
+  updateStructureMapNode(nodeId: string, patch: StructureMapNodePatch): boolean;
+  updateStructureMapRelation(relationId: string, patch: StructureMapRelationPatch): boolean;
+  addStructureMapRelation(relation: StructureMapRelationInput): boolean;
+  deleteStructureMapRelation(relationId: string): boolean;
+  hideStructureMapItem(itemId: string, kind: "node" | "edge"): void;
+  unhideStructureMapItem(itemId: string, kind: "node" | "edge"): void;
   uploadSampleFiles(): boolean;
   startAnalysisJob(): boolean;
   advanceAnalysisJob(): void;
@@ -156,6 +172,13 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
       addSourceFiles: (files, organizationCategoryId) => addSourceFiles(state, dispatch, files, organizationCategoryId),
       updateSourceFile: (fileId, patch) => updateSourceFile(state, dispatch, fileId, patch),
       removeSourceFile: (fileId) => removeSourceFile(state, dispatch, fileId),
+      setStructureMapView: (patch) => setStructureMapView(dispatch, patch),
+      updateStructureMapNode: (nodeId, patch) => updateStructureMapNode(state, dispatch, nodeId, patch),
+      updateStructureMapRelation: (relationId, patch) => updateStructureMapRelation(state, dispatch, relationId, patch),
+      addStructureMapRelation: (relation) => addStructureMapRelation(state, dispatch, relation),
+      deleteStructureMapRelation: (relationId) => deleteStructureMapRelation(state, dispatch, relationId),
+      hideStructureMapItem: (itemId, kind) => hideStructureMapItem(dispatch, itemId, kind),
+      unhideStructureMapItem: (itemId, kind) => unhideStructureMapItem(dispatch, itemId, kind),
       uploadSampleFiles: () => {
         const uploaded = uploadSampleFiles(state, dispatch);
         if (uploaded) {

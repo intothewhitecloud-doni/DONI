@@ -126,12 +126,77 @@ test("pending signup persists company directory without a user session payload",
 test("company console payloads include directory, session, and company data", () => {
   const ctx = loginState();
   const payloads = buildPersistedWritePayloads(ctx.state, "2026-05-07T09:00:00.000Z");
+  const sessionPayload = payloads.find((payload) => payload.key === storageKeyForUser("user-manager"));
+  const companyPayload = payloads.find((payload) => payload.key === storageKeyForCompanyData(ctx.state.company.id));
 
   assert.equal(payloads.length, 3);
-  assert.equal(payloads.some((payload) => payload.key === storageKeyForUser("user-manager")), true);
-  assert.equal(payloads.some((payload) => payload.key === storageKeyForCompanyData(ctx.state.company.id)), true);
+  assert.ok(sessionPayload);
+  assert.ok(companyPayload);
+  assert.equal(JSON.parse(sessionPayload.value).structureMapView.searchQuery, "");
+  assert.equal("structureMapView" in JSON.parse(companyPayload.value).data, false);
   assert.equal(persistedWritePayloadByteSize(payloads) > 0, true);
   assert.equal(serializedStorageEntryByteSize(payloads[0]) > payloads[0].key.length, true);
+});
+
+test("structure map view preferences persist with user session data", () => {
+  const storage = new MemoryStorage();
+  installStorage(storage);
+  const ctx = loginState();
+  ctx.dispatch({
+    type: "SET_STRUCTURE_MAP_VIEW",
+    patch: {
+      depth: 2,
+      hiddenNodeIds: ["entity-customer-core"],
+      savedPositions: {
+        clustered: {},
+        "risk-first": {},
+        "semantic-lanes": {
+          "entity-supplier-a": { x: 320, y: 180 }
+        }
+      },
+      searchQuery: "공급"
+    }
+  });
+
+  const saved = saveUserState(ctx.state);
+  assert.equal(saved.ok, true);
+  const sessionPayload = JSON.parse(storage.getItem(storageKeyForUser("user-manager")) ?? "{}");
+  const companyPayload = JSON.parse(storage.getItem(storageKeyForCompanyData(ctx.state.company.id)) ?? "{}");
+  assert.equal(sessionPayload.structureMapView.searchQuery, "공급");
+  assert.equal("structureMapView" in companyPayload.data, false);
+
+  const loaded = loadUserState("user-manager", createInitialState());
+  assert.ok(loaded);
+  assert.equal(loaded.structureMapView.searchQuery, "공급");
+  assert.equal(loaded.structureMapView.depth, 2);
+  assert.deepEqual(loaded.structureMapView.hiddenNodeIds, ["entity-customer-core"]);
+  assert.deepEqual(loaded.structureMapView.savedPositions["semantic-lanes"]["entity-supplier-a"], { x: 320, y: 180 });
+});
+
+test("legacy company data structure map view is ignored without user session data", () => {
+  const storage = new MemoryStorage();
+  installStorage(storage);
+  const ctx = loginState();
+
+  const saved = saveUserState(ctx.state);
+  assert.equal(saved.ok, true);
+
+  const companyKey = storageKeyForCompanyData(ctx.state.company.id);
+  const companyPayload = JSON.parse(storage.getItem(companyKey) ?? "{}");
+  companyPayload.data.structureMapView = {
+    depth: 2,
+    hiddenNodeIds: ["entity-customer-core"],
+    searchQuery: "legacy-view"
+  };
+  storage.setItem(companyKey, JSON.stringify(companyPayload));
+  storage.removeItem(storageKeyForUser("user-manager"));
+
+  const loaded = loadUserState("user-manager", createInitialState());
+
+  assert.ok(loaded);
+  assert.equal(loaded.structureMapView.searchQuery, "");
+  assert.equal(loaded.structureMapView.depth, "all");
+  assert.deepEqual(loaded.structureMapView.hiddenNodeIds, []);
 });
 
 test("save and load user state restores active company user to dashboard", () => {

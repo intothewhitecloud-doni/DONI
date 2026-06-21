@@ -47,39 +47,54 @@ export function Card({
 }
 
 type SectionTitleVariant = "page" | "section" | "compact";
+type SectionTitleBaseProps = {
+  eyebrow?: string;
+  title: string;
+  delay?: number;
+};
+type SectionTitlePageProps = SectionTitleBaseProps & {
+  variant?: "page";
+  description?: never;
+};
+type SectionTitleBodyProps = SectionTitleBaseProps & {
+  variant: Exclude<SectionTitleVariant, "page">;
+  description?: string;
+};
+type SectionTitleProps = SectionTitlePageProps | SectionTitleBodyProps;
 
 const titleClass: Record<SectionTitleVariant, string> = {
-  page: "text-display-sm md:text-display-md",
+  page: "text-page-title",
   section: "text-title-lg",
   compact: "text-title-md"
 };
 
-export function SectionTitle({
-  delay = 0,
-  description,
-  eyebrow,
-  title,
-  variant = "page"
-}: {
-  eyebrow?: string;
-  title: string;
-  description?: string;
-  delay?: number;
-  variant?: SectionTitleVariant;
-}) {
+export function SectionTitle(props: SectionTitleProps) {
+  const { delay = 0, eyebrow, title } = props;
+  const variant = props.variant ?? "page";
+  const description = props.variant === "section" || props.variant === "compact" ? props.description : undefined;
   const reducedMotion = useReducedMotion();
+  const isPageTitle = variant === "page";
 
   return (
     <motion.div
       animate="show"
-      className="mb-2 min-w-0 space-y-2"
+      className={isPageTitle ? "mb-1 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between" : "mb-2 min-w-0 space-y-2"}
       initial="hidden"
       transition={{ duration: motionDurations.page, ease: easeOut, delay }}
       variants={pageEnter(Boolean(reducedMotion))}
     >
-      {eyebrow && <p className="text-caption font-bold uppercase text-brand-accent">{eyebrow}</p>}
-      <h1 className={`${titleClass[variant]} text-balance text-ink`}>{title}</h1>
-      {description && <p className="max-w-3xl text-body-md text-muted">{description}</p>}
+      {isPageTitle ? (
+        <>
+          <h1 className={`${titleClass[variant]} min-w-0 text-balance text-ink`}>{title}</h1>
+          {eyebrow && <p className="shrink-0 text-caption font-bold uppercase text-brand-accent sm:pt-1">{eyebrow}</p>}
+        </>
+      ) : (
+        <>
+          {eyebrow && <p className="text-caption font-bold uppercase text-brand-accent">{eyebrow}</p>}
+          <h1 className={`${titleClass[variant]} text-balance text-ink`}>{title}</h1>
+          {description && <p className="max-w-3xl text-body-md text-muted">{description}</p>}
+        </>
+      )}
     </motion.div>
   );
 }

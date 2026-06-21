@@ -49,7 +49,7 @@ export function ProposalVoteScreen() {
   if (proposals.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="의사결정" title="아직 생성된 안건이 없습니다" description="인사이트 상세에서 안건을 먼저 생성하세요." />
+        <SectionTitle eyebrow="의사결정" title="아직 생성된 안건이 없습니다" />
         <Button onClick={() => commands.navigate("dashboard")}>대시보드로 이동</Button>
       </div>
     );
@@ -62,9 +62,10 @@ export function ProposalVoteScreen() {
   return (
     <div className="space-y-8">
       <Button variant="secondary" onClick={() => commands.navigate("proposalVote")}>목록으로 돌아가기</Button>
-      <SectionTitle eyebrow="의사결정 > 투표" title={proposal.title} description={proposal.summary} />
+      <SectionTitle eyebrow="의사결정 > 투표" title={proposal.title} />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
+          <p className="text-sm leading-6 text-slate-600">{proposal.summary}</p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <VoteStat label="승인" value={summary?.approve ?? 0} tone="success" />
             <VoteStat label="반려" value={summary?.reject ?? 0} tone="danger" />
@@ -155,8 +156,12 @@ function ProposalList({ canOpenDetail, proposals }: { canOpenDetail: boolean; pr
       <SectionTitle
         eyebrow="의사결정"
         title="인사이트에서 생성된 안건 목록"
-        description={canOpenDetail ? "안건을 선택해 상세 투표 화면으로 이동할 수 있습니다." : "상세 권한이 없으면 안건 목록과 내 승인/반려/기권 상태만 조회할 수 있습니다."}
       />
+      {!canOpenDetail && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
+          상세 권한이 없어 안건 목록과 내 투표 상태만 조회할 수 있습니다.
+        </div>
+      )}
       <div className="grid gap-4">
         {proposals.map((proposal) => {
           const summary = summarizeVotes(proposal, state.votes);
@@ -180,7 +185,6 @@ function ProposalList({ canOpenDetail, proposals }: { canOpenDetail: boolean; pr
               </div>
               {canOpenDetail && (
                 <>
-                  <p className="text-sm leading-6 text-slate-600">{proposal.summary}</p>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <VoteStat label="승인" value={summary.approve} tone="success" />
                     <VoteStat label="반려" value={summary.reject} tone="danger" />
@@ -223,9 +227,10 @@ export function DecisionConfirmScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="의사결정 > 결과 확정" title={decision.title} description={decision.summary} />
+      <SectionTitle eyebrow="의사결정 > 결과 확정" title={decision.title} />
       <Card className="space-y-4">
         <Badge tone="success">최종 확정</Badge>
+        <p className="text-sm leading-6 text-slate-600">{decision.summary}</p>
         <p className="text-sm text-slate-600">확정 시각 {new Date(decision.finalizedAt).toLocaleString("ko-KR")}</p>
         {canCreateVerification && <Button onClick={() => commands.generateVerificationRecord(decision.id)}>검증 기록 생성</Button>}
       </Card>

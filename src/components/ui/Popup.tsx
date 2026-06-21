@@ -7,11 +7,17 @@ import { easeOut, modalEnter, motionDurations } from "./motion";
 
 type PopupTone = "neutral" | "success" | "warning" | "danger" | "info";
 type PopupSize = "sm" | "md" | "lg";
+type PopupPlacement = "center" | "right";
 
 const sizeClass: Record<PopupSize, string> = {
   sm: "max-w-md",
   md: "max-w-lg",
   lg: "max-w-2xl"
+};
+
+const placementClass: Record<PopupPlacement, string> = {
+  center: "items-center justify-center px-4 py-6",
+  right: "items-start justify-end px-4 py-4 sm:px-5 sm:py-5"
 };
 
 export function Popup({
@@ -20,6 +26,7 @@ export function Popup({
   eyebrow = "알림",
   footer,
   onClose,
+  placement = "center",
   size = "md",
   title,
   tone = "info"
@@ -29,6 +36,7 @@ export function Popup({
   eyebrow?: string;
   footer?: ReactNode;
   onClose: () => void;
+  placement?: PopupPlacement;
   size?: PopupSize;
   title: string;
   tone?: PopupTone;
@@ -40,7 +48,7 @@ export function Popup({
     <div
       aria-labelledby={titleId}
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex bg-slate-950/45 backdrop-blur-sm ${placementClass[placement]}`}
       role="dialog"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {

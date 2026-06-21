@@ -18,7 +18,7 @@ export function InsightsScreen() {
   if (state.insights.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="인공지능 인사이트" title="아직 분석된 운영 신호가 없습니다" description="운영 신호는 파일 분석과 후보 검토가 끝난 뒤 지표와 연결 관계를 바탕으로 생성됩니다." />
+        <SectionTitle eyebrow="인공지능 인사이트" title="아직 분석된 운영 신호가 없습니다" />
         <Card className="space-y-4 border-dashed bg-slate-50">
           <Badge tone="neutral">준비 필요</Badge>
           <div>
@@ -49,7 +49,7 @@ export function InsightsScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="인공지능 인사이트" title="검토가 필요한 운영 신호" description="인공지능은 결정을 내리지 않고, 근거와 함께 검토할 신호를 제안합니다." />
+      <SectionTitle eyebrow="인공지능 인사이트" title="검토가 필요한 운영 신호" />
       <div className="grid gap-4 xl:grid-cols-2">
         {state.insights.map((insight) => (
           <Card key={insight.id} className="space-y-4">
@@ -82,7 +82,6 @@ export function InsightDetailScreen() {
         <SectionTitle
           eyebrow="인사이트"
           title="아직 분석된 운영 신호가 없습니다"
-          description="소스 데이터를 업로드하고 후보 검토를 완료하면 연결 관계와 지표에 연결된 운영 신호가 표시됩니다."
         />
         <Button onClick={() => commands.navigate("dashboard")}>대시보드로 이동</Button>
       </div>
@@ -107,7 +106,7 @@ export function InsightDetailScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="인사이트 > 인사이트 상세" title={insight.title} description="탐지 내용, 원인 후보, 추천 조치, 증거를 함께 검토합니다." />
+      <SectionTitle eyebrow="인사이트 > 인사이트 상세" title={insight.title} />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <div>
@@ -202,7 +201,6 @@ export function ProposalCreateScreen() {
         <SectionTitle
           eyebrow="인사이트 > 안건 초안"
           title="안건으로 전환할 인사이트가 없습니다"
-          description="연결 관계와 지표 분석을 먼저 완료하면 시스템이 검토 가능한 안건 후보를 제안합니다."
         />
         <Button onClick={() => commands.navigate("dashboard")}>대시보드로 이동</Button>
       </div>
@@ -218,7 +216,7 @@ export function ProposalCreateScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="인사이트 > 안건 초안" title="운영 조정안을 생성합니다" description="인사이트의 근거를 바탕으로 투표 가능한 안건을 만듭니다." />
+      <SectionTitle eyebrow="인사이트 > 안건 초안" title="운영 조정안을 생성합니다" />
       <Card className="space-y-4">
         <Badge tone="info">인사이트 기반</Badge>
         <h2 className="text-xl font-bold text-slate-950">{draft.title}</h2>

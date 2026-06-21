@@ -332,6 +332,7 @@ export function AnalysisScreen() {
           eyebrow="데이터 보관함 > 인공지능 구조 분석"
           title="분석할 소스 데이터가 없습니다"
           description="업무 파일을 추가하면 관리 대상과 연결 관계, 지표 근거를 구성할 수 있습니다."
+          variant="section"
         />
         <Card className="max-w-4xl space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -357,6 +358,7 @@ export function AnalysisScreen() {
         eyebrow="데이터 보관함 > 인공지능 구조 분석"
         title="업로드 파일에서 운영 구조를 구성하고 있습니다"
         description="보관함의 파일을 바탕으로 관리 대상, 업무흐름, 연결관계, 지표, 인사이트를 구성합니다."
+        variant="section"
       />
       <Card className="space-y-4">
         <div className="flex min-w-0 items-center justify-between gap-3">
@@ -514,6 +516,7 @@ export function ReviewScreen() {
         eyebrow="데이터 보관함 > 구조 검토"
         title="관리 대상 유형을 먼저 정하고 관련 후보를 확정합니다"
         description="관리 대상 유형은 여러 개를 선택할 수 있고, 이후 선택한 유형에 속한 인스턴스와 관련 업무 흐름, 연결 관계, 지표를 단계적으로 확정합니다."
+        variant="section"
       />
       <div className="rounded-lg border border-brand-accent/30 bg-brand-accent/5 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">

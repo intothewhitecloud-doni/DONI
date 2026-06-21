@@ -8,6 +8,7 @@ export function createInitialState(): PrototypeState {
   return {
     ...structuredClone(initialPrototypeState),
     screen: "home",
+    structureMapView: structuredClone(initialPrototypeState.structureMapView),
     sourceFiles: [],
     analysisJobs: [],
     evidence: [],

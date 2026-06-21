@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "check": "npm run typecheck && npm run test:policy && npm run build",
-    "test:policy": "node -e \"require('node:fs').rmSync('.omx/test-build',{recursive:true,force:true})\" && tsc -p tsconfig.policy-test.json && node --test \".omx/test-build/src/**/*.test.js\"",
+    "test:policy": "node tools/run-policy-tests.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,7 +15,8 @@
     "framer-motion": "^12.38.0",
     "next": "^16.2.6",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "reagraph": "^4.31.0"
   },
   "overrides": {
     "postcss": "$postcss"

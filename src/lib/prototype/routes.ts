@@ -9,6 +9,8 @@ export const screenRoutes: Record<Screen, string> = {
   review: "/review",
   dashboard: "/dashboard",
   vault: "/vault",
+  structureMap: "/structure-map",
+  ai: "/ai",
   objects: "/objects",
   workflow: "/workflow",
   metrics: "/metrics",

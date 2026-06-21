@@ -22,7 +22,6 @@ export function DashboardScreen() {
         <SectionTitle
           eyebrow="대시보드"
           title="아직 정의된 관리 대상과 업무 이벤트가 없습니다"
-          description="업무 데이터를 업로드하면 관리 대상과 업무 이벤트를 먼저 정리하고, 이어서 연결 관계와 지표를 분석해 의사결정 안건을 추천합니다."
         />
         <Card className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -34,13 +33,13 @@ export function DashboardScreen() {
             ))}
           </div>
           <p className="text-sm leading-6 text-slate-600">
-            첫 분석은 관리 대상과 업무 이벤트 정의에서 시작합니다. 이후 연결 관계와 지표를 확인하면 시스템이 실행 가능한 의사결정 안건을 추천합니다.
+            관리 대상과 업무 이벤트를 정의하면 지표와 안건 추천이 활성화됩니다.
           </p>
           {canUploadSource ? (
             <Button onClick={() => commands.navigate("vault")}>데이터 보관함에서 파일 추가</Button>
           ) : (
             <p className="rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">
-              운영 담당자가 업무 파일을 추가하고 분석을 완료하면 이 대시보드에서 의사결정 흐름을 확인할 수 있습니다.
+              운영 담당자의 파일 분석 후 의사결정 흐름이 표시됩니다.
             </p>
           )}
         </Card>
@@ -53,7 +52,6 @@ export function DashboardScreen() {
       <SectionTitle
         eyebrow="운영 관찰"
         title={`${state.company.name} 의사결정 상황`}
-        description="확정된 데이터 구조를 바탕으로 지표, 업무 이벤트, 연결 관계, 인사이트를 한 화면에서 추적합니다."
       />
       <div className="grid gap-6 md:grid-cols-4">
         {view.summaryCards.map((card, index) => (
@@ -124,7 +122,6 @@ export function DashboardScreen() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-950">{view.primaryChart.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">{view.primaryChart.description}</p>
           </div>
           <Badge tone="info">{chartTypeLabel(view.primaryChart.type)}</Badge>
         </div>

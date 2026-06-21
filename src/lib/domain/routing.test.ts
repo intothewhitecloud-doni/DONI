@@ -9,10 +9,14 @@ test("service screens have stable company URL routes", () => {
   assert.equal(pathForScreen("dashboard"), "/dashboard");
   assert.equal(pathForScreen("company"), "/company");
   assert.equal(pathForScreen("vault"), "/vault");
+  assert.equal(pathForScreen("structureMap"), "/structure-map");
+  assert.equal(pathForScreen("ai"), "/ai");
   assert.equal(pathForScreen("proposalVote"), "/proposal-vote");
   assert.equal(screenFromPathname("/analysis"), "analysis");
   assert.equal(screenFromPathname("/upload"), "upload");
   assert.equal(screenFromPathname("/company"), "company");
+  assert.equal(screenFromPathname("/structure-map"), "structureMap");
+  assert.equal(screenFromPathname("/ai"), "ai");
   assert.equal(screenFromPathname("/review/"), "review");
   assert.equal(routeSegments().includes("company"), true);
   assert.equal(routeSegments().includes("signup"), true);
@@ -30,7 +34,7 @@ test("nested service screens keep their parent sidebar highlight", () => {
 });
 
 test("sidebar menus follow owner and manager roles", () => {
-  const allScreens = ["dashboard", "vault", "objects", "workflow", "metrics", "insights", "proposalVote", "verification", "company", "settings"];
+  const allScreens = ["dashboard", "vault", "structureMap", "objects", "workflow", "metrics", "insights", "ai", "proposalVote", "verification", "company", "settings"];
   assert.deepEqual(
     sidebarItemsForRole("owner").map((item) => item.screen),
     allScreens
@@ -44,6 +48,8 @@ test("sidebar menus follow owner and manager roles", () => {
 test("all approved enterprise roles can access protected screens", () => {
   assert.equal(permittedScreenForRole("owner", "company"), "company");
   assert.equal(permittedScreenForRole("manager", "company"), "company");
+  assert.equal(permittedScreenForRole("manager", "structureMap"), "structureMap");
+  assert.equal(permittedScreenForRole("manager", "ai"), "ai");
   assert.equal(permittedScreenForRole("manager", "verificationDetail"), "verificationDetail");
   assert.equal(permittedScreenForRole("manager", "decisionConfirm"), "decisionConfirm");
 });

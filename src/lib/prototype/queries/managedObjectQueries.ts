@@ -1,6 +1,7 @@
 import type { EntityInstance, EventRecord, MetricDefinition, MetricValue, PrototypeState, Relation } from "../../domain/types";
 import { displayTypeLabel, domainTypeId, normalizeTypeLabel } from "../../domain/type-catalog";
 import { currentCompanyData } from "../selectors";
+import { sortEventsByWorkflowSequence, workflowSequence } from "./graphRules";
 
 type CompanyData = ReturnType<typeof currentCompanyData>;
 
@@ -144,8 +145,6 @@ export const managedObjectGraphLegend: ManagedObjectGraphLegendItem[] = [
     color: "#dc2626"
   }
 ];
-
-const workflowSequence = ["event-order", "event-order-p08", "event-outbound", "event-delivery", "event-claim", "event-compensation"];
 
 export function getManagedObjectView(state: PrototypeState, focusId?: string, options: ManagedObjectViewOptions = {}) {
   const data = currentCompanyData(state);
@@ -732,8 +731,7 @@ function relationEdgeType(relation: Relation): ManagedObjectGraphEdgeType {
 }
 
 function orderedEvents(events: EventRecord[]): EventRecord[] {
-  const order = new Map(workflowSequence.map((eventId, index) => [eventId, index]));
-  return [...events].sort((left, right) => (order.get(left.id) ?? 99) - (order.get(right.id) ?? 99));
+  return sortEventsByWorkflowSequence(events);
 }
 
 function uniqueNodes(nodes: ManagedObjectGraphNode[]): ManagedObjectGraphNode[] {

@@ -13,7 +13,7 @@ import {
   sampleWorkflowMetricBindings
 } from "./sample-analysis";
 import type { PrototypeState } from "./types";
-import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "./types";
+import { createDefaultStructureMapViewState, UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "./types";
 import { demoAccounts } from "./auth-fixtures";
 
 const now = "2026-05-07T09:00:00.000Z";
@@ -63,6 +63,7 @@ export const initialPrototypeState: PrototypeState = {
     { id: "org-operations", name: "운영" },
     { id: "org-supply", name: "공급망" }
   ],
+  structureMapView: createDefaultStructureMapViewState(),
   sourceFiles: sampleSourceFiles.map((file) => ({
     ...file,
     organizationCategoryId: file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID

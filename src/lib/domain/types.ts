@@ -7,6 +7,8 @@ export type Screen =
   | "review"
   | "dashboard"
   | "vault"
+  | "structureMap"
+  | "ai"
   | "objects"
   | "workflow"
   | "metrics"
@@ -71,8 +73,78 @@ export type TrustCertificationStatus = "pending" | "certified" | "failed" | "not
 export type DomainTypeScope = "managed_object" | "workflow";
 export type DomainTypePresetColor = "blue" | "orange" | "pink" | "violet" | "emerald" | "slate";
 export type DomainTypeColor = DomainTypePresetColor | `#${string}`;
+export type StructureMapNodeType = "category" | "managed_object" | "workflow" | "metric" | "insight";
+export type StructureMapEdgeType =
+  | "managed_object_structural"
+  | "managed_object_workflow"
+  | "workflow_sequence"
+  | "workflow_metric"
+  | "metric_insight";
+export type StructureMapDepth = 1 | 2 | 3 | "all";
+export type StructureMapLayoutMode = "semantic-lanes" | "clustered" | "risk-first";
 
 export const UNASSIGNED_ORGANIZATION_CATEGORY_ID = "unassigned";
+export const defaultStructureMapNodeTypes: StructureMapNodeType[] = ["managed_object", "workflow", "metric", "insight"];
+export const defaultStructureMapEdgeTypes: StructureMapEdgeType[] = [
+  "managed_object_structural",
+  "managed_object_workflow",
+  "workflow_sequence",
+  "workflow_metric",
+  "metric_insight"
+];
+export const defaultStructureMapLayoutModes: StructureMapLayoutMode[] = ["semantic-lanes", "clustered", "risk-first"];
+
+export interface StructureMapViewState {
+  searchQuery: string;
+  nodeTypes: StructureMapNodeType[];
+  edgeTypes: StructureMapEdgeType[];
+  depth: StructureMapDepth;
+  layoutMode: StructureMapLayoutMode;
+  selectedItemId?: string;
+  hiddenNodeIds: string[];
+  hiddenEdgeIds: string[];
+  savedPositions: Record<StructureMapLayoutMode, Record<string, { x: number; y: number }>>;
+}
+
+export type StructureMapNodePatch = {
+  durationHours?: number;
+  formula?: string;
+  kind?: string;
+  name?: string;
+  occurredAt?: string;
+  owner?: string;
+  reason?: string;
+  recommendedActions?: string[];
+  relatedObjectIds?: string[];
+  severity?: "low" | "medium" | "high";
+  status?: string;
+  summary?: string;
+  title?: string;
+  unit?: string;
+  workflowType?: string;
+};
+
+export type StructureMapRelationPatch = Partial<Pick<Relation, "confidence" | "description" | "fromId" | "impact" | "metricIds" | "relationKind" | "status" | "strength" | "toId" | "type">>;
+export type StructureMapRelationInput = Pick<Relation, "description" | "fromId" | "impact" | "status" | "toId" | "type"> &
+  Partial<Pick<Relation, "confidence" | "evidenceIds" | "id" | "metricIds" | "relationKind" | "strength">>;
+
+export function createDefaultStructureMapViewState(): StructureMapViewState {
+  return {
+    searchQuery: "",
+    nodeTypes: [...defaultStructureMapNodeTypes],
+    edgeTypes: [...defaultStructureMapEdgeTypes],
+    depth: "all",
+    layoutMode: "semantic-lanes",
+    selectedItemId: undefined,
+    hiddenNodeIds: [],
+    hiddenEdgeIds: [],
+    savedPositions: {
+      clustered: {},
+      "risk-first": {},
+      "semantic-lanes": {}
+    }
+  };
+}
 
 export interface DomainTypeDefinition {
   id: string;
@@ -444,6 +516,7 @@ export interface CompanyResultBundle {
 export interface PrototypeState extends CompanyOperationalState {
   screen: Screen;
   session: CompanySession;
+  structureMapView: StructureMapViewState;
   authAccounts: AuthAccount[];
   users: User[];
   navigationFocus?: LinkTarget;

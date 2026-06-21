@@ -494,7 +494,7 @@ function MenuIcon() {
 export function SettingsScreen() {
   return (
     <div className="space-y-6">
-      <SectionTitle eyebrow="설정" title="콘솔 설정" description="알림, 저장소, 화면 표시 옵션은 이후 단계에서 확장합니다." />
+      <SectionTitle eyebrow="설정" title="콘솔 설정" />
       <Card>
         <p className="text-sm text-slate-600">현재 프로토타입은 기업 단일 콘솔 구조로 동작합니다.</p>
       </Card>

@@ -56,8 +56,61 @@ button {
   border-radius: 9999px;
 }
 
+.shell-content-frame {
+  --shell-content-left: 1rem;
+  --shell-content-right: 1rem;
+  --shell-content-max: 1280px;
+  padding-left: var(--shell-content-left);
+  padding-right: var(--shell-content-right);
+}
+
+@media (min-width: 640px) {
+  .shell-content-frame {
+    --shell-content-left: 1.25rem;
+    --shell-content-right: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .shell-content-frame {
+    --shell-content-left: 5rem;
+    --shell-content-right: 1.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .shell-content-frame {
+    --shell-content-left: 13rem;
+    --shell-content-right: 1.25rem;
+  }
+}
+
 .metric-line {
   background:
     linear-gradient(180deg, rgba(37, 99, 235, 0.16), rgba(37, 99, 235, 0)),
     linear-gradient(135deg, transparent 0 8%, #2563eb 8% 10%, transparent 10% 18%, #2563eb 18% 20%, transparent 20% 35%, #2563eb 35% 37%, transparent 37% 48%, #2563eb 48% 50%, transparent 50% 62%, #2563eb 62% 64%, transparent 64% 78%, #2563eb 78% 80%, transparent 80%);
+}
+
+.structure-map-flow .structure-map-minimap::before {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 2;
+  display: flex;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.2);
+  background: rgba(255, 255, 255, 0.96);
+  color: #2563eb;
+  content: "탐색 미니맵";
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.structure-map-flow .structure-map-minimap svg {
+  display: block;
+  height: calc(100% - 2rem) !important;
+  margin-top: 2rem;
+  width: 100% !important;
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "@xyflow/react/dist/style.css";
-import { AiChatProvider } from "../features/ai-chat/AiChatProvider";
 import { PrototypeProvider } from "../lib/prototype/PrototypeProvider";
 import "./globals.css";
 
@@ -21,9 +20,7 @@ export default function RootLayout({
   return (
     <html lang="ko" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
-        <PrototypeProvider>
-          <AiChatProvider>{children}</AiChatProvider>
-        </PrototypeProvider>
+        <PrototypeProvider>{children}</PrototypeProvider>
       </body>
     </html>
   );
