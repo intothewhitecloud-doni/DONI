@@ -20,15 +20,17 @@ import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { visibleOrganizationCategories } from "../../lib/prototype/organizationCategories";
 import {
   BINARY_SOURCE_FILE_LIMIT_BYTES,
-  deriveSourceFileRenderType,
   findOversizedBinarySourceFile,
-  hasParsedTablePreview,
-  sourceFileExtension,
   SUPPORTED_SOURCE_FILE_ACCEPT,
-  validateSourceFileRename,
-  type SourceFileRenderType
+  validateSourceFileRename
 } from "../../lib/prototype/sourceFiles";
 import { KnowledgeGraph } from "./KnowledgeGraph";
+import { DataVaultRevisionWorkbench } from "./DataVaultRevisionWorkbench";
+import { DataVaultUploadPopup } from "./DataVaultUploadPopup";
+import type { VaultTabId } from "./dataVaultRevisionFixtures";
+import {
+  downloadSourceFile
+} from "./SourceFilePreviewPanel";
 
 type SourceFileUploadDraft = {
   name: string;
@@ -53,6 +55,8 @@ export function DataVaultScreen() {
   const [editingFile, setEditingFile] = useState({ kind: "", name: "" });
   const [fileFeedback, setFileFeedback] = useState("");
   const [activeOrganizationCategoryId, setActiveOrganizationCategoryId] = useState("");
+  const [activeVaultTab, setActiveVaultTab] = useState<VaultTabId>("source");
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const organizationCategories = useMemo(
     () => visibleOrganizationCategories(state.organizationCategories, { sourceFiles: state.sourceFiles }),
     [state.organizationCategories, state.sourceFiles]
@@ -60,6 +64,8 @@ export function DataVaultScreen() {
   const selectedOrganizationCategoryId = organizationCategories.some((category) => category.id === activeOrganizationCategoryId)
     ? activeOrganizationCategoryId
     : organizationCategories[0]?.id ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID;
+  const selectedOrganizationCategoryName =
+    organizationCategories.find((category) => category.id === selectedOrganizationCategoryId)?.name ?? "미지정";
   const visibleSourceFiles = useMemo(
     () => state.sourceFiles.filter((file) => (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID) === selectedOrganizationCategoryId),
     [selectedOrganizationCategoryId, state.sourceFiles]
@@ -124,6 +130,7 @@ export function DataVaultScreen() {
         if (commands.addSourceFiles(files, selectedOrganizationCategoryId)) {
           input.value = "";
           setFileFeedback("");
+          setIsUploadOpen(false);
         } else {
           setFileFeedback("파일을 추가하지 못했습니다. 화면 상단의 알림 내용을 확인해 주세요.");
         }
@@ -139,391 +146,122 @@ export function DataVaultScreen() {
     }
   }
 
+  function handleSaveFileInfo() {
+    if (!activeFile) {
+      return;
+    }
+
+    const renameResult = validateSourceFileRename(activeFile.name, editingFile.name);
+    if (!renameResult.valid) {
+      setFileFeedback(renameResult.message);
+      return;
+    }
+
+    setFileFeedback("");
+    commands.updateSourceFile(activeFile.id, { ...editingFile, name: renameResult.name });
+  }
+
+  function handleRemoveFile(fileId: string) {
+    if (commands.removeSourceFile(fileId)) {
+      setActiveFileId("");
+    }
+  }
+
   return (
-    <div className="space-y-8">
-      <SectionTitle eyebrow="데이터 보관함" title="조직별 파일 추가와 분석 준비" description="업로드 전에 조직 탭을 선택하고 해당 분류로 업무 파일을 추가합니다." />
-      <Card className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950">파일 추가</h2>
-            <p className="mt-1 text-sm text-slate-600">현재 선택 조직: {organizationCategories.find((category) => category.id === selectedOrganizationCategoryId)?.name ?? "미지정"}</p>
-          </div>
-          {canManageFiles && (
-            <div className="flex flex-wrap gap-2">
-              <input
-                ref={inputRef}
-                className="hidden"
-                type="file"
-                multiple
-                accept={SUPPORTED_SOURCE_FILE_ACCEPT}
-                onChange={handleFileInputChange}
-              />
-              <Button disabled={isReadingFiles} onClick={() => inputRef.current?.click()}>
-                {isReadingFiles ? "파일 읽는 중" : "파일 추가"}
-              </Button>
-              <Button disabled={state.sourceFiles.length === 0} variant="secondary" onClick={commands.uploadSampleFiles}>
-                분석 시작
-              </Button>
-            </div>
-          )}
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <SectionTitle eyebrow="데이터 보관함" title="원천 데이터 영향과 변화 흐름" />
         </div>
-        {fileFeedback && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-            {fileFeedback}
+        {canManageFiles && (
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button disabled={isReadingFiles} onClick={() => setIsUploadOpen(true)}>
+              + 업로드
+            </Button>
           </div>
         )}
-        <div className="flex flex-wrap gap-2">
-          {organizationCategories.map((category) => {
-            const count = state.sourceFiles.filter((file) => (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID) === category.id).length;
-            return (
-              <Button
-                key={category.id}
-                variant={selectedOrganizationCategoryId === category.id ? "primary" : "secondary"}
-                onClick={() => setActiveOrganizationCategoryId(category.id)}
-              >
-                {category.name} · {count}
+      </div>
+      {isUploadOpen && (
+        <DataVaultUploadPopup
+          accept={SUPPORTED_SOURCE_FILE_ACCEPT}
+          fileFeedback={fileFeedback}
+          inputRef={inputRef}
+          isReadingFiles={isReadingFiles}
+          selectedCategoryName={selectedOrganizationCategoryName}
+          onClose={() => setIsUploadOpen(false)}
+          onFileInputChange={handleFileInputChange}
+        />
+      )}
+      {state.sourceFiles.length === 0 ? (
+        <DataVaultEmptyState canManageFiles={canManageFiles} isReadingFiles={isReadingFiles} onUpload={() => setIsUploadOpen(true)} />
+      ) : (
+        <DataVaultRevisionWorkbench
+          activeFile={activeFile}
+          activeTab={activeVaultTab}
+          allSourceFiles={state.sourceFiles}
+          canManageFiles={canManageFiles}
+          canonicalEvidence={canonicalEvidence}
+          editingFile={editingFile}
+          fileEvidence={fileEvidence}
+          fileFeedback={fileFeedback}
+          organizationCategories={organizationCategories}
+          selectedOrganizationCategoryId={selectedOrganizationCategoryId}
+          sourceFileKindOptions={sourceFileKindOptions}
+          sourceFiles={visibleSourceFiles}
+          onChangeEditingFile={setEditingFile}
+          onDownloadFile={downloadSourceFile}
+          onRemoveFile={handleRemoveFile}
+          onSaveFileInfo={handleSaveFileInfo}
+          onSelectFile={setActiveFileId}
+          onSelectOrganizationCategory={setActiveOrganizationCategoryId}
+          onSelectTab={setActiveVaultTab}
+        />
+      )}
+    </div>
+  );
+}
+
+function DataVaultEmptyState({
+  canManageFiles,
+  isReadingFiles,
+  onUpload
+}: {
+  canManageFiles: boolean;
+  isReadingFiles: boolean;
+  onUpload: () => void;
+}) {
+  return (
+    <Card className="min-h-[420px] overflow-hidden" density="flush">
+      <div className="grid min-h-[420px] lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col items-start justify-center p-8 sm:p-10">
+          <Badge tone="neutral">원천 데이터 없음</Badge>
+          <h2 className="mt-5 max-w-2xl text-title-lg text-ink md:text-display-sm">데이터 보관함에 등록된 파일이 없습니다</h2>
+          <p className="mt-4 max-w-2xl text-body-sm leading-6 text-muted">
+            파일을 추가하면 정보 보정, 구조 보기, 현재 기준 반영을 이어서 확인합니다.
+          </p>
+          {canManageFiles && (
+            <div className="mt-6">
+              <Button disabled={isReadingFiles} onClick={onUpload}>
+                + 업로드
               </Button>
-            );
-          })}
+            </div>
+          )}
         </div>
-      </Card>
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <Card className="min-w-0 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-slate-950">보관 파일</h2>
-            <Badge tone={visibleSourceFiles.length > 0 ? "info" : "neutral"}>{visibleSourceFiles.length}개</Badge>
-          </div>
-          {visibleSourceFiles.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-5">
-              <p className="font-semibold text-slate-900">선택한 조직에 추가된 파일이 없습니다</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">조직 탭을 선택한 뒤 파일을 추가하면 이곳에서 조회할 수 있습니다.</p>
-            </div>
-          ) : (
-            visibleSourceFiles.map((file) => (
-              <button
-                key={file.id}
-                className={`w-full rounded-md border p-4 text-left transition ${
-                  activeFile?.id === file.id ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:bg-slate-50"
-                }`}
-                onClick={() => setActiveFileId(file.id)}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-bold text-slate-950">{file.name}</h3>
-                    <p className="mt-2 text-sm text-slate-600">{sourceFileListSummary(file)}</p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      조직: {organizationCategories.find((category) => category.id === (file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID))?.name ?? "미지정"}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      {file.uploadedAt ? `업로드 시각 ${new Date(file.uploadedAt).toLocaleString("ko-KR")}` : "업로드 전"}
-                    </p>
-                  </div>
-                  <Badge tone={file.status === "ready" ? "neutral" : file.status === "uploaded" ? "success" : "info"}>
-                    {fileStatusLabel(file.status)}
-                  </Badge>
-                </div>
-              </button>
-            ))
-          )}
-        </Card>
-        <Card className="min-w-0 space-y-4">
-          {activeFile ? (
-            <>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <Badge tone={activeFile.status === "ready" ? "neutral" : "success"}>{fileStatusLabel(activeFile.status)}</Badge>
-                  <h2 className="mt-3 text-xl font-bold text-slate-950">{activeFile.name}</h2>
-                  <p className="mt-2 text-sm text-slate-600">{activeFile.kind}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => downloadSourceFile(activeFile)}>
-                    파일 다운로드
-                  </Button>
-                  {canManageFiles && (
-                    <Button
-                      variant="danger"
-                      onClick={() => {
-                        if (commands.removeSourceFile(activeFile.id)) {
-                          setActiveFileId("");
-                        }
-                      }}
-                    >
-                      파일 제거
-                    </Button>
-                  )}
-                </div>
+        <div className="border-t border-hairline bg-slate-50 p-6 lg:border-l lg:border-t-0">
+          <div className="grid h-full content-center gap-3">
+            {["파일 업로드", "정보 보정", "구조 보기", "현재 기준 반영"].map((label, index) => (
+              <div key={label} className="flex items-center gap-3 rounded-md border border-slate-200 bg-white p-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-sm font-bold text-blue-700">
+                  {index + 1}
+                </span>
+                <span className="text-sm font-bold text-slate-900">{label}</span>
               </div>
-              {canManageFiles && (
-                <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1fr_220px_auto]">
-                  <label className="space-y-1">
-                    <span className="text-xs font-bold text-slate-500">파일명</span>
-                    <input
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                      value={editingFile.name}
-                      onChange={(event) => setEditingFile((current) => ({ ...current, name: event.target.value }))}
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-xs font-bold text-slate-500">파일 종류</span>
-                    <select
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                      value={editingFile.kind}
-                      onChange={(event) => setEditingFile((current) => ({ ...current, kind: event.target.value }))}
-                    >
-                      {sourceFileKindOptions.map((kind) => (
-                        <option key={kind} value={kind}>{kind}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="flex items-end">
-                    <Button
-                      className="w-full"
-                      variant="secondary"
-                      onClick={() => {
-                        const renameResult = validateSourceFileRename(activeFile.name, editingFile.name);
-                        if (!renameResult.valid) {
-                          setFileFeedback(renameResult.message);
-                          return;
-                        }
-
-                        setFileFeedback("");
-                        commands.updateSourceFile(activeFile.id, { ...editingFile, name: renameResult.name });
-                      }}
-                    >
-                      정보 저장
-                    </Button>
-                  </div>
-                </div>
-              )}
-              <SourceFilePreview file={activeFile} renderType={deriveSourceFileRenderType(activeFile)} />
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-500">선택 파일 근거</p>
-                <div className="mt-2 space-y-2">
-                  {fileEvidence.length > 0 ? (
-                    fileEvidence.map((evidence) => (
-                      <div key={evidence.id} className="rounded-md bg-white p-3">
-                        <p className="font-semibold text-slate-900">{evidence.label}</p>
-                        <p className="mt-1 text-xs text-slate-500">{evidence.location}</p>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">{evidence.excerpt}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm leading-6 text-slate-600">분석 후에는 보관 파일에서 확인된 근거 위치가 이곳에 표시됩니다.</p>
-                  )}
-                </div>
-              </div>
-              <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
-                <p className="text-xs font-bold text-blue-700">분석 근거</p>
-                <div className="mt-2 space-y-2">
-                  {canonicalEvidence.length > 0 ? (
-                    canonicalEvidence.map((evidence) => (
-                      <div key={evidence.id} className="rounded-md bg-white p-3">
-                        <p className="font-semibold text-slate-900">{evidence.label}</p>
-                        <p className="mt-1 text-xs text-slate-500">{formatEvidenceSource(evidence)}</p>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">{evidence.excerpt}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm leading-6 text-slate-600">분석을 시작하면 파일의 행, 열, 신뢰도가 이곳에 표시됩니다.</p>
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-5">
-              <p className="font-semibold text-slate-900">조회할 파일을 선택하세요</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">파일을 추가하면 미리보기와 다운로드 버튼이 표시됩니다.</p>
-            </div>
-          )}
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-function fileStatusLabel(status: SourceFile["status"]): string {
-  if (status === "parsed") {
-    return "분석됨";
-  }
-
-  if (status === "uploaded") {
-    return "업로드됨";
-  }
-
-  return "추가됨";
-}
-
-function sourceFileListSummary(file: SourceFile): string {
-  if (deriveSourceFileRenderType(file) === "table") {
-    return `${file.kind} · ${file.rowCount.toLocaleString("ko-KR")}행`;
-  }
-
-  return `${file.kind} · ${formatFileSize(file.size)} · ${formatFileType(file)}`;
-}
-
-function SourceFilePreview({ file, renderType }: { file: SourceFile; renderType: SourceFileRenderType }) {
-  if (renderType === "table") {
-    return (
-      <div className="overflow-x-auto rounded-md border border-slate-200">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-bold text-slate-500">
-            <tr>
-              {filePreviewColumns(file).map((column) => (
-                <th key={column} className="whitespace-nowrap px-3 py-2">{column}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filePreviewRows(file).map((row) => (
-              <tr key={row.join("-")}>
-                {row.map((cell, index) => (
-                  <td key={`${index}-${cell}`} className="whitespace-nowrap px-3 py-2 text-slate-700">{cell}</td>
-                ))}
-              </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  if (renderType === "image" && file.dataUrl) {
-    return (
-      <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <img className="max-h-[420px] w-full object-contain" src={file.dataUrl} alt={file.name} />
+          </div>
         </div>
-        <SourceFileMetadata file={file} />
       </div>
-    );
-  }
-
-  if (renderType === "pdf" && file.dataUrl) {
-    return (
-      <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <iframe
-            className="h-[520px] w-full border-0"
-            src={file.dataUrl}
-            title={`${file.name} 미리보기`}
-          />
-        </div>
-        <SourceFileMetadata file={file} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-4">
-      <div>
-        <p className="font-bold text-slate-950">미리보기를 제공하지 않는 파일입니다</p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">이 파일은 보관과 다운로드 대상으로 유지됩니다.</p>
-      </div>
-      <SourceFileMetadata file={file} />
-    </div>
+    </Card>
   );
-}
-
-function SourceFileMetadata({ file }: { file: SourceFile }) {
-  return (
-    <dl className="grid gap-3 text-sm md:grid-cols-3">
-      <div className="rounded-md border border-slate-200 bg-white p-3">
-        <dt className="text-xs font-bold text-slate-500">파일 크기</dt>
-        <dd className="mt-1 font-semibold text-slate-900">{formatFileSize(file.size)}</dd>
-      </div>
-      <div className="rounded-md border border-slate-200 bg-white p-3">
-        <dt className="text-xs font-bold text-slate-500">파일 형식</dt>
-        <dd className="mt-1 font-semibold text-slate-900">{formatFileType(file)}</dd>
-      </div>
-      <div className="rounded-md border border-slate-200 bg-white p-3">
-        <dt className="text-xs font-bold text-slate-500">렌더 유형</dt>
-        <dd className="mt-1 font-semibold text-slate-900">{sourceFileRenderTypeLabel(deriveSourceFileRenderType(file))}</dd>
-      </div>
-    </dl>
-  );
-}
-
-function sourceFileRenderTypeLabel(renderType: SourceFileRenderType): string {
-  if (renderType === "table") {
-    return "표 미리보기";
-  }
-
-  if (renderType === "image") {
-    return "이미지";
-  }
-
-  if (renderType === "pdf") {
-    return "PDF";
-  }
-
-  return "파일";
-}
-
-function filePreviewColumns(file: SourceFile): string[] {
-  return hasParsedTablePreview(file) ? file.previewColumns ?? [] : [];
-}
-
-function filePreviewRows(file: SourceFile): string[][] {
-  return hasParsedTablePreview(file) ? file.previewRows ?? [] : [];
-}
-
-function formatFileSize(size?: number): string {
-  if (typeof size !== "number") {
-    return "크기 확인 전";
-  }
-
-  if (size < 1024) {
-    return `${size.toLocaleString("ko-KR")} bytes`;
-  }
-
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toLocaleString("ko-KR", { maximumFractionDigits: 1 })} KB`;
-  }
-
-  return `${(size / 1024 / 1024).toLocaleString("ko-KR", { maximumFractionDigits: 1 })} MB`;
-}
-
-function formatFileType(file: SourceFile): string {
-  return file.mimeType || sourceFileExtension(file.name).toUpperCase() || "형식 확인 전";
-}
-
-function downloadSourceFile(file: SourceFile): void {
-  if (file.dataUrl) {
-    const anchor = document.createElement("a");
-    anchor.href = file.dataUrl;
-    anchor.download = file.name;
-    anchor.click();
-    return;
-  }
-
-  const blob = hasParsedTablePreview(file)
-    ? new Blob(
-        [
-          `\uFEFF${[filePreviewColumns(file), ...filePreviewRows(file)]
-            .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
-            .join("\n")}`
-        ],
-        { type: "text/csv;charset=utf-8" }
-      )
-    : new Blob([`${file.name}\n${formatFileType(file)}\n${formatFileSize(file.size)}\n`], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = file.name;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-function formatEvidenceSource(evidence: EvidenceReference): string {
-  const parts = [
-    evidence.sourceName ?? evidence.location,
-    evidence.sheetName ? `${evidence.sheetName} 시트` : undefined,
-    evidence.rowNumbers && evidence.rowNumbers.length > 0 ? `${evidence.rowNumbers.join(", ")}행` : undefined,
-    evidence.columns && evidence.columns.length > 0 ? evidence.columns.join(", ") : undefined,
-    typeof evidence.confidence === "number" ? `신뢰도 ${Math.round(evidence.confidence * 100)}%` : undefined
-  ].filter(Boolean);
-
-  return parts.join(" · ");
 }
 
 async function readSourceFileUpload(file: File): Promise<SourceFileUploadDraft> {
@@ -552,18 +290,26 @@ async function readSourceFileUpload(file: File): Promise<SourceFileUploadDraft> 
     }
   }
 
-  if (extension === "xlsx") {
+  if (extension === "xlsx" || extension === "xls") {
+    let preview = buildSpreadsheetPreview(file, extension);
+
     try {
-      const preview = await parseXlsxPreview(await file.arrayBuffer());
-      return {
-        ...base,
-        previewColumns: preview.columns,
-        previewRows: preview.rows,
-        rowCount: preview.rowCount
-      };
+      if (extension === "xlsx") {
+        const parsedPreview = await parseXlsxPreview(await file.arrayBuffer());
+        if (hasWorkbookPreview(parsedPreview)) {
+          preview = parsedPreview;
+        }
+      }
     } catch {
-      return base;
+      preview = buildSpreadsheetPreview(file, extension);
     }
+
+    return {
+      ...base,
+      previewColumns: preview.columns,
+      previewRows: preview.rows,
+      rowCount: preview.rowCount
+    };
   }
 
   return base;
@@ -586,6 +332,37 @@ function parseDelimitedPreview(text: string, delimiter: string): { columns: stri
     rowCount: bodyRows.length,
     rows: bodyRows.slice(0, 5).map((row) => row.slice(0, 8))
   };
+}
+
+function hasWorkbookPreview(preview: { columns: string[]; rowCount: number; rows: string[][] }): boolean {
+  return preview.columns.length > 0 && preview.rows.length > 0;
+}
+
+function buildSpreadsheetPreview(file: File, extension: string): { columns: string[]; rowCount: number; rows: string[][] } {
+  const rows = [
+    ["Sheet1", "파일명", file.name, "업로드됨"],
+    ["Sheet1", "파일 형식", extension.toUpperCase(), "표 형식 데이터"],
+    ["Sheet1", "파일 크기", formatUploadPreviewSize(file.size), "보관됨"],
+    ["Sheet1", "미리보기", "실제 행 파싱은 추후 구현", "샘플 흐름"]
+  ];
+
+  return {
+    columns: ["시트", "항목", "원천값", "상태"],
+    rowCount: rows.length,
+    rows
+  };
+}
+
+function formatUploadPreviewSize(size: number): string {
+  if (size < 1024) {
+    return `${size.toLocaleString("ko-KR")} bytes`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toLocaleString("ko-KR", { maximumFractionDigits: 1 })} KB`;
+  }
+
+  return `${(size / 1024 / 1024).toLocaleString("ko-KR", { maximumFractionDigits: 1 })} MB`;
 }
 
 function parseDelimitedRows(text: string, delimiter: string): string[][] {
@@ -636,7 +413,9 @@ function parseDelimitedRows(text: string, delimiter: string): string[][] {
 
 async function parseXlsxPreview(buffer: ArrayBuffer): Promise<{ columns: string[]; rowCount: number; rows: string[][] }> {
   const entries = await readZipEntries(buffer);
-  const firstSheet = entries.get("xl/worksheets/sheet1.xml");
+  const firstSheet =
+    entries.get("xl/worksheets/sheet1.xml") ??
+    Array.from(entries.entries()).find(([name]) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))?.[1];
   if (!firstSheet) {
     return { columns: [], rowCount: 0, rows: [] };
   }
@@ -902,7 +681,7 @@ export function ManagedObjectsScreen() {
   if (state.entities.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="관리 대상" title="아직 정의된 관리 대상이 없습니다" description="관리 대상은 고객군, 공급사, 상품군처럼 의사결정의 기준이 되는 업무 객체입니다." />
+        <SectionTitle eyebrow="관리 대상" title="아직 정의된 관리 대상이 없습니다" />
         <EmptyAnalysisState
           body={hasFiles ? "추가된 파일을 분석하면 관리 대상 후보를 검토하고 확정할 수 있습니다." : "데이터 보관함에 업무 파일을 추가하면 관리 대상 후보를 추출할 수 있습니다."}
           buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
@@ -915,7 +694,7 @@ export function ManagedObjectsScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="관리 대상" title="관리 대상 목록과 유형" description="관리 대상명을 검색하고 유형으로 필터링합니다. 유형은 분류와 관리를 위한 범주 정보입니다." />
+      <SectionTitle eyebrow="관리 대상" title="관리 대상 목록과 유형" />
       <div className="grid items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card className="space-y-4">
@@ -1364,7 +1143,7 @@ export function WorkflowScreen() {
   if (state.events.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="업무 흐름" title="아직 정의된 업무 이벤트가 없습니다" description="업무 이벤트는 주문 접수, 출고, 클레임 처리처럼 시간과 상태가 있는 업무 흐름입니다." />
+        <SectionTitle eyebrow="업무 흐름" title="아직 정의된 업무 이벤트가 없습니다" />
         <EmptyAnalysisState
           body={hasFiles ? "추가된 파일을 분석하면 업무 이벤트와 병목 후보가 표시됩니다." : "업무 파일을 먼저 추가하면 주문, 출고, 클레임 흐름을 추출할 수 있습니다."}
           buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
@@ -1377,7 +1156,7 @@ export function WorkflowScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="업무 흐름" title="업무흐름 이벤트와 유형" description="업무흐름 유형을 범주처럼 관리하고, 각 이벤트에 반영된 유형을 확인합니다." />
+      <SectionTitle eyebrow="업무 흐름" title="업무흐름 이벤트와 유형" />
       <div className="grid items-start gap-5">
         <Card className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1496,7 +1275,7 @@ export function MetricsScreen() {
   if (state.metricDefinitions.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="지표" title="아직 계산할 지표가 없습니다" description="지표는 업무 파일에서 도출된 수치 기준이며, 연결 관계와 함께 의사결정 안건의 근거가 됩니다." />
+        <SectionTitle eyebrow="지표" title="아직 계산할 지표가 없습니다" />
         <EmptyAnalysisState
           body={hasFiles ? "추가된 파일을 분석하면 마진율, 처리 시간, 클레임률 같은 지표 후보를 확인할 수 있습니다." : "데이터 보관함에 파일을 추가하면 지표 후보를 추출할 수 있습니다."}
           buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
@@ -1509,7 +1288,7 @@ export function MetricsScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="지표" title="계산 기준과 관련 안건" description="각 지표는 증거 위치, 계산식, 관련 인사이트와 연결됩니다." />
+      <SectionTitle eyebrow="지표" title="계산 기준과 관련 안건" />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {state.metricDefinitions.map((definition) => {
           const value = state.metricValues.find((item) => item.metricId === definition.id);
