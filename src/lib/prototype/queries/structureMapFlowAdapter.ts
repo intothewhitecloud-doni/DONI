@@ -181,8 +181,8 @@ function flowEdge(edge: StructureMapGraphEdge, semantics: StructureMapFocusSeman
   const dimmed = semantics.dimmedIds.has(edge.id);
   const visualPriority = edgePriority({ edge, primaryPath, related, selected });
   const stroke = selected ? "#1d4ed8" : primaryPath ? meta.color : focused ? "#14b8a6" : meta.color;
-  const strokeWidth = visualPriority === "primary" ? 3 : visualPriority === "related" ? 2.4 : visualPriority === "manual" ? 1.9 : 1.2;
-  const opacity = dimmed ? 0.2 : visualPriority === "context" ? 0.42 : 0.9;
+  const strokeWidth = visualPriority === "primary" ? 2.7 : visualPriority === "related" ? 2.1 : visualPriority === "manual" ? 1.7 : 1.1;
+  const opacity = dimmed ? 0.12 : visualPriority === "context" ? 0.28 : 0.82;
   const labelVisible =
     semantics.selectedItemId === edge.id ||
     focused ||
