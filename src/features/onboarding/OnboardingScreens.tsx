@@ -278,7 +278,7 @@ export function SignupScreen() {
     <AuthLayout
       badge="회사코드 필수"
       title="승인 대기 계정 신청"
-      description="기업 콘솔은 기업이 먼저 존재해야 사용자 계정이 존재합니다. 회사코드를 입력해 신청하면 기업 소유자 승인 후 접속할 수 있습니다."
+      description="회사코드를 입력해 신청하면 기업 소유자 승인 후 접속할 수 있습니다."
       side={
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-hairline bg-surface-soft p-4">
