@@ -57,8 +57,8 @@ button {
 }
 
 .shell-content-frame {
-  --shell-content-left: 1rem;
-  --shell-content-right: 1rem;
+  --shell-content-left: 1.25rem;
+  --shell-content-right: 1.25rem;
   --shell-content-max: 1280px;
   padding-left: var(--shell-content-left);
   padding-right: var(--shell-content-right);
@@ -66,22 +66,22 @@ button {
 
 @media (min-width: 640px) {
   .shell-content-frame {
-    --shell-content-left: 1.25rem;
-    --shell-content-right: 1.25rem;
+    --shell-content-left: 1.75rem;
+    --shell-content-right: 1.75rem;
   }
 }
 
 @media (min-width: 1024px) {
   .shell-content-frame {
-    --shell-content-left: 5rem;
-    --shell-content-right: 1.25rem;
+    --shell-content-left: 6rem;
+    --shell-content-right: 2rem;
   }
 }
 
 @media (min-width: 1280px) {
   .shell-content-frame {
-    --shell-content-left: 13rem;
-    --shell-content-right: 1.25rem;
+    --shell-content-left: 14rem;
+    --shell-content-right: 2rem;
   }
 }
 
@@ -113,4 +113,51 @@ button {
   height: calc(100% - 2rem) !important;
   margin-top: 2rem;
   width: 100% !important;
+}
+
+@keyframes aiCanvasCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes aiCanvasTypingSweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(180%);
+  }
+}
+
+.ai-canvas-card-in {
+  animation: aiCanvasCardIn 220ms ease-out both;
+}
+
+.ai-canvas-typing-line {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(209, 213, 219, 0.58), rgba(239, 243, 255, 0.9), rgba(209, 213, 219, 0.58));
+}
+
+.ai-canvas-typing-line::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.84), transparent);
+  content: "";
+  animation: aiCanvasTypingSweep 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-canvas-card-in,
+  .ai-canvas-typing-line::after {
+    animation: none;
+  }
 }
