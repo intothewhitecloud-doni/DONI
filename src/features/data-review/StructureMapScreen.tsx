@@ -477,7 +477,7 @@ function StructureMapNodeCard({ data, selected }: NodeProps<StructureMapFlowNode
         borderColor: elevated ? data.accent : data.stroke,
         borderWidth: elevated ? 2 : 1,
         boxShadow: elevated ? "0 16px 34px rgba(37, 99, 235, 0.18)" : "0 8px 18px rgba(15, 23, 42, 0.08)",
-        opacity: dimmed ? 0.34 : data.related || data.primaryPath || data.searchMatch ? 1 : 0.78
+        opacity: dimmed ? 0.58 : data.related || data.primaryPath || data.searchMatch ? 1 : 0.82
       }}
     >
       <Handle
