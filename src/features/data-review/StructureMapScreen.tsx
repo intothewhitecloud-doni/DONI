@@ -1,9 +1,22 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState, type ForwardRefExoticComponent, type RefAttributes } from "react";
-import { SphereWithIcon } from "reagraph";
-import type { GraphCanvasProps, GraphCanvasRef, InternalGraphEdge, InternalGraphNode, NodeRendererProps, Theme } from "reagraph";
+import {
+  Background,
+  BaseEdge,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  ReactFlow,
+  getSmoothStepPath,
+  useEdgesState,
+  useNodesState,
+  type EdgeProps,
+  type NodeProps,
+  type ReactFlowInstance
+} from "@xyflow/react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, type BadgeTone } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { SectionTitle } from "../../components/ui/Card";
@@ -18,13 +31,24 @@ import {
   type StructureMapSearchFocus
 } from "../../lib/prototype/queries/structureMapQueries";
 import {
-  buildStructureMapReagraphModel,
-  getStructureMapRelatedIds,
+  buildStructureMapFlowModel,
   structureMapEdgeMeta,
   structureMapNodeMeta,
-  type StructureMapReagraphModel
-} from "../../lib/prototype/queries/structureMapReagraphAdapter";
+  toStructureMapDomainPosition,
+  type StructureMapFlowEdge,
+  type StructureMapFlowModel,
+  type StructureMapFlowNode
+} from "../../lib/prototype/queries/structureMapFlowAdapter";
+import {
+  buildStructureMapFocusSemantics,
+  getStructureMapRelatedIds,
+} from "../../lib/prototype/queries/structureMapGraphSemantics";
+import {
+  buildStructureMapInspectorContext,
+  type StructureMapInspectorContext
+} from "../../lib/prototype/queries/structureMapInspectorContext";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
+import { currentCompanyData } from "../../lib/prototype/selectors";
 
 type RelationDraft = {
   fromId: string;
@@ -33,14 +57,6 @@ type RelationDraft = {
   status: string;
   description: string;
 };
-
-const ReagraphCanvas = dynamic<GraphCanvasProps>(() => import("reagraph").then((module) => module.GraphCanvas), {
-  ssr: false
-}) as ForwardRefExoticComponent<GraphCanvasProps & RefAttributes<GraphCanvasRef>>;
-
-function renderStructureMapNode(props: NodeRendererProps) {
-  return <SphereWithIcon {...props} image={props.node.icon ?? ""} size={props.size + 8} />;
-}
 
 const nodeLabels: Record<StructureMapNodeType, string> = {
   category: "유형",
@@ -58,92 +74,38 @@ const edgeLabels: Record<StructureMapEdgeType, string> = {
   workflow_sequence: "업무 순서"
 };
 
+const edgeDescriptions: Record<StructureMapEdgeType, string> = {
+  managed_object_structural: "관리 대상 사이의 공급, 고객, 소유 관계",
+  managed_object_workflow: "관리 대상이 참여하거나 영향을 주는 업무 흐름",
+  metric_insight: "지표 변화가 만든 인사이트 근거",
+  workflow_metric: "업무 흐름을 측정하는 지표 연결",
+  workflow_sequence: "업무가 진행되는 순서"
+};
+
 const layoutLabels: Record<StructureMapLayoutMode, string> = {
   clustered: "연결 밀도",
   "risk-first": "위험 우선",
   "semantic-lanes": "의미 레인"
 };
 
-const structureMapReagraphTheme: Theme = {
-  arrow: {
-    activeFill: "#2563eb",
-    fill: "#94a3b8"
-  },
-  canvas: {
-    background: "transparent",
-    fog: null
-  },
-  cluster: {
-    fill: "#ffffff",
-    inactiveOpacity: 0.04,
-    label: {
-      color: "#64748b",
-      fontSize: 10
-    },
-    opacity: 0.08,
-    selectedOpacity: 0.14,
-    stroke: "#e2e8f0"
-  },
-  edge: {
-    activeFill: "#2563eb",
-    fill: "#94a3b8",
-    inactiveOpacity: 0.18,
-    label: {
-      activeColor: "#1d4ed8",
-      color: "#334155",
-      fontSize: 10
-    },
-    opacity: 0.72,
-    selectedOpacity: 1,
-    subLabel: {
-      activeColor: "#334155",
-      color: "#64748b",
-      fontSize: 9
-    }
-  },
-  lasso: {
-    background: "rgba(37, 99, 235, 0.08)",
-    border: "rgba(37, 99, 235, 0.36)"
-  },
-  node: {
-    activeFill: "#eff6ff",
-    fill: "#ffffff",
-    inactiveOpacity: 0.24,
-    label: {
-      activeColor: "#1d4ed8",
-      backgroundColor: "#ffffff",
-      backgroundOpacity: 0.92,
-      color: "#0f172a",
-      padding: 6,
-      strokeColor: "#ffffff",
-      strokeWidth: 2
-    },
-    opacity: 0.92,
-    selectedOpacity: 1,
-    subLabel: {
-      activeColor: "#0f172a",
-      color: "#64748b"
-    }
-  },
-  ring: {
-    activeFill: "#2563eb",
-    fill: "#cbd5e1"
-  }
-};
-
 export function StructureMapScreen() {
   const { commands, state } = usePrototype();
   const view = useMemo(() => getStructureMapView(state, state.structureMapView), [state]);
-  const graphHorizontalScale = useGraphHorizontalScale();
-  const graph = useMemo(
+  const companyData = currentCompanyData(state);
+  const graphSemantics = useMemo(
     () =>
-      buildStructureMapReagraphModel(view.nodes, view.edges, {
+      buildStructureMapFocusSemantics({
         depth: state.structureMapView.depth,
-        horizontalScale: graphHorizontalScale,
+        edges: view.edges,
+        nodes: view.nodes,
         searchFocus: view.searchFocus,
         selectedItemId: state.structureMapView.selectedItemId
       }),
-    [graphHorizontalScale, state.structureMapView.depth, state.structureMapView.selectedItemId, view.edges, view.nodes, view.searchFocus]
+    [state.structureMapView.depth, state.structureMapView.selectedItemId, view.edges, view.nodes, view.searchFocus]
+  );
+  const graph = useMemo(
+    () => buildStructureMapFlowModel(view.nodes, view.edges, graphSemantics),
+    [graphSemantics, view.edges, view.nodes]
   );
   const [relationDraft, setRelationDraft] = useState<RelationDraft>(() => createRelationDraft(view.nodes));
 
@@ -154,6 +116,27 @@ export function StructureMapScreen() {
   const selectedDetail =
     state.structureMapView.selectedItemId && view.selectedDetail?.id === state.structureMapView.selectedItemId ? view.selectedDetail : undefined;
   const hiddenCount = state.structureMapView.hiddenNodeIds.length + state.structureMapView.hiddenEdgeIds.length;
+  const evidenceLabelById = useMemo(
+    () => new Map(companyData.evidence.map((evidence) => [evidence.id, evidence.label])),
+    [companyData.evidence]
+  );
+  const metricLabelById = useMemo(
+    () => new Map(companyData.metricDefinitions.map((metric) => [metric.id, metric.name])),
+    [companyData.metricDefinitions]
+  );
+  const inspectorContext = useMemo(
+    () =>
+      buildStructureMapInspectorContext({
+        depth: state.structureMapView.depth,
+        detail: selectedDetail,
+        edges: view.edges,
+        evidenceLabelById,
+        metricLabelById,
+        nodes: view.nodes,
+        primaryPathIds: graphSemantics.primaryPathIds
+      }),
+    [evidenceLabelById, graphSemantics.primaryPathIds, metricLabelById, selectedDetail, state.structureMapView.depth, view.edges, view.nodes]
+  );
 
   const resetView = () =>
     commands.setStructureMapView({
@@ -175,7 +158,7 @@ export function StructureMapScreen() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 text-ink">
       <div className="shrink-0">
-        <SectionTitle eyebrow="구조맵" title="관리 대상과 업무 연결 구조" />
+        <SectionTitle title="구조맵" />
       </div>
 
       <section className="min-h-0 flex-1 overflow-hidden rounded-lg border border-hairline bg-white shadow-soft">
@@ -256,7 +239,6 @@ export function StructureMapScreen() {
                 <StructureMapGraphCanvas
                   depth={state.structureMapView.depth}
                   graph={graph}
-                  graphHorizontalScale={graphHorizontalScale}
                   layoutMode={state.structureMapView.layoutMode}
                   onSelect={(selectedItemId) => commands.setStructureMapView({ selectedItemId })}
                   onSaveNodePosition={(nodeId, position) => {
@@ -271,7 +253,6 @@ export function StructureMapScreen() {
                       }
                     });
                   }}
-                  selectedItemId={state.structureMapView.selectedItemId}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center px-6 text-center">
@@ -283,21 +264,22 @@ export function StructureMapScreen() {
               )}
             </div>
 
-            <GraphLegendStrip edges={view.edges} />
+            <GraphLegendStrip edges={view.edges} primaryEdgeIds={graphSemantics.primaryEdgeIds} />
 
             <div className="grid shrink-0 grid-cols-7 gap-2 border-t border-hairline bg-surface-soft/70 px-3 py-2">
               <Kpi label="엔터티 수" value={view.summary.visibleNodes} helper={`전체 ${view.summary.totalNodes}`} tone="info" />
               <Kpi label="이벤트 수" value={view.summary.byNodeType.workflow} helper="업무흐름" tone="violet" />
               <Kpi label="지표 수" value={view.summary.byNodeType.metric} helper="계산 기준" tone="emerald" />
               <Kpi label="의사결정 수" value={view.summary.byNodeType.insight} helper="인사이트" tone="orange" />
-              <Kpi label="외부 참조" value={hiddenCount} helper="숨김/보기" tone={hiddenCount > 0 ? "danger" : "neutral"} />
+              <Kpi label="핵심 경로" value={graphSemantics.primaryNodeIds.size + graphSemantics.primaryEdgeIds.size} helper="Entity→Decision" tone="info" />
               <Kpi label="관계 연결 수" value={view.summary.visibleEdges} helper={`전체 ${view.summary.totalEdges}`} tone="neutral" />
-              <Kpi label="AI 제안 연결" value={view.summary.generatedEdges} helper="읽기 전용" tone="info" />
+              <Kpi label="근거 연결" value={inspectorContext.pathSummary.evidenceIds.length} helper={selectedDetail ? "선택 범위" : "기본 경로"} tone="success" />
             </div>
           </div>
 
           {selectedDetail && (
             <RightInspectorPanel
+              context={inspectorContext}
               detail={selectedDetail}
               draft={relationDraft}
               edges={view.edges}
@@ -323,348 +305,332 @@ export function StructureMapScreen() {
   );
 }
 
-function useGraphHorizontalScale() {
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    const updateScale = () => {
-      if (window.innerWidth >= 1440) {
-        setScale(1.42);
-        return;
-      }
-      if (window.innerWidth >= 1280) {
-        setScale(1.28);
-        return;
-      }
-      setScale(1);
-    };
-
-    updateScale();
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
-  }, []);
-
-  return scale;
-}
-
 function StructureMapGraphCanvas({
   depth,
   graph,
-  graphHorizontalScale,
   layoutMode,
   onSaveNodePosition,
-  onSelect,
-  selectedItemId
+  onSelect
 }: {
   depth: StructureMapDepth;
-  graph: StructureMapReagraphModel;
-  graphHorizontalScale: number;
+  graph: StructureMapFlowModel;
   layoutMode: StructureMapLayoutMode;
   onSaveNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   onSelect: (selectedItemId: string) => void;
-  selectedItemId?: string;
 }) {
-  const graphRef = useRef<GraphCanvasRef>(null);
+  const nodeTypes = useMemo(() => ({ structureMapNode: StructureMapNodeCard }), []);
+  const edgeTypes = useMemo(() => ({ structureMapEdge: StructureMapFlowEdgePath }), []);
+  const interactiveNodes = useMemo(() => graph.nodes.map(withFlowNodeHandles), [graph.nodes]);
+  const interactiveEdges = useMemo(() => graph.edges.map(withFlowEdgeDisplay), [graph.edges]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<StructureMapFlowNode>(interactiveNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<StructureMapFlowEdge>(interactiveEdges);
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<StructureMapFlowNode, StructureMapFlowEdge> | null>(null);
+  const graphInstanceKey = `${layoutMode}:${depth}:${graph.nodes.map((node) => node.id).join("|")}:${graph.edges.map((edge) => edge.id).join("|")}`;
+  const activeCount = graph.nodes.filter((node) => !node.data.dimmed).length;
+  const primaryCount = graph.nodes.filter((node) => node.data.primaryPath).length + graph.edges.filter((edge) => edge.data?.primaryPath).length;
+  const fitPrimaryPath = () => {
+    const primaryNodes = nodes.filter((node) => node.data.primaryPath);
+    flowInstance?.fitView({ duration: 260, nodes: primaryNodes.length > 0 ? primaryNodes : nodes, padding: 0.28 });
+  };
 
   useEffect(() => {
+    setNodes(interactiveNodes);
+    setEdges(interactiveEdges);
+  }, [interactiveEdges, interactiveNodes, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (!flowInstance) {
+      return undefined;
+    }
+
     const timer = window.setTimeout(() => {
-      graphRef.current?.fitNodesInView(undefined, { animated: true });
-    }, 160);
+      flowInstance.fitView({ duration: 260, padding: 0.18 });
+    }, 120);
+
     return () => window.clearTimeout(timer);
-  }, [depth, graph.nodes.length, layoutMode]);
+  }, [depth, flowInstance, graph.edges.length, graph.nodes.length, layoutMode]);
 
   return (
     <div
-      className="relative h-full min-h-0"
-      data-structure-map-active-count={graph.activeIds.length}
+      className="structure-map-flow relative h-full min-h-0"
+      data-structure-map-active-count={activeCount}
       data-structure-map-edge-count={graph.edges.length}
       data-structure-map-node-count={graph.nodes.length}
-      data-structure-map-reagraph="true"
+      data-structure-map-primary-count={primaryCount}
+      data-structure-map-react-flow="true"
     >
-      <ReagraphCanvas
-        ref={graphRef}
-        actives={graph.activeIds}
-        aggregateEdges={false}
-        animated
-        cameraMode="pan"
-        clusterAttribute="type"
-        defaultNodeSize={26}
-        draggable
-        edgeArrowPosition="end"
-        edgeInterpolation="curved"
-        edgeLabelPosition="above"
-        edges={graph.edges}
-        glOptions={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
-        labelType="none"
-        layoutOverrides={{
-          clusterStrength: 0.18,
-          forceCharge: -940,
-          forceLinkDistance: 190,
-          linkStrengthIntraCluster: 0.34,
-          nodeStrength: -520
+      <ReactFlow
+        key={graphInstanceKey}
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.18 }}
+        minZoom={0.28}
+        maxZoom={1.4}
+        onInit={setFlowInstance}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodesDraggable
+        nodesConnectable={false}
+        edgesReconnectable={false}
+        elementsSelectable
+        onEdgeClick={(event, edge) => {
+          event.stopPropagation();
+          onSelect(edge.id);
         }}
-        layoutType="forceDirected2d"
-        maxNodeSize={42}
-        minNodeSize={18}
-        nodes={graph.nodes}
-        onCanvasClick={() => undefined}
-        onEdgeClick={(edge: InternalGraphEdge) => onSelect(edge.id)}
-        onNodeClick={(node: InternalGraphNode) => onSelect(node.id)}
-        onNodeDragged={(node: InternalGraphNode) => {
-          onSaveNodePosition(node.id, {
-            x: Math.round(node.position.x / (graphHorizontalScale * 4.2)),
-            y: Math.round(node.position.y / 3.2)
-          });
+        onNodeClick={(event, node) => {
+          event.stopPropagation();
+          onSelect(node.id);
         }}
-        renderNode={renderStructureMapNode}
-        selections={graph.selectedIds}
-        sizingType="default"
-        theme={structureMapReagraphTheme}
-      />
+        onNodeDragStop={(event, node) => {
+          onSaveNodePosition(node.id, toStructureMapDomainPosition(node.position));
+        }}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background color="#e2e8f0" gap={32} size={1} />
+        <MiniMap
+          className="structure-map-minimap !bottom-4 !right-4 !h-36 !w-56 !overflow-hidden !rounded-md !border-2 !border-brand-accent/45 !bg-white/95 !shadow-[0_16px_34px_rgba(37,99,235,0.18)]"
+          maskColor="rgba(239, 246, 255, 0.64)"
+          nodeBorderRadius={8}
+          nodeColor={(node) => (node.data?.accent as string | undefined) ?? "#94a3b8"}
+          nodeStrokeColor={(node) => (node.data?.stroke as string | undefined) ?? "#64748b"}
+          nodeStrokeWidth={3}
+          pannable
+          zoomable
+        />
+        <Controls className="!bottom-4 !left-4 !rounded-md !border !border-hairline !bg-white/95 !shadow-[0_12px_28px_rgba(15,23,42,0.12)]" showInteractive={false} />
+      </ReactFlow>
 
-      <div className="pointer-events-none absolute left-4 top-4 flex flex-wrap gap-2">
-        {Object.entries(structureMapNodeMeta)
-          .filter(([type]) => type !== "category")
-          .map(([type, meta]) => (
-            <span
-              key={type}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-hairline bg-white/90 px-2.5 text-[11px] font-black text-ink shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
-            >
-              <span className="grid size-5 place-items-center rounded-md" style={{ backgroundColor: meta.fill, color: meta.accent }}>
-                {meta.icon}
+      <div className="pointer-events-none absolute left-4 top-4 z-20 max-w-[min(560px,calc(100%-2rem))] rounded-md border border-hairline bg-white/95 p-3 shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
+        <GraphReadGuide graph={graph} />
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {Object.entries(structureMapNodeMeta)
+            .filter(([type]) => type !== "category")
+            .map(([type, meta]) => (
+              <span
+                key={type}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-hairline bg-white px-2 text-[11px] font-black text-ink"
+              >
+                <span className="grid size-5 place-items-center rounded-md" style={{ backgroundColor: meta.fill, color: meta.accent }}>
+                  {meta.icon}
+                </span>
+                {meta.label}
               </span>
-              {meta.label}
-            </span>
-          ))}
+            ))}
+        </div>
       </div>
 
-      <GraphNodeIconOverlay graph={graph} onSaveNodePosition={onSaveNodePosition} onSelect={onSelect} selectedItemId={selectedItemId} />
-
-      <div className="absolute bottom-4 right-4 z-20 flex items-end gap-2">
+      <div className="absolute bottom-4 left-16 z-20 flex items-end gap-2">
         <div className="flex flex-col overflow-hidden rounded-md border-2 border-brand-accent/40 bg-white/95 shadow-[0_16px_34px_rgba(37,99,235,0.18)]">
           <button
             className="h-9 border-b border-hairline px-3 text-[11px] font-black text-brand-accent hover:bg-brand-accent/5"
             data-structure-map-fit-view="true"
             type="button"
-            onClick={() => graphRef.current?.fitNodesInView(undefined, { animated: true })}
+            onClick={() => flowInstance?.fitView({ duration: 260, padding: 0.18 })}
           >
             ⛶ 맞춤
           </button>
           <button
             className="h-9 px-3 text-[11px] font-black text-muted hover:bg-surface-soft"
             type="button"
-            onClick={() => graphRef.current?.centerGraph(undefined, { animated: true })}
+            onClick={fitPrimaryPath}
           >
             ◎ 중앙
           </button>
         </div>
-        <GraphNavigationMap graph={graph} onSelect={onSelect} selectedItemId={selectedItemId} />
       </div>
     </div>
   );
 }
 
-function GraphNodeIconOverlay({
-  graph,
-  onSaveNodePosition,
-  onSelect,
-  selectedItemId
-}: {
-  graph: StructureMapReagraphModel;
-  onSaveNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
-  onSelect: (selectedItemId: string) => void;
-  selectedItemId?: string;
-}) {
-  const [dragState, setDragState] = useState<{
-    id: string;
-    moved: boolean;
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    startX: number;
-    startY: number;
-  }>();
-  const bounds = useMemo(() => reagraphBounds(graph.nodes), [graph.nodes]);
-  const activeIds = useMemo(() => new Set(graph.activeIds), [graph.activeIds]);
-
-  return (
-    <div className="pointer-events-none absolute inset-x-10 inset-y-16 z-10" data-structure-map-node-overlay="true">
-      {graph.nodes.map((node) => {
-        const original = node.data.original;
-        const meta = structureMapNodeMeta[original.type];
-        const left = normalizeToPercent(node.fx ?? 0, bounds.minX, bounds.maxX);
-        const top = normalizeToPercent(node.fy ?? 0, bounds.minY, bounds.maxY);
-        const selected = original.id === selectedItemId;
-        const active = selected || activeIds.has(original.id);
-        const dimmed = node.data.dimmed && !active;
-        const dragging = dragState?.id === original.id;
-
-        return (
-          <button
-            key={node.id}
-            aria-label={`${original.label} 상세 보기`}
-            className={`pointer-events-auto absolute grid -translate-x-1/2 -translate-y-1/2 touch-none place-items-center rounded-lg border bg-white text-[15px] font-black shadow-[0_12px_28px_rgba(15,23,42,0.12)] transition ${
-              selected
-                ? "size-11 border-brand-accent text-brand-accent shadow-[0_0_0_5px_rgba(37,99,235,0.16),0_14px_32px_rgba(37,99,235,0.22)]"
-                : active
-                  ? "size-10 border-teal-400 text-teal-700 shadow-[0_0_0_4px_rgba(20,184,166,0.14),0_12px_28px_rgba(15,23,42,0.12)]"
-                  : "size-9 border-slate-200"
-            } ${dimmed ? "opacity-35" : "opacity-100 hover:scale-110"} ${dragging ? "cursor-grabbing scale-110" : "cursor-grab"}`}
-            data-structure-map-overlay-node="true"
-            style={{ color: active ? undefined : meta.accent, left: `${left}%`, top: `${top}%` }}
-            title={original.label}
-            type="button"
-            onClick={() => onSelect(original.id)}
-            onPointerDown={(event) => {
-              if (event.button !== 0) {
-                return;
-              }
-              event.currentTarget.setPointerCapture(event.pointerId);
-              setDragState({
-                id: original.id,
-                moved: false,
-                pointerId: event.pointerId,
-                startClientX: event.clientX,
-                startClientY: event.clientY,
-                startX: original.position.x,
-                startY: original.position.y
-              });
-            }}
-            onPointerMove={(event) => {
-              if (!dragState || dragState.id !== original.id || dragState.pointerId !== event.pointerId) {
-                return;
-              }
-              const moved = Math.hypot(event.clientX - dragState.startClientX, event.clientY - dragState.startClientY) > 4;
-              if (moved && !dragState.moved) {
-                setDragState({ ...dragState, moved: true });
-              }
-            }}
-            onPointerUp={(event) => {
-              if (!dragState || dragState.id !== original.id || dragState.pointerId !== event.pointerId) {
-                return;
-              }
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId);
-              }
-              const deltaX = event.clientX - dragState.startClientX;
-              const deltaY = event.clientY - dragState.startClientY;
-              if (dragState.moved || Math.hypot(deltaX, deltaY) > 4) {
-                onSaveNodePosition(original.id, {
-                  x: Math.round(dragState.startX + deltaX / 2.6),
-                  y: Math.round(dragState.startY + deltaY / 2.6)
-                });
-              }
-              setDragState(undefined);
-            }}
-            onPointerCancel={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId);
-              }
-              setDragState(undefined);
-            }}
-          >
-            <span className="grid size-6 place-items-center rounded-md" style={{ backgroundColor: meta.fill }}>
-              {meta.icon}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
+function withFlowNodeHandles(node: StructureMapFlowNode): StructureMapFlowNode {
+  return {
+    ...node,
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left
+  };
 }
 
-function GraphNavigationMap({
-  graph,
-  onSelect,
-  selectedItemId
-}: {
-  graph: StructureMapReagraphModel;
-  onSelect: (selectedItemId: string) => void;
-  selectedItemId?: string;
-}) {
-  const bounds = useMemo(() => reagraphBounds(graph.nodes), [graph.nodes]);
+function withFlowEdgeDisplay(edge: StructureMapFlowEdge): StructureMapFlowEdge {
+  const color = typeof edge.style?.stroke === "string" ? edge.style.stroke : "#2563eb";
+  return {
+    ...edge,
+    interactionWidth: edge.data?.primaryPath ? 24 : 16,
+    labelBgBorderRadius: 6,
+    labelBgPadding: [7, 4],
+    labelBgStyle: { fill: "#ffffff", fillOpacity: 0.94 },
+    labelShowBg: true,
+    labelStyle: {
+      fill: color,
+      fontSize: 11,
+      fontWeight: 800
+    },
+    markerEnd: {
+      color,
+      height: edge.data?.primaryPath ? 16 : 12,
+      type: MarkerType.ArrowClosed,
+      width: edge.data?.primaryPath ? 16 : 12
+    },
+    selected: edge.data?.selected
+  };
+}
+
+function StructureMapNodeCard({ data, selected }: NodeProps<StructureMapFlowNode>) {
+  const original = data.original;
+  const elevated = selected || data.selected || data.primaryPath || data.searchMatch;
+  const dimmed = data.dimmed && !elevated;
 
   return (
     <div
-      aria-label="구조맵 탐색 미니맵"
-      className="structure-map-minimap relative h-36 w-56 overflow-hidden rounded-md border-2 border-brand-accent/45 bg-white/95 shadow-[0_16px_34px_rgba(37,99,235,0.18)]"
-      data-structure-map-minimap="true"
+      className={`relative w-[176px] rounded-md border bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition ${
+        elevated ? "ring-2 ring-brand-accent/20" : ""
+      }`}
+      style={{
+        background: data.fill,
+        borderColor: elevated ? data.accent : data.stroke,
+        borderWidth: elevated ? 2 : 1,
+        boxShadow: elevated ? "0 16px 34px rgba(37, 99, 235, 0.18)" : "0 8px 18px rgba(15, 23, 42, 0.08)",
+        opacity: dimmed ? 0.34 : data.related || data.primaryPath || data.searchMatch ? 1 : 0.78
+      }}
     >
-      <div className="absolute inset-3 rounded border border-brand-accent/20 bg-[radial-gradient(circle_at_40%_40%,rgba(37,99,235,0.08),transparent_35%),radial-gradient(circle_at_70%_55%,rgba(20,184,166,0.08),transparent_30%)]" />
-      {graph.nodes.map((node) => {
-        const original = node.data.original;
-        const meta = structureMapNodeMeta[original.type];
-        const left = normalizeToPercent(node.fx ?? 0, bounds.minX, bounds.maxX);
-        const top = normalizeToPercent(node.fy ?? 0, bounds.minY, bounds.maxY);
-        const selected = original.id === selectedItemId;
-        return (
-          <button
-            key={node.id}
-            aria-label={`${original.label} 선택`}
-            className={`absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border transition ${
-              selected ? "scale-150 border-brand-accent bg-white shadow-[0_0_0_4px_rgba(37,99,235,0.18)]" : "border-white/90"
-            }`}
-            style={{ backgroundColor: meta.accent, left: `${left}%`, top: `${top}%` }}
-            type="button"
-            onClick={() => onSelect(original.id)}
-          />
-        );
-      })}
-      <div className="pointer-events-none absolute inset-x-14 bottom-3 h-1 rounded-full bg-brand-accent/25">
-        <span className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-accent" />
+      <Handle
+        className="!size-2.5 !border-2 !border-white"
+        position={Position.Left}
+        style={{ backgroundColor: data.accent }}
+        type="target"
+      />
+      <div className="flex min-w-0 items-start gap-2">
+        <span
+          className="grid size-7 shrink-0 place-items-center rounded-md border text-[10px] font-black"
+          style={{ backgroundColor: "#ffffff", borderColor: data.stroke, color: data.accent }}
+        >
+          {data.iconLabel}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-[10px] font-black text-muted">{structureMapNodeMeta[data.type].label}</span>
+            {original.tone === "danger" && <span className="size-1.5 shrink-0 rounded-full bg-error" title="위험 신호" />}
+            {original.tone === "warning" && <span className="size-1.5 shrink-0 rounded-full bg-warning" title="주의 신호" />}
+          </span>
+          <span className="mt-0.5 block truncate text-[12px] font-black leading-4 text-ink">{data.label}</span>
+          {(data.labelVisible || elevated) && <span className="mt-0.5 block truncate text-[10px] font-semibold leading-4 text-muted">{data.caption}</span>}
+        </span>
+      </div>
+      <Handle
+        className="!size-2.5 !border-2 !border-white"
+        position={Position.Right}
+        style={{ backgroundColor: data.accent }}
+        type="source"
+      />
+    </div>
+  );
+}
+
+function StructureMapFlowEdgePath({
+  data,
+  id,
+  interactionWidth,
+  label,
+  labelBgBorderRadius,
+  labelBgPadding,
+  labelBgStyle,
+  labelShowBg,
+  labelStyle,
+  markerEnd,
+  markerStart,
+  sourcePosition,
+  sourceX,
+  sourceY,
+  style,
+  targetPosition,
+  targetX,
+  targetY
+}: EdgeProps<StructureMapFlowEdge>) {
+  const routeOffset = edgeRouteOffset(id);
+  const [path, labelX, labelY] = getSmoothStepPath({
+    borderRadius: data?.primaryPath ? 18 : 10,
+    offset: data?.primaryPath ? 36 : 26,
+    sourcePosition,
+    sourceX,
+    sourceY: sourceY + routeOffset,
+    stepPosition: 0.5,
+    targetPosition,
+    targetX,
+    targetY: targetY + routeOffset
+  });
+
+  return (
+    <BaseEdge
+      id={id}
+      interactionWidth={interactionWidth}
+      label={data?.labelVisible ? label : undefined}
+      labelBgBorderRadius={labelBgBorderRadius}
+      labelBgPadding={labelBgPadding}
+      labelBgStyle={labelBgStyle}
+      labelShowBg={labelShowBg}
+      labelStyle={labelStyle}
+      labelX={labelX}
+      labelY={labelY}
+      markerEnd={markerEnd}
+      markerStart={markerStart}
+      path={path}
+      style={{ ...style, strokeLinecap: "round", strokeLinejoin: "round" }}
+    />
+  );
+}
+
+function edgeRouteOffset(id: string): number {
+  const hash = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  return ((hash % 5) - 2) * 9;
+}
+
+function GraphReadGuide({ graph }: { graph: StructureMapFlowModel }) {
+  const generatedCount = graph.edges.filter((edge) => edge.data?.readOnly).length;
+  const manualCount = graph.edges.length - generatedCount;
+  const primaryNodeCount = graph.nodes.filter((node) => node.data.primaryPath).length;
+  const primaryEdgeCount = graph.edges.filter((edge) => edge.data?.primaryPath).length;
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-[11px] font-black uppercase text-muted">읽는 방법</p>
+        <p className="mt-1 max-w-xl text-caption font-semibold leading-5 text-ink">
+          노드는 Entity, Event, Metric, Decision이고, 선은 화살표 방향으로 흐르는 구조, 업무, 측정, 근거 관계입니다.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <LineMeaning label="실선" value={manualCount} description="직접 등록한 관계" />
+        <LineMeaning dashed label="점선" value={generatedCount} description="데이터에서 자동 생성" />
+        <LineMeaning label="강조" value={primaryNodeCount + primaryEdgeCount} description="핵심 Entity to Decision 경로" />
       </div>
     </div>
   );
 }
 
-function reagraphBounds(nodes: StructureMapReagraphModel["nodes"]) {
-  if (nodes.length === 0) {
-    return { maxX: 1, maxY: 1, minX: 0, minY: 0 };
-  }
-
-  return nodes.reduce(
-    (bounds, node) => ({
-      maxX: Math.max(bounds.maxX, node.fx ?? 0),
-      maxY: Math.max(bounds.maxY, node.fy ?? 0),
-      minX: Math.min(bounds.minX, node.fx ?? 0),
-      minY: Math.min(bounds.minY, node.fy ?? 0)
-    }),
-    {
-      maxX: Number.NEGATIVE_INFINITY,
-      maxY: Number.NEGATIVE_INFINITY,
-      minX: Number.POSITIVE_INFINITY,
-      minY: Number.POSITIVE_INFINITY
-    }
+function LineMeaning({
+  dashed = false,
+  description,
+  label,
+  value
+}: {
+  dashed?: boolean;
+  description: string;
+  label: string;
+  value: number;
+}) {
+  return (
+    <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-hairline bg-surface-soft px-2 text-[11px] font-bold text-muted">
+      <span
+        className="h-0 w-7 border-t-2 border-brand-accent"
+        style={{ borderTopStyle: dashed ? "dashed" : "solid" }}
+      />
+      <span className="text-ink">{label}</span>
+      {description}
+      <strong className="text-ink">{value.toLocaleString("ko-KR")}</strong>
+    </span>
   );
-}
-
-function graphBounds(nodes: StructureMapGraphNode[]) {
-  if (nodes.length === 0) {
-    return { maxX: 1, maxY: 1, minX: 0, minY: 0 };
-  }
-
-  return nodes.reduce(
-    (bounds, node) => ({
-      maxX: Math.max(bounds.maxX, node.position.x),
-      maxY: Math.max(bounds.maxY, node.position.y),
-      minX: Math.min(bounds.minX, node.position.x),
-      minY: Math.min(bounds.minY, node.position.y)
-    }),
-    {
-      maxX: Number.NEGATIVE_INFINITY,
-      maxY: Number.NEGATIVE_INFINITY,
-      minX: Number.POSITIVE_INFINITY,
-      minY: Number.POSITIVE_INFINITY
-    }
-  );
-}
-
-function normalizeToPercent(value: number, min: number, max: number): number {
-  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
-    return 50;
-  }
-
-  return Math.min(92, Math.max(8, ((value - min) / (max - min)) * 84 + 8));
 }
 
 function StatusChip({ label, tone, value }: { label: string; tone: BadgeTone; value: number }) {
@@ -802,24 +768,56 @@ function depthScopeSummary({
   };
 }
 
-function GraphLegendStrip({ edges }: { edges: StructureMapGraphEdge[] }) {
+function GraphLegendStrip({ edges, primaryEdgeIds }: { edges: StructureMapGraphEdge[]; primaryEdgeIds: Set<string> }) {
   const edgeCounts = new Map<StructureMapEdgeType, number>();
   edges.forEach((edge) => edgeCounts.set(edge.edgeType, (edgeCounts.get(edge.edgeType) ?? 0) + 1));
+  const generatedCount = edges.filter((edge) => edge.readOnly).length;
+  const manualCount = edges.length - generatedCount;
+  const primaryEdgeCount = edges.filter((edge) => primaryEdgeIds.has(edge.id)).length;
   return (
-    <div className="flex shrink-0 items-center gap-4 overflow-x-auto border-t border-hairline bg-white px-4 py-2 text-[11px] font-bold text-muted">
-      <span className="text-ink">범례</span>
+    <div className="flex shrink-0 items-center gap-3 overflow-x-auto border-t border-hairline bg-white px-4 py-2 text-[11px] font-bold text-muted">
+      <span className="inline-flex shrink-0 flex-col leading-4">
+        <span className="text-ink">범례</span>
+        <span className="font-semibold text-muted">색=관계 종류 · 화살표=흐름 방향</span>
+      </span>
+      <LegendLine label="핵심 경로" value={primaryEdgeCount} />
+      <LegendLine label="수동 관계" value={manualCount} />
+      <LegendLine dashed label="자동 생성" value={generatedCount} />
       {defaultStructureMapEdgeTypes.map((type) => (
-        <span key={type} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+        <span key={type} className="inline-flex items-center gap-1.5 whitespace-nowrap" title={edgeDescriptions[type]}>
           <span className="h-1.5 w-7 rounded-full" style={{ backgroundColor: structureMapEdgeMeta[type].color }} />
-          {edgeLabels[type]}
-          <span className="text-ink">{edgeCounts.get(type) ?? 0}</span>
+          <span className="text-ink">{edgeLabels[type]}</span>
+          <span>{edgeDescriptions[type]}</span>
+          <strong className="text-ink">{edgeCounts.get(type) ?? 0}</strong>
         </span>
       ))}
     </div>
   );
 }
 
+function LegendLine({
+  dashed = false,
+  label,
+  value
+}: {
+  dashed?: boolean;
+  label: string;
+  value: number;
+}) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-soft px-2 py-1">
+      <span
+        className="h-0 w-7 border-t-2 border-brand-accent"
+        style={{ borderTopStyle: dashed ? "dashed" : "solid" }}
+      />
+      {label}
+      <strong className="text-ink">{value.toLocaleString("ko-KR")}</strong>
+    </span>
+  );
+}
+
 function RightInspectorPanel({
+  context,
   detail,
   draft,
   edges,
@@ -833,6 +831,7 @@ function RightInspectorPanel({
   onUpdateNode,
   onUpdateRelation
 }: {
+  context: StructureMapInspectorContext;
   detail?: StructureMapItemDetail;
   draft: RelationDraft;
   edges: StructureMapGraphEdge[];
@@ -846,8 +845,8 @@ function RightInspectorPanel({
   onUpdateNode: (nodeId: string, patch: StructureMapNodePatch) => boolean;
   onUpdateRelation: (relationId: string, patch: StructureMapRelationPatch) => boolean;
 }) {
-  const evidenceCount = detail?.evidenceIds.length ?? 0;
-  const metricCount = detail?.metricIds.length ?? 0;
+  const evidenceCount = context.pathSummary.evidenceIds.length;
+  const metricCount = context.pathSummary.metricIds.length;
   return (
     <aside data-structure-map-inspector="true" className="flex w-[280px] shrink-0 flex-col border-l border-hairline bg-white lg:w-[292px] 2xl:w-[320px]">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-hairline px-3 py-2.5">
@@ -872,23 +871,31 @@ function RightInspectorPanel({
         <section className="rounded-md border border-hairline bg-white p-2.5">
           <h3 className="text-caption font-black text-ink">연결 관계</h3>
           <div className="mt-2 space-y-1.5 text-caption">
+            <InspectorRow label="직접 연결" value={`${context.directEdgeCount.toLocaleString("ko-KR")}개`} />
+            <InspectorRow label="방향" value={`수신 ${context.incomingCount} · 발신 ${context.outgoingCount}`} />
             <InspectorRow label="근거" value={`${evidenceCount.toLocaleString("ko-KR")}개`} />
             <InspectorRow label="관련 지표" value={`${metricCount.toLocaleString("ko-KR")}개`} />
+            <InspectorRow label="의사결정" value={`${context.connectedDecisionLabels.length.toLocaleString("ko-KR")}개`} />
+            <InspectorRow label="핵심 경로" value={context.primaryPath ? "포함" : "주변 맥락"} />
             <InspectorRow label="숨김 항목" value={`${hiddenCount.toLocaleString("ko-KR")}개`} />
           </div>
           <button className="mt-3 h-8 w-full rounded-md border border-brand-accent/20 bg-brand-accent/5 text-caption font-bold text-brand-accent" type="button">
-            연결 경로 보기
+            Entity → Decision 경로 보기
           </button>
         </section>
 
         <section className="rounded-md border border-hairline bg-white p-2.5">
           <h3 className="text-caption font-black text-ink">데이터 출처</h3>
           <div className="mt-2 space-y-1.5 text-caption">
-            <InspectorRow label="1차 소스" value="CRM_Master" />
-            <InspectorRow label="연동 소스" value="ERP_Sales, Billing" />
-            <InspectorRow label="최종 업데이트" value="2026.06.21 10:28" />
+            <InspectorRow label="관계 원천" value={context.sourceLabels.join(", ") || "연결 없음"} />
+            <InspectorRow label="수동/자동" value={`수동 ${context.manualEdgeCount} · 자동 ${context.generatedEdgeCount}`} />
+            <InspectorRow label="적용 상태" value={detail?.editable ? "편집 가능" : "분석 결과 잠금"} />
           </div>
         </section>
+
+        <InspectorListPanel title="근거 미리보기" emptyLabel="연결된 근거 없음" items={context.evidenceLabels} />
+        <InspectorListPanel title="도출 지표" emptyLabel="연결된 지표 없음" items={context.metricLabels} />
+        <InspectorListPanel title="연결 의사결정" emptyLabel="연결된 의사결정 없음" items={context.connectedDecisionLabels} />
 
         <RelationCreator draft={draft} nodes={nodes} onChange={onChangeRelationDraft} onCreate={onCreateRelation} />
         <Legend edges={edges} />
@@ -907,6 +914,25 @@ function InspectorRow({ label, value }: { label: string; value: string }) {
       <span className="truncate text-muted">{label}</span>
       <strong className="truncate text-right text-ink">{value}</strong>
     </div>
+  );
+}
+
+function InspectorListPanel({ emptyLabel, items, title }: { emptyLabel: string; items: string[]; title: string }) {
+  return (
+    <section className="rounded-md border border-hairline bg-white p-2.5">
+      <h3 className="text-caption font-black text-ink">{title}</h3>
+      {items.length > 0 ? (
+        <div className="mt-2 space-y-1.5">
+          {items.map((item) => (
+            <p key={item} className="rounded-md bg-surface-soft px-2.5 py-1.5 text-caption font-semibold leading-5 text-ink">
+              {item}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 rounded-md bg-surface-soft px-2.5 py-1.5 text-caption font-semibold text-muted">{emptyLabel}</p>
+      )}
+    </section>
   );
 }
 
