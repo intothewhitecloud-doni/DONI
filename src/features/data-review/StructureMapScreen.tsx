@@ -571,68 +571,6 @@ function edgeRouteOffset(id: string): number {
   return ((hash % 7) - 3) * 12;
 }
 
-function GraphReadGuide({ graph }: { graph: StructureMapFlowModel }) {
-  const generatedCount = graph.edges.filter((edge) => edge.data?.readOnly).length;
-  const manualCount = graph.edges.length - generatedCount;
-  const primaryNodeCount = graph.nodes.filter((node) => node.data.primaryPath).length;
-  const primaryEdgeCount = graph.edges.filter((edge) => edge.data?.primaryPath).length;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <div className="min-w-[260px] flex-1">
-        <p className="text-[11px] font-black text-muted">읽는 방법</p>
-        <p className="mt-0.5 text-caption font-semibold leading-5 text-ink">
-          노드는 Entity, Event, Metric, Decision이고, 선은 화살표 방향으로 흐르는 구조, 업무, 측정, 근거 관계입니다.
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-wrap gap-1.5">
-        <LineMeaning label="실선" value={manualCount} description="직접 등록한 관계" />
-        <LineMeaning dashed label="점선" value={generatedCount} description="데이터에서 자동 생성" />
-        <LineMeaning label="강조" value={primaryNodeCount + primaryEdgeCount} description="핵심 Entity to Decision 경로" />
-      </div>
-      <div className="flex shrink-0 flex-wrap gap-1.5">
-        {Object.entries(structureMapNodeMeta)
-          .filter(([type]) => type !== "category")
-          .map(([type, meta]) => (
-            <span
-              key={type}
-              className="inline-flex h-7 items-center gap-1.5 rounded-full border border-hairline bg-white px-2 text-[11px] font-black text-ink"
-            >
-              <span className="grid size-5 place-items-center rounded-md" style={{ backgroundColor: meta.fill, color: meta.accent }}>
-                {meta.icon}
-              </span>
-              {meta.label}
-            </span>
-          ))}
-      </div>
-    </div>
-  );
-}
-
-function LineMeaning({
-  dashed = false,
-  description,
-  label,
-  value
-}: {
-  dashed?: boolean;
-  description: string;
-  label: string;
-  value: number;
-}) {
-  return (
-    <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-hairline bg-surface-soft px-2 text-[11px] font-bold text-muted">
-      <span
-        className="h-0 w-7 border-t-2 border-brand-accent"
-        style={{ borderTopStyle: dashed ? "dashed" : "solid" }}
-      />
-      <span className="text-ink">{label}</span>
-      {description}
-      <strong className="text-ink">{value.toLocaleString("ko-KR")}</strong>
-    </span>
-  );
-}
-
 function StatusChip({ label, tone, value }: { label: string; tone: BadgeTone; value: number }) {
   return (
     <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-hairline bg-white px-2.5 text-caption font-bold text-muted">
@@ -777,9 +715,22 @@ function GraphLegendStrip({ edges, primaryEdgeIds }: { edges: StructureMapGraphE
   return (
     <div className="flex shrink-0 items-center gap-3 overflow-x-auto border-t border-hairline bg-white px-4 py-2 text-[11px] font-bold text-muted">
       <span className="inline-flex shrink-0 flex-col leading-4">
-        <span className="text-ink">범례</span>
-        <span className="font-semibold text-muted">색=관계 종류 · 화살표=흐름 방향</span>
+        <span className="text-ink">범례 · 읽는 방법</span>
+        <span className="font-semibold text-muted">노드=Entity/Event/Metric/Decision · 선=화살표 흐름</span>
       </span>
+      {Object.entries(structureMapNodeMeta)
+        .filter(([type]) => type !== "category")
+        .map(([type, meta]) => (
+          <span
+            key={type}
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-soft px-2 py-1 text-ink"
+          >
+            <span className="grid size-5 place-items-center rounded-md" style={{ backgroundColor: meta.fill, color: meta.accent }}>
+              {meta.icon}
+            </span>
+            {meta.label}
+          </span>
+        ))}
       <LegendLine label="핵심 경로" value={primaryEdgeCount} />
       <LegendLine label="수동 관계" value={manualCount} />
       <LegendLine dashed label="자동 생성" value={generatedCount} />

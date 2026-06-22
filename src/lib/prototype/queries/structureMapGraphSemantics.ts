@@ -33,6 +33,7 @@ export type StructureMapFocusSemantics = {
   searchFocusEdgeIds: Set<string>;
   searchFocusNodeIds: Set<string>;
   searchMatchNodeIds: Set<string>;
+  selectedItemId?: string;
 };
 
 export type StructureMapPrimaryInsightSelector = (nodes: StructureMapGraphNode[]) => StructureMapGraphNode | undefined;
@@ -223,7 +224,8 @@ export function buildStructureMapFocusSemantics({
     relatedIds,
     searchFocusEdgeIds,
     searchFocusNodeIds,
-    searchMatchNodeIds
+    searchMatchNodeIds,
+    selectedItemId
   };
 }
 

@@ -183,7 +183,10 @@ function flowEdge(edge: StructureMapGraphEdge, semantics: StructureMapFocusSeman
   const stroke = selected ? "#1d4ed8" : primaryPath ? meta.color : focused ? "#14b8a6" : meta.color;
   const strokeWidth = visualPriority === "primary" ? 3 : visualPriority === "related" ? 2.4 : visualPriority === "manual" ? 1.9 : 1.2;
   const opacity = dimmed ? 0.2 : visualPriority === "context" ? 0.42 : 0.9;
-  const labelVisible = selected || focused || (!dimmed && !edge.readOnly && (primaryPath || edge.strength === "strong"));
+  const labelVisible =
+    semantics.selectedItemId === edge.id ||
+    focused ||
+    (!dimmed && primaryPath && !edge.readOnly && edge.edgeType === "metric_insight");
 
   return {
     animated: primaryPath,
