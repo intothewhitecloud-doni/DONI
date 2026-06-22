@@ -391,7 +391,7 @@ function StructureMapGraphCanvas({
       >
         <Background color="#e2e8f0" gap={32} size={1} />
         <MiniMap
-          className="structure-map-minimap !bottom-4 !right-4 !h-36 !w-56 !overflow-hidden !rounded-md !border-2 !border-brand-accent/45 !bg-white/95 !shadow-[0_16px_34px_rgba(37,99,235,0.18)]"
+          className="structure-map-minimap !bottom-4 !right-4 !h-28 !w-44 !overflow-hidden !rounded-md !border !border-brand-accent/35 !bg-white/90 !shadow-[0_12px_26px_rgba(37,99,235,0.14)]"
           maskColor="rgba(239, 246, 255, 0.64)"
           nodeBorderRadius={8}
           nodeColor={(node) => (node.data?.accent as string | undefined) ?? "#94a3b8"}
@@ -400,44 +400,29 @@ function StructureMapGraphCanvas({
           pannable
           zoomable
         />
-        <Controls className="!bottom-4 !left-4 !rounded-md !border !border-hairline !bg-white/95 !shadow-[0_12px_28px_rgba(15,23,42,0.12)]" showInteractive={false} />
+        <Controls
+          className="!bottom-4 !left-4 !rounded-md !border !border-hairline !bg-white/95 !shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
+          showFitView={false}
+          showInteractive={false}
+        />
       </ReactFlow>
 
-      <div className="pointer-events-none absolute left-4 top-4 z-20 max-w-[min(560px,calc(100%-2rem))] rounded-md border border-hairline bg-white/95 p-3 shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
-        <GraphReadGuide graph={graph} />
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {Object.entries(structureMapNodeMeta)
-            .filter(([type]) => type !== "category")
-            .map(([type, meta]) => (
-              <span
-                key={type}
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-hairline bg-white px-2 text-[11px] font-black text-ink"
-              >
-                <span className="grid size-5 place-items-center rounded-md" style={{ backgroundColor: meta.fill, color: meta.accent }}>
-                  {meta.icon}
-                </span>
-                {meta.label}
-              </span>
-            ))}
-        </div>
-      </div>
-
-      <div className="absolute bottom-4 left-16 z-20 flex items-end gap-2">
-        <div className="flex flex-col overflow-hidden rounded-md border-2 border-brand-accent/40 bg-white/95 shadow-[0_16px_34px_rgba(37,99,235,0.18)]">
+      <div className="absolute bottom-4 left-[3.65rem] z-20 flex h-[52px] items-stretch">
+        <div className="flex overflow-hidden rounded-md border border-hairline bg-white/95 shadow-[0_12px_28px_rgba(15,23,42,0.12)]">
           <button
-            className="h-9 border-b border-hairline px-3 text-[11px] font-black text-brand-accent hover:bg-brand-accent/5"
+            className="h-full w-[68px] border-r border-hairline px-2 text-[11px] font-black text-brand-accent hover:bg-brand-accent/5"
             data-structure-map-fit-view="true"
             type="button"
             onClick={() => flowInstance?.fitView({ duration: 260, padding: 0.18 })}
           >
-            ⛶ 맞춤
+            맞춤
           </button>
           <button
-            className="h-9 px-3 text-[11px] font-black text-muted hover:bg-surface-soft"
+            className="h-full w-[68px] px-2 text-[11px] font-black text-muted hover:bg-surface-soft"
             type="button"
             onClick={fitPrimaryPath}
           >
-            ◎ 중앙
+            중앙
           </button>
         </div>
       </div>
@@ -459,7 +444,7 @@ function withFlowEdgeDisplay(edge: StructureMapFlowEdge): StructureMapFlowEdge {
     ...edge,
     interactionWidth: edge.data?.primaryPath ? 24 : 16,
     labelBgBorderRadius: 6,
-    labelBgPadding: [7, 4],
+    labelBgPadding: [6, 3],
     labelBgStyle: { fill: "#ffffff", fillOpacity: 0.94 },
     labelShowBg: true,
     labelStyle: {
@@ -484,7 +469,7 @@ function StructureMapNodeCard({ data, selected }: NodeProps<StructureMapFlowNode
 
   return (
     <div
-      className={`relative w-[176px] rounded-md border bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition ${
+      className={`relative min-h-[70px] w-[176px] rounded-md border bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition ${
         elevated ? "ring-2 ring-brand-accent/20" : ""
       }`}
       style={{
@@ -550,8 +535,8 @@ function StructureMapFlowEdgePath({
 }: EdgeProps<StructureMapFlowEdge>) {
   const routeOffset = edgeRouteOffset(id);
   const [path, labelX, labelY] = getSmoothStepPath({
-    borderRadius: data?.primaryPath ? 18 : 10,
-    offset: data?.primaryPath ? 36 : 26,
+    borderRadius: data?.primaryPath ? 20 : 12,
+    offset: data?.primaryPath ? 44 : 32,
     sourcePosition,
     sourceX,
     sourceY: sourceY + routeOffset,
@@ -583,7 +568,7 @@ function StructureMapFlowEdgePath({
 
 function edgeRouteOffset(id: string): number {
   const hash = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0);
-  return ((hash % 5) - 2) * 9;
+  return ((hash % 7) - 3) * 12;
 }
 
 function GraphReadGuide({ graph }: { graph: StructureMapFlowModel }) {
@@ -593,17 +578,32 @@ function GraphReadGuide({ graph }: { graph: StructureMapFlowModel }) {
   const primaryEdgeCount = graph.edges.filter((edge) => edge.data?.primaryPath).length;
 
   return (
-    <div className="space-y-2">
-      <div>
-        <p className="text-[11px] font-black uppercase text-muted">읽는 방법</p>
-        <p className="mt-1 max-w-xl text-caption font-semibold leading-5 text-ink">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="min-w-[260px] flex-1">
+        <p className="text-[11px] font-black text-muted">읽는 방법</p>
+        <p className="mt-0.5 text-caption font-semibold leading-5 text-ink">
           노드는 Entity, Event, Metric, Decision이고, 선은 화살표 방향으로 흐르는 구조, 업무, 측정, 근거 관계입니다.
         </p>
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex shrink-0 flex-wrap gap-1.5">
         <LineMeaning label="실선" value={manualCount} description="직접 등록한 관계" />
         <LineMeaning dashed label="점선" value={generatedCount} description="데이터에서 자동 생성" />
         <LineMeaning label="강조" value={primaryNodeCount + primaryEdgeCount} description="핵심 Entity to Decision 경로" />
+      </div>
+      <div className="flex shrink-0 flex-wrap gap-1.5">
+        {Object.entries(structureMapNodeMeta)
+          .filter(([type]) => type !== "category")
+          .map(([type, meta]) => (
+            <span
+              key={type}
+              className="inline-flex h-7 items-center gap-1.5 rounded-full border border-hairline bg-white px-2 text-[11px] font-black text-ink"
+            >
+              <span className="grid size-5 place-items-center rounded-md" style={{ backgroundColor: meta.fill, color: meta.accent }}>
+                {meta.icon}
+              </span>
+              {meta.label}
+            </span>
+          ))}
       </div>
     </div>
   );

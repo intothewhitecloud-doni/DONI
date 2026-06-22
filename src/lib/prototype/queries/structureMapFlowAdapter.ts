@@ -47,8 +47,8 @@ export type StructureMapFlowModel = {
 };
 
 export const structureMapFlowPositionScale = {
-  x: 1.42,
-  y: 1.14
+  x: 1.8,
+  y: 1.42
 } as const;
 
 export const structureMapNodeMeta: Record<
@@ -183,7 +183,7 @@ function flowEdge(edge: StructureMapGraphEdge, semantics: StructureMapFocusSeman
   const stroke = selected ? "#1d4ed8" : primaryPath ? meta.color : focused ? "#14b8a6" : meta.color;
   const strokeWidth = visualPriority === "primary" ? 3 : visualPriority === "related" ? 2.4 : visualPriority === "manual" ? 1.9 : 1.2;
   const opacity = dimmed ? 0.2 : visualPriority === "context" ? 0.42 : 0.9;
-  const labelVisible = primaryPath || selected || focused || (!edge.readOnly && !dimmed);
+  const labelVisible = selected || focused || (!dimmed && !edge.readOnly && (primaryPath || edge.strength === "strong"));
 
   return {
     animated: primaryPath,

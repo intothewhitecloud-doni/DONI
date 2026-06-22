@@ -334,7 +334,7 @@ test("structure map flow adapter centralizes persisted-position scaling", () => 
   const flowPosition = toStructureMapFlowPosition(domainPosition);
   const restoredPosition = toStructureMapDomainPosition(flowPosition);
 
-  assert.deepEqual(flowPosition, { x: 341, y: 205 });
+  assert.deepEqual(flowPosition, { x: 432, y: 256 });
   assert.deepEqual(restoredPosition, domainPosition);
 });
 
