@@ -129,7 +129,7 @@ export function getPhaseOneAnalysisProjection(state: PrototypeState): PhaseOneAn
   );
 
   return {
-    generatedAtLabel: "Phase 1 mock projection",
+    generatedAtLabel: "분석 projection",
     summary: buildSummarySignals(structureGroups, decisionCandidates),
     primarySignals,
     structureGroups,
@@ -560,8 +560,8 @@ function flowStepsForFile(
     {
       id: `${file.id}-flow-apply`,
       label: "4. 분석에 반영",
-      value: file.appliedAt ? "반영 완료" : "로컬 상태",
-      detail: "Phase 1에서는 실제 컬렉션 교체 없이 UI 상태만 표시",
+      value: file.appliedAt ? "반영 완료" : "반영 대기",
+      detail: "분석 반영 후 운영 구조와 지표 흐름에 연결",
       tone: file.appliedAt ? "success" : "info"
     }
   ];

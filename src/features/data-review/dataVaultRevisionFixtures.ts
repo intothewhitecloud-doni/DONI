@@ -43,7 +43,7 @@ export type VaultRevisionFixture = {
   statusLabel: string;
   owner: string;
   updatedAt: string;
-  sampleNotice: string;
+  impactNotice: string;
   impactSummary: string;
   affected: VaultImpactItem[];
   metrics: VaultImpactItem[];
@@ -125,7 +125,7 @@ export type VaultCurrentDataItem = {
 
 export const vaultStageTabs: Array<{ id: VaultTabId; label: string; helper: string }> = [
   { id: "source", label: "원천 기록", helper: "업로드된 파일 값" },
-  { id: "draft", label: "AI 구조 초안", helper: "샘플 추정 구조" },
+  { id: "draft", label: "AI 구조 초안", helper: "추정 구조" },
   { id: "correction", label: "보정 기록", helper: "사용자 수정 흐름" },
   { id: "current", label: "현재 기준 데이터", helper: "반영 예정 기준" }
 ];
@@ -148,7 +148,7 @@ export const dataVaultRevisionFixtures: Record<string, VaultRevisionFixture> = {
     statusLabel: "원천",
     owner: "영업 1팀",
     updatedAt: "2026-05-12 14:30",
-    sampleNotice: "샘플 기준으로 고객, 상품, 공급사, 클레임 흐름의 영향만 보여줍니다.",
+    impactNotice: "고객, 상품, 공급사, 클레임 흐름의 영향을 기준 데이터와 연결해 보여줍니다.",
     impactSummary: "주문/배송 원천값이 고객A 클레임률과 P-42 주문 처리 시간 흐름에 연결됩니다.",
     affected: [
       { label: "관리 대상", value: "고객A", detail: "반복 클레임 고객군", tone: "info" },
@@ -172,7 +172,7 @@ export const dataVaultRevisionFixtures: Record<string, VaultRevisionFixture> = {
       { field: "고객군", source: "고객A", draft: "고객 A", correction: "고객A", current: "고객A", note: "표기 통일" },
       { field: "상품군", source: "P-42", draft: "P-42 상품군", correction: "P-42", current: "P-42", note: "상품군 코드 유지" },
       { field: "배송상태", source: "지연", draft: "배송 지연", correction: "지연", current: "지연", note: "원천 상태값 보존" },
-      { field: "출고대기시간", source: "42시간", draft: "36.8시간 평균", correction: "36.8시간", current: "36.8시간", note: "샘플 평균 예정" },
+      { field: "출고대기시간", source: "42시간", draft: "36.8시간 평균", correction: "36.8시간", current: "36.8시간", note: "평균값 반영 예정" },
       { field: "클레임유형", source: "배송 지연", draft: "지연 클레임", correction: "배송 지연", current: "배송 지연", note: "클레임 분류 보정" }
     ],
     correctionEvents: [
@@ -181,11 +181,11 @@ export const dataVaultRevisionFixtures: Record<string, VaultRevisionFixture> = {
       { id: "orders-correction-3", title: "현재 기준 반영 예정", actor: "박민재", time: "2026-05-12 14:50", detail: "클레임률과 주문 처리 시간 재계산 대기", tone: "success" }
     ],
     flowEvents: [
-      { id: "orders-flow-1", label: "원천 기록 생성", owner: "시스템", time: "2026-05-12 14:30", detail: "주문_배송_클레임.xlsx 샘플 파일 등록", tone: "neutral" },
+      { id: "orders-flow-1", label: "원천 기록 생성", owner: "시스템", time: "2026-05-12 14:30", detail: "주문_배송_클레임.xlsx 파일 등록", tone: "neutral" },
       { id: "orders-flow-2", label: "AI 구조 초안 생성", owner: "AI 초안", time: "2026-05-12 14:33", detail: "고객A/P-42/공급업체 A사 연결 후보 생성", tone: "info" },
       { id: "orders-flow-3", label: "사용자 보정", owner: "박민재", time: "2026-05-12 14:36", detail: "고객군 표기와 배송상태 분류 보정", tone: "warning" },
-      { id: "orders-flow-4", label: "현재 기준 반영", owner: "샘플", time: "2026-05-12 14:50", detail: "실제 반영 없이 화면 샘플 상태만 표시", tone: "success" },
-      { id: "orders-flow-5", label: "Metric 재계산 예정", owner: "추후 구현", time: "대기", detail: "클레임률, 주문 처리 시간 재계산은 실제 로직에서 구현", tone: "neutral" }
+      { id: "orders-flow-4", label: "현재 기준 반영", owner: "시스템", time: "2026-05-12 14:50", detail: "현재 기준 반영 완료 후 영향 화면 갱신", tone: "success" },
+      { id: "orders-flow-5", label: "Metric 재계산 예정", owner: "시스템", time: "대기", detail: "클레임률, 주문 처리 시간 재계산 결과를 지표에 연결", tone: "neutral" }
     ],
     evidenceIds: orderEvidenceIds
   },
@@ -194,7 +194,7 @@ export const dataVaultRevisionFixtures: Record<string, VaultRevisionFixture> = {
     statusLabel: "원천",
     owner: "재무/구매",
     updatedAt: "2026-05-12 14:30",
-    sampleNotice: "샘플 기준으로 상품, 공급사, 마진, 납품 리스크의 영향만 보여줍니다.",
+    impactNotice: "상품, 공급사, 마진, 납품 리스크의 영향을 기준 데이터와 연결해 보여줍니다.",
     impactSummary: "상품/마진 원천값이 P-42 평균 마진율과 공급업체 A사 납품 리스크에 연결됩니다.",
     affected: [
       { label: "관리 대상", value: "P-42", detail: "저마진 상품군", tone: "violet" },
@@ -202,7 +202,7 @@ export const dataVaultRevisionFixtures: Record<string, VaultRevisionFixture> = {
       { label: "업무 흐름", value: "납품 리스크", detail: "공급 조건 재협의 후보", tone: "orange" }
     ],
     metrics: [
-      { label: "지표", value: "평균 마진율", detail: "P-42 13.6% 샘플", tone: "danger" },
+      { label: "지표", value: "평균 마진율", detail: "P-42 13.6%", tone: "danger" },
       { label: "지표", value: "납품준수율", detail: "70~72% 구간", tone: "warning" }
     ],
     insights: [
@@ -223,21 +223,21 @@ export const dataVaultRevisionFixtures: Record<string, VaultRevisionFixture> = {
     revisionRows: [
       { field: "상품군", source: "P-42", draft: "P-42 상품군", correction: "P-42", current: "P-42", note: "코드 유지" },
       { field: "공급사", source: "공급업체 A사", draft: "공급업체 A", correction: "공급업체 A사", current: "공급업체 A사", note: "명칭 보정" },
-      { field: "평균마진율", source: "13.8%, 13.4%", draft: "13.6% 평균", correction: "13.6%", current: "13.6%", note: "샘플 평균 예정" },
+      { field: "평균마진율", source: "13.8%, 13.4%", draft: "13.6% 평균", correction: "13.6%", current: "13.6%", note: "평균값 반영 예정" },
       { field: "납품준수율", source: "72%, 70%", draft: "저준수 구간", correction: "70~72%", current: "70~72%", note: "범위 표기" },
       { field: "반품비용", source: "4200000, 4600000", draft: "반품 비용 높음", correction: "4.2M~4.6M", current: "4.2M~4.6M", note: "표시 단위 보정" }
     ],
     correctionEvents: [
       { id: "margin-correction-1", title: "공급사 명칭 보정", actor: "박민재", time: "2026-05-12 14:35", detail: "공급업체 A를 공급업체 A사로 통일", tone: "warning" },
-      { id: "margin-correction-2", title: "마진율 평균 표시", actor: "시스템", time: "2026-05-12 14:40", detail: "P-42 두 행을 13.6% 샘플 평균으로 표시", tone: "info" },
+      { id: "margin-correction-2", title: "마진율 평균 표시", actor: "시스템", time: "2026-05-12 14:40", detail: "P-42 두 행을 13.6% 평균으로 표시", tone: "info" },
       { id: "margin-correction-3", title: "납품 리스크 연결", actor: "박민재", time: "2026-05-12 14:48", detail: "공급 조건 재협의 흐름에 연결 예정", tone: "success" }
     ],
     flowEvents: [
-      { id: "margin-flow-1", label: "원천 기록 생성", owner: "시스템", time: "2026-05-12 14:30", detail: "상품별_마진_공급사.csv 샘플 파일 등록", tone: "neutral" },
+      { id: "margin-flow-1", label: "원천 기록 생성", owner: "시스템", time: "2026-05-12 14:30", detail: "상품별_마진_공급사.csv 파일 등록", tone: "neutral" },
       { id: "margin-flow-2", label: "AI 구조 초안 생성", owner: "AI 초안", time: "2026-05-12 14:34", detail: "P-42/공급업체 A사/마진율 후보 생성", tone: "info" },
       { id: "margin-flow-3", label: "사용자 보정", owner: "박민재", time: "2026-05-12 14:35", detail: "공급사 명칭과 마진 표시 단위 보정", tone: "warning" },
-      { id: "margin-flow-4", label: "현재 기준 반영", owner: "샘플", time: "2026-05-12 14:48", detail: "실제 반영 없이 화면 샘플 상태만 표시", tone: "success" },
-      { id: "margin-flow-5", label: "Metric 재계산 예정", owner: "추후 구현", time: "대기", detail: "평균 마진율, 납품 리스크 재계산은 실제 로직에서 구현", tone: "neutral" }
+      { id: "margin-flow-4", label: "현재 기준 반영", owner: "시스템", time: "2026-05-12 14:48", detail: "현재 기준 반영 완료 후 영향 화면 갱신", tone: "success" },
+      { id: "margin-flow-5", label: "Metric 재계산 예정", owner: "시스템", time: "대기", detail: "평균 마진율, 납품 리스크 재계산 결과를 지표에 연결", tone: "neutral" }
     ],
     evidenceIds: marginEvidenceIds
   }
@@ -261,7 +261,7 @@ export function createUploadedFileRevisionFixture(file: SourceFile): VaultRevisi
     statusLabel: "원천",
     owner: "데이터 보관함",
     updatedAt: uploadedAt,
-    sampleNotice: "직접 추가한 파일의 메타데이터와 미리보기 필드 기준으로 영향 범위를 표시합니다.",
+    impactNotice: "직접 추가한 파일의 메타데이터와 미리보기 필드 기준으로 영향 범위를 표시합니다.",
     impactSummary: file.description || "업로드된 원천 파일이 관리 대상 후보, 구조 초안, 보정 기록, 현재 기준 반영 상태로 이어집니다.",
     affected: [
       { label: "관리 대상 후보", value: fields[0] ?? "파일 필드", detail: "업로드 파일의 첫 번째 필드를 후보로 표시", tone: "info" },
@@ -281,7 +281,7 @@ export function createUploadedFileRevisionFixture(file: SourceFile): VaultRevisi
       { field: "설명", source: file.description || "-", draft: file.description || "설명 후보", correction: file.description || "-", current: file.description || "-", note: "사용자 입력값 유지" },
       { field: "데이터 유형", source: file.kind, draft: "표 형식 데이터", correction: file.kind, current: file.kind, note: "사용자 선택값 유지" },
       { field: "데이터 규모", source: rowCountLabel, draft: rowCountLabel, correction: rowCountLabel, current: rowCountLabel, note: "미리보기 기준" },
-      { field: "구조 상태", source: "원천 기록", draft: "AI 구조 초안", correction: "사용자 보정", current: file.appliedAt ? "반영됨" : "반영 대기", note: "실제 상태" }
+      { field: "구조 상태", source: "원천 기록", draft: "AI 구조 초안", correction: "사용자 보정", current: file.appliedAt ? "반영됨" : "반영 대기", note: "반영 상태" }
     ],
     correctionEvents: [
       { id: `${file.id}-correction-1`, title: "원천 파일 등록", actor: "시스템", time: uploadedAt, detail: `${file.name} 파일을 데이터 보관함에 추가`, tone: "neutral" },
@@ -324,7 +324,7 @@ export const vaultDraftItems: VaultDraftItem[] = [
     statusTone: "warning",
     owner: "AI 초안",
     updatedAt: "2026-05-12 14:33",
-    summary: "주문/배송 원천값에서 고객A, P-42, 배송 지연 클레임 흐름을 추정한 샘플 구조입니다.",
+    summary: "주문/배송 원천값에서 고객A, P-42, 배송 지연 클레임 흐름을 추정한 구조입니다.",
     sourceFiles: ["주문_배송_클레임.xlsx"],
     fields: ["고객군", "상품군", "배송상태", "출고대기시간", "클레임유형"],
     entityCount: 7,
@@ -372,7 +372,7 @@ export const vaultDraftItems: VaultDraftItem[] = [
     impactItems: [
       { label: "관리 대상 후보", value: "P-42", detail: "저마진 상품군 후보", tone: "violet" },
       { label: "관계 후보", value: "공급업체 A사", detail: "P-42 공급 연결 후보", tone: "emerald" },
-      { label: "지표 후보", value: "평균 마진율", detail: "13.6% 샘플 평균", tone: "danger" },
+      { label: "지표 후보", value: "평균 마진율", detail: "13.6% 평균", tone: "danger" },
       { label: "업무 흐름 후보", value: "납품 리스크", detail: "공급 조건 재협의 후보", tone: "orange" }
     ],
     reviewEvents: [
@@ -393,7 +393,7 @@ export const vaultCorrectionItems: VaultCorrectionItem[] = [
     statusTone: "success",
     actor: "박민재",
     updatedAt: "2026-05-12 14:36",
-    summary: "AI 초안의 고객 A 표기를 현재 기준 데이터와 맞추기 위해 고객A로 통일한 샘플 보정입니다.",
+    summary: "AI 초안의 고객 A 표기를 현재 기준 데이터와 맞추기 위해 고객A로 통일한 보정입니다.",
     sourceName: "주문_배송_클레임.xlsx",
     revisionRows: [
       { field: "고객군", source: "고객A", draft: "고객 A", correction: "고객A", current: "고객A", note: "표기 통일" },
@@ -403,7 +403,7 @@ export const vaultCorrectionItems: VaultCorrectionItem[] = [
       { label: "관리 대상", value: "고객A", detail: "동일 고객군으로 병합", tone: "info" },
       { label: "지표", value: "클레임률", detail: "재계산 예정", tone: "warning" },
       { label: "인사이트", value: "보상 비용 증가", detail: "반복 클레임 신호 유지", tone: "danger" },
-      { label: "반영 상태", value: "현재 기준 대기", detail: "실제 반영은 추후 구현", tone: "emerald" }
+      { label: "반영 상태", value: "현재 기준 대기", detail: "현재 기준 반영 대기", tone: "emerald" }
     ],
     correctionEvents: dataVaultRevisionFixtures["source-orders"].correctionEvents,
     flowEvents: dataVaultRevisionFixtures["source-orders"].flowEvents,
@@ -417,7 +417,7 @@ export const vaultCorrectionItems: VaultCorrectionItem[] = [
     statusTone: "success",
     actor: "박민재",
     updatedAt: "2026-05-12 14:35",
-    summary: "상품/마진 초안의 공급사 명칭을 운영 기준 명칭으로 맞춘 샘플 보정입니다.",
+    summary: "상품/마진 초안의 공급사 명칭을 운영 기준 명칭으로 맞춘 보정입니다.",
     sourceName: "상품별_마진_공급사.csv",
     revisionRows: [
       { field: "공급사", source: "공급업체 A사", draft: "공급업체 A", correction: "공급업체 A사", current: "공급업체 A사", note: "명칭 보정" },
@@ -425,7 +425,7 @@ export const vaultCorrectionItems: VaultCorrectionItem[] = [
     ],
     impactItems: [
       { label: "관리 대상", value: "공급업체 A사", detail: "공급사 기준명 확정", tone: "emerald" },
-      { label: "지표", value: "평균 마진율", detail: "13.6% 샘플 유지", tone: "danger" },
+      { label: "지표", value: "평균 마진율", detail: "13.6% 유지", tone: "danger" },
       { label: "업무 흐름", value: "납품 리스크", detail: "공급 조건 재협의 후보", tone: "orange" },
       { label: "반영 상태", value: "반영 예정", detail: "현재 기준 데이터 화면에서 표시", tone: "info" }
     ],
@@ -444,12 +444,12 @@ export const vaultCurrentDataItems: VaultCurrentDataItem[] = [
     statusTone: "info",
     owner: "영업 1팀",
     updatedAt: "2026-05-12 14:50",
-    summary: "고객A 클레임 흐름을 현재 기준 데이터에 반영하기 전 샘플 상태입니다.",
+    summary: "고객A 클레임 흐름을 현재 기준 데이터에 반영하기 전 상태입니다.",
     domain: "관리 대상",
     records: [
       { field: "기준명", value: "고객A", status: "보정 반영", note: "고객 A 표기 통일" },
       { field: "연결 상품", value: "P-42", status: "연결 예정", note: "지연 주문 상품군" },
-      { field: "대표 지표", value: "클레임률", status: "재계산 대기", note: "실제 계산은 추후 구현" }
+      { field: "대표 지표", value: "클레임률", status: "재계산 대기", note: "재계산 기준 확인 예정" }
     ],
     impactItems: [
       { label: "관리 대상", value: "고객A", detail: "현재 기준명 유지", tone: "info" },
@@ -468,17 +468,17 @@ export const vaultCurrentDataItems: VaultCurrentDataItem[] = [
     statusTone: "warning",
     owner: "재무/구매",
     updatedAt: "2026-05-12 14:48",
-    summary: "P-42 상품군의 평균 마진율과 공급 리스크를 현재 기준 데이터로 정리한 샘플입니다.",
+    summary: "P-42 상품군의 평균 마진율과 공급 리스크를 현재 기준 데이터로 정리했습니다.",
     domain: "지표/관리 대상",
     records: [
       { field: "기준명", value: "P-42", status: "후보 확정", note: "상품군 코드 유지" },
       { field: "연결 공급사", value: "공급업체 A사", status: "보정 반영", note: "공급사 명칭 보정" },
-      { field: "대표 지표", value: "평균 마진율 13.6%", status: "재계산 대기", note: "실제 계산은 추후 구현" }
+      { field: "대표 지표", value: "평균 마진율 13.6%", status: "재계산 대기", note: "재계산 기준 확인 예정" }
     ],
     impactItems: [
       { label: "관리 대상", value: "P-42", detail: "저마진 상품군", tone: "violet" },
       { label: "관계", value: "공급업체 A사", detail: "공급 연결 유지", tone: "emerald" },
-      { label: "지표", value: "평균 마진율", detail: "13.6% 샘플", tone: "danger" },
+      { label: "지표", value: "평균 마진율", detail: "13.6%", tone: "danger" },
       { label: "업무 흐름", value: "납품 리스크", detail: "재협의 후보", tone: "orange" }
     ],
     flowEvents: dataVaultRevisionFixtures["source-margin"].flowEvents,

@@ -58,12 +58,12 @@ test("ai canvas scenarios include dense visual evidence without raw file payload
   assert.equal(serialized.includes("textContent"), false);
 });
 
-test("ai canvas falls back to canonical sample data when operating data is not loaded", () => {
+test("ai canvas falls back to default analysis data when operating data is not loaded", () => {
   const scenarios = getFixedAiCanvasScenarios(createInitialState());
   const supplierScenario = scenarios[0];
 
   assert.equal(supplierScenario?.shortLabel, "공급업체 A사");
-  assert.equal(supplierScenario?.sampleDataLabel, "기본 샘플");
+  assert.equal(supplierScenario?.sampleDataLabel, "기본 데이터");
   assert.equal(supplierScenario?.metricSummaries[0]?.label, "주문 처리 시간");
   assert.equal(supplierScenario?.metricSummaries[0]?.value, "36.8시간");
   assert.ok(supplierScenario?.visualBlocks.some((block) => block.id === "visual-canvas-supplier-margin"));
@@ -102,7 +102,7 @@ test("ai canvas direct scenario lookup rejects unsupported ids", () => {
 test("ai canvas fallback guide points users back to the four supported prompts", () => {
   const guide = getAiCanvasFallbackGuide(initialPrototypeState);
 
-  assert.match(guide.content, /4개 질문/);
+  assert.match(guide.content, /현재 데이터/);
   assert.match(guide.content, /입력창에 채워지고/);
   assert.equal(guide.prompts.length, 4);
   assert.deepEqual(guide.prompts.map((prompt) => prompt.id), [
@@ -121,7 +121,7 @@ test("ai canvas recommendation cards do not trigger prototype navigation", () =>
   assert.equal(source.includes("onClick={() => onAction"), false);
 });
 
-test("ai canvas screen keeps the shared menu title header without breadcrumb", () => {
+test("ai canvas screen keeps the shared menu title header with default breadcrumb", () => {
   const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
 
   assert.equal(source.includes("AI_CANVAS_BREADCRUMB"), false);
@@ -167,7 +167,7 @@ test("ai canvas submits only from the composer and shows pending generation stat
   assert.match(source, /placeholder=\{disabled \? "답변 생성 중입니다" : "메시지를 입력하세요"\}/);
 });
 
-test("ai canvas answer cards do not show sample metadata badges", () => {
+test("ai canvas answer cards do not show source metadata badges", () => {
   const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
 
   assert.equal(source.includes("<Badge tone=\"success\">AI 답변</Badge>"), false);
@@ -233,7 +233,7 @@ test("ai canvas generation is cancelable without reversing message order", () =>
   assert.equal(source.includes("reverse()"), false);
 });
 
-test("ai chat scenario answers include fixture citations and navigation actions", () => {
+test("ai chat scenario answers include source citations and navigation actions", () => {
   const response = buildAiChatResponse({
     attachments: [],
     question: "현재 가장 위험한 운영 신호는?",
@@ -294,7 +294,7 @@ test("ai chat fallback reflects local file attachments without file payloads or 
   assert.equal(JSON.stringify(response).includes("size"), false);
 });
 
-test("ai chat fixture scenarios expose visual explanation payloads", () => {
+test("ai chat analysis scenarios expose visual explanation payloads", () => {
   const supplierResponse = buildAiChatResponse({
     attachments: [],
     question: "공급업체 A사가 어떤 영향을 줘?",

@@ -41,7 +41,7 @@ test("phase one decision candidates use manager-facing copy", () => {
   assert.match(customerDecision.evidenceStrengthLabel, /근거 신뢰도/);
 });
 
-test("data vault phase one mock apply stays local-only", () => {
+test("data vault phase one apply stays screen-scoped", () => {
   const source = readFileSync("src/features/data-review/DataVaultRevisionWorkbench.tsx", "utf8");
 
   assert.equal(source.includes("applySourceFileToCurrentStandard"), false);

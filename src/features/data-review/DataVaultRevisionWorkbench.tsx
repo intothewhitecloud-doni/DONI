@@ -264,7 +264,7 @@ export function DataVaultRevisionWorkbench({
           <StageListPanel
             activeId={activeDraft?.id}
             badge={`${vaultDraftItems.length}건`}
-            description="업로드된 원천 파일 전체에서 추정한 AI 구조 초안을 샘플로 보여줍니다."
+            description="업로드된 원천 파일 전체에서 추정한 AI 구조 초안을 보여줍니다."
             eyebrow="AI 초안"
             items={vaultDraftItems}
             title="AI 초안 목록"
@@ -274,7 +274,7 @@ export function DataVaultRevisionWorkbench({
           <StageListPanel
             activeId={activeCorrection?.id}
             badge={`${vaultCorrectionItems.length}건`}
-            description="사용자가 보정한 필드와 기준값 변경 흐름을 샘플로 보여줍니다."
+            description="사용자가 보정한 필드와 기준값 변경 흐름을 보여줍니다."
             eyebrow="보정 기록"
             items={vaultCorrectionItems}
             title="보정 항목 목록"
@@ -284,7 +284,7 @@ export function DataVaultRevisionWorkbench({
           <StageListPanel
             activeId={activeCurrentData?.id}
             badge={`${vaultCurrentDataItems.length}건`}
-            description="현재 기준에 반영 대기 중인 기준 데이터 샘플 목록입니다."
+            description="현재 기준에 반영 대기 중인 기준 데이터 목록입니다."
             eyebrow="현재 기준"
             items={vaultCurrentDataItems}
             title="기준 데이터 목록"
@@ -437,7 +437,7 @@ export function DataVaultRevisionWorkbench({
                   <p className="text-xs font-bold uppercase text-blue-600">변화 비교</p>
                   <h3 className="mt-1 text-lg font-bold text-slate-950">원천 / 초안 / 보정 / 현재 기준</h3>
                 </div>
-                <Badge tone="warning">샘플 흐름</Badge>
+                <Badge tone="warning">반영 흐름</Badge>
               </div>
 
               <div className="overflow-x-auto rounded-md border border-slate-200">
@@ -584,7 +584,7 @@ function EmptyDetailPanel() {
     <div className="min-w-0 space-y-4 xl:col-span-2">
       <Card className="min-w-0 space-y-3" density="compact">
         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-5">
-          <p className="font-semibold text-slate-900">표시할 샘플 데이터가 없습니다</p>
+          <p className="font-semibold text-slate-900">표시할 데이터가 없습니다</p>
         </div>
       </Card>
     </div>
@@ -657,7 +657,7 @@ function CorrectionDetailPanel({ item }: { item: VaultCorrectionItem }) {
       </StageDetailCard>
 
       <Card className="min-w-0 space-y-3" density="compact">
-        <SectionHeader badge="샘플 기준" badgeTone="warning" eyebrow="변화 비교" title="원천 / 초안 / 보정 / 현재 기준" />
+        <SectionHeader badge="기준 비교" badgeTone="warning" eyebrow="변화 비교" title="원천 / 초안 / 보정 / 현재 기준" />
         <RevisionComparisonTable activeStage="correction" rows={item.revisionRows} />
       </Card>
     </div>
@@ -858,7 +858,7 @@ function SourceRightRail({
               />
             </RightPanel>
           )}
-          <ImpactPreviewPanel items={[...fixture.affected, ...fixture.metrics, ...fixture.insights]} notice={fixture.sampleNotice} />
+          <ImpactPreviewPanel items={[...fixture.affected, ...fixture.metrics, ...fixture.insights]} notice={fixture.impactNotice} />
           <RightPanel title="보정 기록" eyebrow="수정 흐름" badge={`${fixture.correctionEvents.length}건`} badgeTone="warning">
             <CorrectionTimeline events={fixture.correctionEvents} />
           </RightPanel>
@@ -891,7 +891,7 @@ function SourceRightRail({
 function DraftRightRail({ evidence, item }: { evidence: EvidenceReference[]; item: VaultDraftItem }) {
   return (
     <aside className="min-w-0 space-y-4">
-      <ImpactPreviewPanel items={item.impactItems} notice="AI 구조 초안이 현재 기준과 지표에 줄 수 있는 영향을 샘플로 사전 표시합니다." />
+      <ImpactPreviewPanel items={item.impactItems} notice="AI 구조 초안이 현재 기준과 지표에 줄 수 있는 영향을 사전 표시합니다." />
       <RightPanel title="검토 기록" eyebrow="초안 흐름" badge={`${item.reviewEvents.length}건`} badgeTone="warning">
         <FlowTimeline events={item.reviewEvents} />
       </RightPanel>
@@ -908,7 +908,7 @@ function DraftRightRail({ evidence, item }: { evidence: EvidenceReference[]; ite
 function CorrectionRightRail({ evidence, item }: { evidence: EvidenceReference[]; item: VaultCorrectionItem }) {
   return (
     <aside className="min-w-0 space-y-4">
-      <ImpactPreviewPanel items={item.impactItems} notice="사용자 보정이 현재 기준과 지표에 줄 수 있는 영향을 샘플로 표시합니다." />
+      <ImpactPreviewPanel items={item.impactItems} notice="사용자 보정이 현재 기준과 지표에 줄 수 있는 영향을 표시합니다." />
       <RightPanel title="보정 기록" eyebrow="수정 흐름" badge={`${item.correctionEvents.length}건`} badgeTone="warning">
         <CorrectionTimeline events={item.correctionEvents} />
       </RightPanel>
@@ -925,7 +925,7 @@ function CorrectionRightRail({ evidence, item }: { evidence: EvidenceReference[]
 function CurrentDataRightRail({ evidence, item }: { evidence: EvidenceReference[]; item: VaultCurrentDataItem }) {
   return (
     <aside className="min-w-0 space-y-4">
-      <ImpactPreviewPanel items={item.impactItems} notice="현재 기준 데이터로 반영될 때 바뀌는 영향 범위를 샘플로 표시합니다." />
+      <ImpactPreviewPanel items={item.impactItems} notice="현재 기준 데이터로 반영될 때 바뀌는 영향 범위를 표시합니다." />
       <RightPanel title="출처 근거" eyebrow="근거 데이터" badge={`${evidence.length}건`} badgeTone="neutral">
         <EvidenceList evidence={evidence} />
       </RightPanel>
@@ -1102,7 +1102,7 @@ function ImpactPreviewPanel({
   notice: string;
 }) {
   return (
-    <RightPanel title="영향 미리보기" eyebrow="사전 감지" badge="샘플 기준" badgeTone="info">
+    <RightPanel title="영향 미리보기" eyebrow="사전 감지" badge="기준 데이터" badgeTone="info">
       <p className="text-sm leading-6 text-slate-600">{notice}</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-2" data-vault-impact-grid="true">
         {items.map((item) => (

@@ -350,7 +350,7 @@ function buildSpreadsheetPreview(file: File, extension: string): { columns: stri
     ["Sheet1", "파일명", file.name, "업로드됨"],
     ["Sheet1", "파일 형식", extension.toUpperCase(), "표 형식 데이터"],
     ["Sheet1", "파일 크기", formatUploadPreviewSize(file.size), "보관됨"],
-    ["Sheet1", "미리보기", "실제 행 파싱은 추후 구현", "샘플 흐름"]
+    ["Sheet1", "미리보기", "파일 구조 확인 중", "분석 흐름"]
   ];
 
   return {

@@ -82,7 +82,7 @@ export const aiChatScenarios: AiChatScenario[] = [
       return {
         scenarioId: "highest-risk-signal",
         content: [
-          "현재 fixture 기준 가장 큰 신호는 P-42에 집중된 수익성 하락과 고객 영향입니다.",
+          "현재 데이터 기준 가장 큰 신호는 P-42에 집중된 수익성 하락과 고객 영향입니다.",
           `${margin} ${delay} ${claim}`,
           "세 지표가 같은 상품군과 고객 흐름에 겹쳐 있고, 인사이트도 P-42 마진 하락과 고객A 클레임 반복을 높은 영향으로 보고 있습니다.",
           "우선순위는 P-42 마진 구조 점검, 고객A 선제 안내, 공급업체 A사 납품 조건 재협의 순서가 적절합니다."
@@ -130,7 +130,7 @@ export const aiChatScenarios: AiChatScenario[] = [
         scenarioId: "p42-margin-cause",
         content: [
           `P-42 평균 마진율은 ${formatMetricValue(state, "metric-margin")}로 이전 ${margin?.previousValue ?? "-"}%보다 낮습니다.`,
-          "fixture의 계산 근거는 할인율 6.4~6.8%, 반품비용 880만원, 공급 지연으로 인한 비용 압박을 함께 보고 있습니다.",
+          "분석 근거는 할인율 6.4~6.8%, 반품비용 880만원, 공급 지연으로 인한 비용 압박을 함께 보고 있습니다.",
           supplierRelation
             ? `${supplierRelation.description} 이 연결은 ${confidenceLabel(supplierRelation.confidence)} 신뢰도로 표시됩니다.`
             : "공급업체 A사와 P-42 공급 관계가 비용 압박 경로로 연결됩니다.",
@@ -185,7 +185,7 @@ export const aiChatScenarios: AiChatScenario[] = [
           "고객A 클레임은 P-42 배송 지연 이후 반복된 보상 요청과 연결됩니다.",
           `현재 클레임률은 ${formatMetricValue(state, "metric-claim-rate")}이고 주문 처리 시간도 ${formatMetricValue(state, "metric-delay-time")}까지 늘어난 상태입니다.`,
           insight?.reason ?? "반복 구매 고객군에서 배송 지연과 보상 요청이 같이 나타나 이탈 위험과 대응 비용이 커집니다.",
-          "우선 고객A에는 선제 안내를 발송하고, 보상 기준을 고객군 영향도에 맞춰 조정하는 답변이 fixture의 추천 조치와 맞습니다."
+          "우선 고객A에는 선제 안내를 발송하고, 보상 기준을 고객군 영향도에 맞춰 조정하는 답변이 인사이트의 추천 조치와 맞습니다."
         ].join("\n\n"),
         citationEvidenceIds: ["evidence-claims", "evidence-orders-delay"],
         actionItems: [
@@ -227,7 +227,7 @@ export const aiChatScenarios: AiChatScenario[] = [
       return {
         scenarioId: "source-files",
         content: [
-          "현재 분석 근거는 두 개의 sample 파일에 집중되어 있습니다.",
+          "현재 분석 근거는 두 개의 원천 파일에 집중되어 있습니다.",
           sourceSummary || "표시할 보관 파일이 없습니다.",
           "주문/클레임 흐름은 주문_배송_클레임.xlsx를, 마진과 공급사 비교는 상품별_마진_공급사.csv를 먼저 보면 됩니다."
         ].join("\n\n"),
@@ -250,7 +250,7 @@ export const aiChatScenarios: AiChatScenario[] = [
       return {
         scenarioId: "next-actions",
         content: [
-          "fixture 기준 다음 조치는 고객 영향, 공급 지연, 상품 마진을 나눠 처리하는 것이 좋습니다.",
+          "현재 데이터 기준 다음 조치는 고객 영향, 공급 지연, 상품 마진을 나눠 처리하는 것이 좋습니다.",
           numbered(actions),
           "안건으로 전환할 때는 P-42 마진 구조 조정안 또는 고객A 선제 안내안을 먼저 검토하는 흐름이 자연스럽습니다."
         ].join("\n\n"),

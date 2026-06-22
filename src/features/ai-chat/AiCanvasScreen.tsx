@@ -40,7 +40,7 @@ const AI_CANVAS_PENDING_PHASE_LABEL: Record<AiCanvasPendingPhase, string> = {
 
 const AI_CANVAS_PENDING_PHASE_DETAIL: Record<AiCanvasPendingPhase, string> = {
   loading: "선택한 질문을 AI canvas에 전달하고 있습니다.",
-  reasoning: "샘플 지표, 근거, 연결 정보를 맞춰 보고 있습니다.",
+  reasoning: "지표, 근거, 연결 정보를 맞춰 보고 있습니다.",
   generating: "요약, 차트, 추천 시나리오를 답변 카드로 조립하고 있습니다.",
   typing: "곧 완성된 답변이 표시됩니다."
 };
@@ -87,7 +87,7 @@ export function AiCanvasScreen() {
       <div className="flex min-h-[calc(100vh-7rem)] w-full flex-col gap-5 pb-12 text-ink">
         <AiCanvasPageHeader />
         <section className="rounded-lg border border-hairline bg-white p-6 shadow-soft">
-          <p className="font-bold text-ink">표시할 AI 샘플 시나리오가 없습니다.</p>
+          <p className="font-bold text-ink">표시할 AI 시나리오가 없습니다.</p>
         </section>
       </div>
     );
@@ -314,7 +314,7 @@ function FallbackTurnCard({
       <div className="flex items-start gap-3">
         <ChatAvatar label="AI" tone="assistant" />
         <div className="ai-canvas-card-in min-w-0 flex-1 rounded-lg border border-hairline-soft bg-white p-4 shadow-sm">
-          <Badge tone="warning">샘플 범위 안내</Badge>
+          <Badge tone="warning">분석 범위 안내</Badge>
           <p className="mt-3 text-body-sm leading-6 text-body">{turn.guide.content}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {turn.guide.prompts.map((prompt) => (
@@ -615,7 +615,7 @@ function DetailTable({ table }: { table: AiCanvasDetailTable }) {
           <h2 className="text-title-sm text-ink">{table.title}</h2>
           <p className="mt-1 text-caption text-muted">{table.caption}</p>
         </div>
-        <Badge tone="neutral">샘플 표</Badge>
+        <Badge tone="neutral">분석 표</Badge>
       </div>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[520px] border-separate border-spacing-0 text-left text-caption">

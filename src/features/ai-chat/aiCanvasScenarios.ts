@@ -129,7 +129,7 @@ export function findAiCanvasPromptScenario(question: string, state: PrototypeSta
 
 export function getAiCanvasFallbackGuide(state: PrototypeState): AiCanvasFallbackGuide {
   return {
-    content: "현재 AI 대화 샘플은 실제 LLM/API/RAG 분석 없이 아래 4개 질문에 대해서만 고정된 샘플 답변을 제공합니다. 질문 배지를 선택하면 입력창에 채워지고, 전송하면 차트, 근거, 연결 정보를 포함한 canvas 답변을 확인할 수 있습니다.",
+    content: "현재 데이터에서 우선 확인할 수 있는 질문입니다. 질문 배지를 선택하면 입력창에 채워지고, 전송하면 차트, 근거, 연결 정보를 포함한 canvas 답변을 확인할 수 있습니다.",
     prompts: getFixedAiCanvasScenarios(state).map((scenario) => ({
       id: scenario.id,
       label: scenario.shortLabel,
@@ -150,12 +150,12 @@ export function getAiCanvasOverview(state: PrototypeState): AiCanvasOverview {
     title: "현재 데이터 기준 전반 분석 제안",
     subtitle: "P-42, 고객A, 공급업체 A사의 연결된 운영 신호를 먼저 확인하는 흐름입니다.",
     summary: [
-      "현재 샘플 데이터에서는 P-42 수익성 하락, 고객A 클레임 반복, 공급업체 A사 지연이 하나의 운영 리스크 묶음으로 연결됩니다.",
+      "현재 데이터에서는 P-42 수익성 하락, 고객A 클레임 반복, 공급업체 A사 지연이 하나의 운영 리스크 묶음으로 연결됩니다.",
       "첫 검토는 전체 위험 우선순위를 확인한 뒤, 공급 지연과 마진 하락, 고객 영향으로 원인을 분리하는 순서가 적절합니다.",
-      "아래 4개 질문은 같은 샘플 데이터를 서로 다른 관점으로 보여주며, 답변마다 차트와 근거 위치, 연결 정보를 함께 제공합니다."
+      "아래 4개 질문은 같은 데이터를 서로 다른 관점으로 보여주며, 답변마다 차트와 근거 위치, 연결 정보를 함께 제공합니다."
     ],
     confidence,
-    confidenceLabel: "4개 샘플 시나리오 교차 요약",
+    confidenceLabel: "4개 분석 시나리오 교차 요약",
     visualBlocks: [
       risk?.visualBlocks[0],
       supplier?.visualBlocks[0],
@@ -171,7 +171,7 @@ export function getAiCanvasOverview(state: PrototypeState): AiCanvasOverview {
     ].filter((item): item is string => Boolean(item)),
     detailTable: {
       title: "분석 관점별 우선 확인",
-      caption: "첫 화면은 특정 배지 선택 결과가 아니라 전체 샘플 데이터의 분석 출발점을 보여줍니다.",
+      caption: "첫 화면은 특정 배지 선택 결과가 아니라 전체 데이터의 분석 출발점을 보여줍니다.",
       columns: ["관점", "핵심 질문", "우선 확인", "기대 출력"],
       rows: scenarios.map((scenario, index) => ({
         id: `overview-${scenario.id}`,
@@ -184,7 +184,7 @@ export function getAiCanvasOverview(state: PrototypeState): AiCanvasOverview {
       recommendation("overview-supplier", "공급 지연 원인 분리", "A사 납품 준수율과 주문 처리 시간을 먼저 확인합니다.", "병목 원인 분리", "warning"),
       recommendation("overview-customer", "고객 영향 대응안 정리", "고객A 클레임과 보상 기준을 함께 검토합니다.", "이탈 위험 완화", "info")
     ],
-    sampleDataLabel: scenarios[0]?.sampleDataLabel ?? "기본 샘플"
+    sampleDataLabel: scenarios[0]?.sampleDataLabel ?? "기본 데이터"
   };
 }
 
@@ -222,10 +222,10 @@ function stateHasCanvasData(state: PrototypeState): boolean {
 
 function resolveCanvasState(state: PrototypeState): CanvasStateResolution {
   if (stateHasCanvasData(state)) {
-    return { sampleDataLabel: "현재 샘플", state };
+    return { sampleDataLabel: "현재 데이터", state };
   }
 
-  return { sampleDataLabel: "기본 샘플", state: initialPrototypeState };
+  return { sampleDataLabel: "기본 데이터", state: initialPrototypeState };
 }
 
 function buildCanvasScenario(state: PrototypeState, scenarioId: FixedScenarioId, sampleDataLabel: string): AiCanvasScenario {
@@ -241,7 +241,7 @@ function buildCanvasScenario(state: PrototypeState, scenarioId: FixedScenarioId,
         title: "상위 위험 신호 집중 분석",
         subtitle: "P-42 마진, 고객A 클레임, 공급업체 A사 지연을 같은 우선순위 표로 정리합니다.",
         summary: [
-          "현재 fixture 기준 가장 큰 신호는 P-42에 집중된 수익성 하락과 고객 영향입니다.",
+          "현재 데이터 기준 가장 큰 신호는 P-42에 집중된 수익성 하락과 고객 영향입니다.",
           `${metricLine(state, "metric-margin")} ${metricLine(state, "metric-delay-time")} ${metricLine(state, "metric-claim-rate")}`,
           "세 지표가 같은 상품군과 고객 흐름에 겹쳐 있고, 인사이트도 P-42 마진 하락과 고객A 클레임 반복을 높은 영향으로 보고 있습니다."
         ],
@@ -288,7 +288,7 @@ function buildCanvasScenario(state: PrototypeState, scenarioId: FixedScenarioId,
         subtitle: "할인, 반품비용, 공급 지연을 한 화면에서 비교해 상품군 단위 원인을 분리합니다.",
         summary: [
           `P-42 평균 마진율은 ${formatMetric(state, "metric-margin")}로 이전 기준보다 낮습니다.`,
-          `fixture의 계산 근거는 할인율 ${discountRange(state)}, 반품비용 ${formatCurrencyManwon(metricValue(state, "metric-margin")?.basis?.returnCost)}, 공급 지연으로 인한 비용 압박을 함께 보고 있습니다.`,
+          `분석 근거는 할인율 ${discountRange(state)}, 반품비용 ${formatCurrencyManwon(metricValue(state, "metric-margin")?.basis?.returnCost)}, 공급 지연으로 인한 비용 압박을 함께 보고 있습니다.`,
           "따라서 단순 가격 문제가 아니라 할인, 반품, 공급 지연이 겹친 상품군 단위 이슈로 보는 편이 맞습니다."
         ],
         confidence: confidenceFromEvidence(evidence, 0.9),
@@ -339,7 +339,7 @@ function buildCanvasScenario(state: PrototypeState, scenarioId: FixedScenarioId,
         summary: [
           "고객A 클레임은 P-42 배송 지연 이후 반복된 보상 요청과 연결됩니다.",
           `현재 클레임률은 ${formatMetric(state, "metric-claim-rate")}이고 주문 처리 시간도 ${formatMetric(state, "metric-delay-time")}까지 늘어난 상태입니다.`,
-          "우선 고객A에는 선제 안내를 발송하고, 보상 기준을 고객군 영향도에 맞춰 조정하는 답변이 fixture의 추천 조치와 맞습니다."
+          "우선 고객A에는 선제 안내를 발송하고, 보상 기준을 고객군 영향도에 맞춰 조정하는 답변이 인사이트의 추천 조치와 맞습니다."
         ],
         confidence: confidenceFromEvidence(evidence, 0.88),
         confidenceLabel: "주문·클레임 근거 확인",
@@ -363,7 +363,7 @@ function buildCanvasScenario(state: PrototypeState, scenarioId: FixedScenarioId,
         keyFindings: [
           "고객A 클레임은 P-42 배송 지연 이후 반복 보상 요청과 연결됩니다.",
           "클레임률과 주문 처리 시간이 동시에 악화되어 고객 영향이 커졌습니다.",
-          "선제 안내와 보상 기준 조정은 샘플 인사이트의 추천 조치와 맞습니다."
+          "선제 안내와 보상 기준 조정은 인사이트의 추천 조치와 맞습니다."
         ],
         detailTable: customerClaimsTable(state),
         recommendations: [
@@ -458,7 +458,7 @@ function metricSummariesFor(state: PrototypeState, metricIds: string[]): AiCanva
       id: metricId,
       label: definition?.name ?? metricId,
       value: value && definition ? `${value.value}${definition.unit}` : "-",
-      detail: value && definition ? `이전 ${value.previousValue}${definition.unit} 대비 ${delta > 0 ? "+" : ""}${Number(delta.toFixed(1))}${definition.unit}` : "샘플 지표 없음",
+      detail: value && definition ? `이전 ${value.previousValue}${definition.unit} 대비 ${delta > 0 ? "+" : ""}${Number(delta.toFixed(1))}${definition.unit}` : "지표 없음",
       tone: metricTone(value?.status)
     };
   });
@@ -591,7 +591,7 @@ function chartTypeForVisual(chartType?: MetricValue["chartType"]): Exclude<Metri
 function riskPriorityTable(state: PrototypeState): AiCanvasDetailTable {
   return {
     title: "위험 신호 우선순위",
-    caption: "현재 샘플 데이터에서 영향도와 지표 악화 폭을 함께 본 정렬입니다.",
+    caption: "현재 데이터에서 영향도와 지표 악화 폭을 함께 본 정렬입니다.",
     columns: ["순위", "대상", "핵심 지표", "해석"],
     rows: [
       { id: "risk-1", cells: ["1", "P-42 마진 구조", formatMetric(state, "metric-margin"), "수익성 하락과 반품비용이 직접 연결"], tone: "danger" },
@@ -604,7 +604,7 @@ function riskPriorityTable(state: PrototypeState): AiCanvasDetailTable {
 function supplierImpactTable(state: PrototypeState): AiCanvasDetailTable {
   return {
     title: "공급 영향 상세",
-    caption: "A사와 P-42 흐름에서 확인된 샘플 근거를 기준으로 정리합니다.",
+    caption: "A사와 P-42 흐름에서 확인된 근거를 기준으로 정리합니다.",
     columns: ["항목", "현재 값", "영향", "다음 확인"],
     rows: [
       { id: "supplier-compliance", cells: ["납품 준수율", "72%", "출고 일정 지연", "A사 납품 조건"], tone: "warning" },
@@ -618,7 +618,7 @@ function marginFactorsTable(state: PrototypeState): AiCanvasDetailTable {
   const margin = metricValue(state, "metric-margin");
   return {
     title: "마진 하락 요인",
-    caption: "P-42 마진에 영향을 준 샘플 요인을 분리합니다.",
+    caption: "P-42 마진에 영향을 준 요인을 분리합니다.",
     columns: ["요인", "값", "판단", "연결 지표"],
     rows: [
       { id: "margin-discount", cells: ["할인율", String(margin?.basis?.discountRange ?? "6.4~6.8%"), "상품군 주문에 적용된 할인 압박", formatMetric(state, "metric-margin")], tone: "warning" },

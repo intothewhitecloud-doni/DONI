@@ -28,4 +28,4 @@ final result: passed
 
 ## Remaining Visual Difference
 
-- The reference contains a denser sample graph than the current prototype data set. The current implementation preserves the existing 20-node / 39-edge prototype data and behavior.
+- The reference contains a denser graph than the current prototype data set. The current implementation preserves the existing 20-node / 39-edge prototype data and behavior.
