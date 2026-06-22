@@ -1,58 +1,90 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { SectionTitle } from "../../components/ui/Card";
 import { MetricChart } from "../../components/ui/MetricChart";
 import { Progress } from "../../components/ui/Progress";
 import type { EvidenceReference } from "../../lib/domain/types";
+import {
+  AI_CANVAS_PENDING_PHASES,
+  cancelAiCanvasPendingTurn,
+  createAiCanvasPendingTurn,
+  hasPendingAiCanvasTurn,
+  resolveAiCanvasPendingTurn,
+  type AiCanvasConversationTurn,
+  type AiCanvasPendingPhase
+} from "../../lib/prototype/aiCanvasConversation";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import type { AiChatVisualBlock, AiChatVisualTone } from "./aiChatTypes";
 import {
   findAiCanvasPromptScenario,
   getAiCanvasFallbackGuide,
-  getAiCanvasOverview,
   getFixedAiCanvasScenarios,
   type AiCanvasDetailTable,
   type AiCanvasFallbackGuide,
-  type AiCanvasOverview,
   type AiCanvasRecommendation,
   type AiCanvasScenario
 } from "./aiCanvasScenarios";
 
-type CanvasAnswer = AiCanvasOverview | AiCanvasScenario;
+const AI_CANVAS_PAGE_TITLE = "AI 대화";
 
-const AI_CANVAS_BREADCRUMB = "AI 대화 > 분석 캔버스";
-const AI_CANVAS_PAGE_TITLE = "샘플 데이터 기반 AI 분석";
+const AI_CANVAS_PENDING_PHASE_LABEL: Record<AiCanvasPendingPhase, string> = {
+  loading: "질문을 전달하는 중",
+  reasoning: "근거 데이터를 확인하는 중",
+  generating: "답변 구조를 생성하는 중",
+  typing: "답변을 작성하는 중"
+};
 
-type AiCanvasChatTurn =
-  | {
-      id: string;
-      kind: "answer";
-      question: string;
-      scenario: AiCanvasScenario;
-      createdAtLabel: string;
-    }
-  | {
-      id: string;
-      kind: "fallback";
-      question: string;
-      guide: AiCanvasFallbackGuide;
-      createdAtLabel: string;
-    };
+const AI_CANVAS_PENDING_PHASE_DETAIL: Record<AiCanvasPendingPhase, string> = {
+  loading: "선택한 질문을 AI canvas에 전달하고 있습니다.",
+  reasoning: "샘플 지표, 근거, 연결 정보를 맞춰 보고 있습니다.",
+  generating: "요약, 차트, 추천 시나리오를 답변 카드로 조립하고 있습니다.",
+  typing: "곧 완성된 답변이 표시됩니다."
+};
+
+type AiCanvasChatTurn = AiCanvasConversationTurn<AiCanvasScenario, AiCanvasFallbackGuide>;
 
 export function AiCanvasScreen() {
   const { state } = usePrototype();
   const scenarios = useMemo(() => getFixedAiCanvasScenarios(state), [state]);
-  const overview = useMemo(() => getAiCanvasOverview(state), [state]);
   const fallbackGuide = useMemo(() => getAiCanvasFallbackGuide(state), [state]);
   const [chatTurns, setChatTurns] = useState<AiCanvasChatTurn[]>([]);
   const [draft, setDraft] = useState("");
+  const pendingTimersRef = useRef<number[]>([]);
+  const pendingScrollTurnIdRef = useRef<string | null>(null);
+  const userMessageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const isProcessing = hasPendingAiCanvasTurn(chatTurns);
+
+  useEffect(() => {
+    return () => {
+      clearPendingTimers(pendingTimersRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const targetTurnId = pendingScrollTurnIdRef.current;
+    if (!targetTurnId) {
+      return;
+    }
+
+    const targetElement = userMessageRefs.current[targetTurnId];
+    if (!targetElement) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      targetElement.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+    });
+    pendingScrollTurnIdRef.current = null;
+  }, [chatTurns]);
 
   if (scenarios.length === 0) {
     return (
-      <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-[1280px] flex-col gap-5 pb-12 text-ink">
+      <div className="flex min-h-[calc(100vh-7rem)] w-full flex-col gap-5 pb-12 text-ink">
         <AiCanvasPageHeader />
         <section className="rounded-lg border border-hairline bg-white p-6 shadow-soft">
           <p className="font-bold text-ink">표시할 AI 샘플 시나리오가 없습니다.</p>
@@ -63,7 +95,7 @@ export function AiCanvasScreen() {
 
   function submitQuestion(question: string) {
     const trimmedQuestion = question.trim();
-    if (!trimmedQuestion) {
+    if (!trimmedQuestion || isProcessing) {
       return;
     }
 
@@ -72,48 +104,76 @@ export function AiCanvasScreen() {
       hour: "2-digit",
       minute: "2-digit"
     }).format(new Date());
+    const pendingTurnId = `${matchedScenario?.id ?? "fallback"}-${Date.now()}`;
 
-    const turn: AiCanvasChatTurn = matchedScenario
-      ? {
-          id: `${matchedScenario.id}-${Date.now()}`,
-          kind: "answer",
-          question: trimmedQuestion,
-          scenario: matchedScenario,
-          createdAtLabel
-        }
-      : {
-          id: `fallback-${Date.now()}`,
-          kind: "fallback",
-          question: trimmedQuestion,
-          guide: fallbackGuide,
-          createdAtLabel
-        };
+    const pendingTurn = createAiCanvasPendingTurn<AiCanvasScenario, AiCanvasFallbackGuide>({
+      id: pendingTurnId,
+      question: trimmedQuestion,
+      createdAtLabel,
+      result: matchedScenario
+        ? {
+            kind: "answer",
+            scenario: matchedScenario
+          }
+        : {
+            kind: "fallback",
+            guide: fallbackGuide
+          }
+    });
 
-    setChatTurns((currentTurns) => [turn, ...currentTurns]);
+    clearPendingTimers(pendingTimersRef.current);
+    pendingScrollTurnIdRef.current = pendingTurnId;
+    setChatTurns((currentTurns) => [...currentTurns, pendingTurn]);
     setDraft("");
+    schedulePendingResolution(pendingTurnId, pendingTimersRef, setChatTurns);
+  }
+
+  function cancelPendingAnswer(turnId: string) {
+    clearPendingTimers(pendingTimersRef.current);
+    setChatTurns((currentTurns) =>
+      currentTurns.map((turn) =>
+        turn.id === turnId && turn.kind === "pending" ? cancelAiCanvasPendingTurn(turn) : turn
+      )
+    );
+  }
+
+  function registerUserMessageRef(turnId: string) {
+    return (element: HTMLDivElement | null) => {
+      if (element) {
+        userMessageRefs.current[turnId] = element;
+      } else {
+        delete userMessageRefs.current[turnId];
+      }
+    };
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-[1280px] flex-col gap-5 pb-48 text-ink">
+    <div className="flex min-h-[calc(100vh-7rem)] w-full flex-col gap-5 pb-44 text-ink">
       <AiCanvasPageHeader />
 
-      {chatTurns.length > 0 && (
-        <section className="space-y-4" aria-label="AI 대화 결과">
-          {chatTurns.map((turn) =>
+      <section className="flex min-h-[520px] flex-1 flex-col gap-4 rounded-lg border border-hairline-soft bg-surface-soft p-4 shadow-soft" aria-label="AI 대화">
+        {chatTurns.length === 0 ? (
+          <EmptyChatMessage />
+        ) : (
+          chatTurns.map((turn) =>
             turn.kind === "answer" ? (
-              <AnswerTurnCard key={turn.id} turn={turn} />
+              <AnswerTurnCard key={turn.id} turn={turn} userMessageRef={registerUserMessageRef(turn.id)} />
+            ) : turn.kind === "fallback" ? (
+              <FallbackTurnCard disabled={isProcessing} key={turn.id} onPromptSelect={setDraft} turn={turn} userMessageRef={registerUserMessageRef(turn.id)} />
+            ) : turn.kind === "pending" ? (
+              <PendingTurnCard key={turn.id} onCancel={() => cancelPendingAnswer(turn.id)} turn={turn} userMessageRef={registerUserMessageRef(turn.id)} />
             ) : (
-              <FallbackTurnCard key={turn.id} onPrompt={submitQuestion} turn={turn} />
+              <CanceledTurnCard key={turn.id} turn={turn} userMessageRef={registerUserMessageRef(turn.id)} />
             )
-          )}
-        </section>
-      )}
-
-      <OverviewCanvas overview={overview} />
+          )
+        )}
+      </section>
 
       <FloatingComposer
         draft={draft}
+        disabled={isProcessing}
         onDraftChange={setDraft}
+        onPromptSelect={setDraft}
         onSubmit={submitQuestion}
         scenarios={scenarios}
       />
@@ -121,180 +181,311 @@ export function AiCanvasScreen() {
   );
 }
 
+function clearPendingTimers(timers: number[]) {
+  timers.forEach((timer) => window.clearTimeout(timer));
+  timers.length = 0;
+}
+
+function schedulePendingResolution(
+  pendingTurnId: string,
+  pendingTimersRef: MutableRefObject<number[]>,
+  setChatTurns: Dispatch<SetStateAction<AiCanvasChatTurn[]>>
+) {
+  const phaseSchedule: Array<{ delay: number; phase: AiCanvasPendingPhase }> = [
+    { delay: 520, phase: "reasoning" },
+    { delay: 1180, phase: "generating" },
+    { delay: 1880, phase: "typing" }
+  ];
+
+  phaseSchedule.forEach(({ delay, phase }) => {
+    pendingTimersRef.current.push(
+      window.setTimeout(() => {
+        setChatTurns((currentTurns) =>
+          currentTurns.map((turn) =>
+            turn.id === pendingTurnId && turn.kind === "pending"
+              ? {
+                  ...turn,
+                  phase
+                }
+              : turn
+          )
+        );
+      }, delay)
+    );
+  });
+
+  pendingTimersRef.current.push(
+    window.setTimeout(() => {
+      setChatTurns((currentTurns) =>
+        currentTurns.map((turn) => {
+          if (turn.id !== pendingTurnId || turn.kind !== "pending") {
+            return turn;
+          }
+
+          return resolveAiCanvasPendingTurn(turn);
+        })
+      );
+      clearPendingTimers(pendingTimersRef.current);
+    }, 2600)
+  );
+}
+
 function AiCanvasPageHeader() {
   return (
-    <header className="space-y-3">
-      <SectionTitle
-        eyebrow={AI_CANVAS_BREADCRUMB}
-        title={AI_CANVAS_PAGE_TITLE}
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="neutral">사용 가이드</Badge>
-        <Badge tone="info">AI 대화 히스토리</Badge>
-      </div>
+    <header>
+      <SectionTitle title={AI_CANVAS_PAGE_TITLE} />
     </header>
   );
 }
 
-function OverviewCanvas({ overview }: { overview: AiCanvasOverview }) {
+function EmptyChatMessage() {
   return (
-    <section className="grid gap-4">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="rounded-lg border border-hairline-soft bg-white p-4 shadow-soft">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-title-md text-ink">{overview.title}</h2>
-            <Badge tone="success">추천한 AI</Badge>
-            <Badge tone="info">{overview.sampleDataLabel}</Badge>
-          </div>
-          <p className="mt-2 text-body-sm font-semibold leading-6 text-muted">{overview.subtitle}</p>
-          <div className="mt-4 space-y-2">
-            {overview.summary.map((item) => (
-              <p key={item} className="text-body-sm leading-6 text-body">{item}</p>
-            ))}
-          </div>
-          <p className="mt-3 text-body-sm font-bold leading-6 text-brand-accent">
-            따라서 현재 화면은 특정 질문 배지의 선택 상태가 아니라, 전체 샘플 데이터에서 먼저 확인할 분석 흐름을 제안합니다.
-          </p>
-        </div>
-
-        <ConfidencePanel answer={overview} />
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-4">
-        {overview.visualBlocks.slice(0, 4).map((block) => (
-          <VisualBlockCard key={block.id} block={block} />
-        ))}
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(420px,1.2fr)]">
-        <KeyEvidence answer={overview} />
-        <DetailTable table={overview.detailTable} />
-        <RecommendationCards answer={overview} />
-      </section>
-    </section>
+    <div className="flex items-start gap-3">
+      <ChatAvatar label="AI" tone="assistant" />
+      <div className="max-w-3xl rounded-lg border border-hairline-soft bg-white px-4 py-3 shadow-sm">
+        <p className="text-body-sm leading-6 text-body">운영 데이터에서 무엇을 확인할까요?</p>
+      </div>
+    </div>
   );
 }
 
 function AnswerTurnCard({
-  turn
+  turn,
+  userMessageRef
 }: {
   turn: Extract<AiCanvasChatTurn, { kind: "answer" }>;
+  userMessageRef: (element: HTMLDivElement | null) => void;
 }) {
   return (
-    <article className="rounded-lg border border-brand-accent/25 bg-white shadow-[0_18px_44px_rgba(37,99,235,0.12)]">
-      <div className="border-b border-hairline-soft bg-brand-accent/5 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-caption font-bold uppercase text-brand-accent">질문</p>
-            <h2 className="mt-1 text-title-md text-ink">{turn.question}</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge tone="neutral">{turn.createdAtLabel}</Badge>
-            <Badge tone="info">{turn.scenario.sampleDataLabel}</Badge>
+    <article className="space-y-3">
+      <UserChatMessage createdAtLabel={turn.createdAtLabel} question={turn.question} userMessageRef={userMessageRef} />
+      <div className="flex items-start gap-3">
+        <ChatAvatar label="AI" tone="assistant" />
+        <div className="ai-canvas-card-in min-w-0 flex-1 rounded-lg border border-brand-accent/25 bg-white shadow-[0_18px_44px_rgba(37,99,235,0.12)]">
+          <div className="space-y-4 p-4">
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="rounded-lg border border-hairline-soft bg-white p-4">
+                <h3 className="text-title-md text-ink">{turn.scenario.title}</h3>
+                <p className="mt-2 text-body-sm font-semibold leading-6 text-muted">{turn.scenario.subtitle}</p>
+                <div className="mt-4 space-y-2">
+                  {turn.scenario.summary.map((item) => (
+                    <p key={item} className="text-body-sm leading-6 text-body">{item}</p>
+                  ))}
+                </div>
+              </div>
+
+              <ConfidencePanel answer={turn.scenario} />
+            </section>
+
+            <MetricSummaryRibbon scenario={turn.scenario} />
+
+            <section className="grid gap-4 xl:grid-cols-4">
+              {turn.scenario.visualBlocks.slice(0, 4).map((block) => (
+                <VisualBlockCard key={`${turn.id}-${block.id}`} block={block} />
+              ))}
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(420px,1.2fr)]">
+              <KeyEvidence answer={turn.scenario} />
+              <DetailTable table={turn.scenario.detailTable} />
+              <RecommendationCards answer={turn.scenario} />
+            </section>
           </div>
         </div>
-      </div>
-
-      <div className="space-y-4 p-4">
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="rounded-lg border border-hairline-soft bg-white p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="success">AI 답변</Badge>
-              <Badge tone="neutral">{turn.scenario.shortLabel}</Badge>
-            </div>
-            <h3 className="mt-3 text-title-md text-ink">{turn.scenario.title}</h3>
-            <p className="mt-2 text-body-sm font-semibold leading-6 text-muted">{turn.scenario.subtitle}</p>
-            <div className="mt-4 space-y-2">
-              {turn.scenario.summary.map((item) => (
-                <p key={item} className="text-body-sm leading-6 text-body">{item}</p>
-              ))}
-            </div>
-          </div>
-
-          <ConfidencePanel answer={turn.scenario} />
-        </section>
-
-        <MetricSummaryRibbon scenario={turn.scenario} />
-
-        <section className="grid gap-4 xl:grid-cols-4">
-          {turn.scenario.visualBlocks.slice(0, 4).map((block) => (
-            <VisualBlockCard key={`${turn.id}-${block.id}`} block={block} />
-          ))}
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(420px,1.2fr)]">
-          <KeyEvidence answer={turn.scenario} />
-          <DetailTable table={turn.scenario.detailTable} />
-          <RecommendationCards answer={turn.scenario} />
-        </section>
       </div>
     </article>
   );
 }
 
 function FallbackTurnCard({
-  onPrompt,
-  turn
+  disabled,
+  onPromptSelect,
+  turn,
+  userMessageRef
 }: {
-  onPrompt: (question: string) => void;
+  disabled: boolean;
+  onPromptSelect: (question: string) => void;
   turn: Extract<AiCanvasChatTurn, { kind: "fallback" }>;
+  userMessageRef: (element: HTMLDivElement | null) => void;
 }) {
   return (
-    <article className="rounded-lg border border-hairline-soft bg-white p-4 shadow-soft">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-caption font-bold uppercase text-brand-accent">질문</p>
-          <h2 className="mt-1 text-title-md text-ink">{turn.question}</h2>
-        </div>
-        <Badge tone="neutral">{turn.createdAtLabel}</Badge>
-      </div>
-      <div className="mt-4 rounded-lg border border-hairline-soft bg-surface-soft p-4">
-        <Badge tone="warning">샘플 범위 안내</Badge>
-        <p className="mt-3 text-body-sm leading-6 text-body">{turn.guide.content}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {turn.guide.prompts.map((prompt) => (
-            <button
-              key={prompt.id}
-              className="rounded-full border border-hairline bg-white px-3 py-1.5 text-caption font-bold text-ink transition hover:border-brand-accent hover:text-brand-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              type="button"
-              onClick={() => onPrompt(prompt.prompt)}
-            >
-              {prompt.label}
-            </button>
-          ))}
+    <article className="space-y-3">
+      <UserChatMessage createdAtLabel={turn.createdAtLabel} question={turn.question} userMessageRef={userMessageRef} />
+      <div className="flex items-start gap-3">
+        <ChatAvatar label="AI" tone="assistant" />
+        <div className="ai-canvas-card-in min-w-0 flex-1 rounded-lg border border-hairline-soft bg-white p-4 shadow-sm">
+          <Badge tone="warning">샘플 범위 안내</Badge>
+          <p className="mt-3 text-body-sm leading-6 text-body">{turn.guide.content}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {turn.guide.prompts.map((prompt) => (
+              <button
+                key={prompt.id}
+                className="max-w-full truncate rounded-full border border-hairline bg-white px-3 py-1.5 text-caption font-bold text-ink transition hover:border-brand-accent hover:text-brand-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={disabled}
+                type="button"
+                onClick={() => onPromptSelect(prompt.prompt)}
+              >
+                {prompt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </article>
   );
 }
 
+function PendingTurnCard({
+  onCancel,
+  turn,
+  userMessageRef
+}: {
+  onCancel: () => void;
+  turn: Extract<AiCanvasChatTurn, { kind: "pending" }>;
+  userMessageRef: (element: HTMLDivElement | null) => void;
+}) {
+  return (
+    <article className="space-y-3">
+      <UserChatMessage createdAtLabel={turn.createdAtLabel} question={turn.question} userMessageRef={userMessageRef} />
+      <div className="flex items-start gap-3">
+        <ChatAvatar label="AI" tone="assistant" />
+        <div className="ai-canvas-card-in min-w-0 flex-1 rounded-lg border border-brand-accent/25 bg-white p-4 shadow-[0_18px_44px_rgba(37,99,235,0.1)]" role="region" aria-label="AI 답변 생성 상태">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2" role="status" aria-live="polite">
+              <Badge tone="info">AI 생성 중</Badge>
+              <span className="text-caption font-bold text-brand-accent">{AI_CANVAS_PENDING_PHASE_LABEL[turn.phase]}</span>
+              <TypingDots />
+            </div>
+            <Button aria-label="AI 답변 생성 취소" className="h-8 px-3 text-caption" onClick={onCancel} type="button" variant="secondary">취소</Button>
+          </div>
+          <p className="mt-3 text-body-sm leading-6 text-body">{AI_CANVAS_PENDING_PHASE_DETAIL[turn.phase]}</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-4">
+            {AI_CANVAS_PENDING_PHASES.map((phase) => (
+              <div
+                key={phase}
+                className={`rounded-md border px-3 py-2 text-caption font-bold ${
+                  phase === turn.phase ? "border-brand-accent bg-brand-accent/5 text-brand-accent" : "border-hairline-soft bg-surface-soft text-muted"
+                }`}
+              >
+                {AI_CANVAS_PENDING_PHASE_LABEL[phase]}
+              </div>
+            ))}
+          </div>
+          <TypingPreview />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function TypingPreview() {
+  return (
+    <div className="mt-4 space-y-2" aria-hidden="true">
+      <div className="ai-canvas-typing-line h-2.5 w-full rounded-full" />
+      <div className="ai-canvas-typing-line h-2.5 w-10/12 rounded-full" />
+      <div className="ai-canvas-typing-line h-2.5 w-7/12 rounded-full" />
+    </div>
+  );
+}
+
+function CanceledTurnCard({
+  turn,
+  userMessageRef
+}: {
+  turn: Extract<AiCanvasChatTurn, { kind: "canceled" }>;
+  userMessageRef: (element: HTMLDivElement | null) => void;
+}) {
+  return (
+    <article className="space-y-3">
+      <UserChatMessage createdAtLabel={turn.createdAtLabel} question={turn.question} userMessageRef={userMessageRef} />
+      <div className="flex items-start gap-3">
+        <ChatAvatar label="AI" tone="assistant" />
+        <div className="ai-canvas-card-in min-w-0 flex-1 rounded-lg border border-hairline-soft bg-white p-4 shadow-sm" role="status" aria-live="polite">
+          <Badge tone="neutral">생성 취소</Badge>
+          <p className="mt-3 text-body-sm font-semibold leading-6 text-body">취소됐습니다.</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1" aria-hidden="true">
+      <span className="size-1.5 animate-pulse rounded-full bg-brand-accent motion-reduce:animate-none" />
+      <span className="size-1.5 animate-pulse rounded-full bg-brand-accent [animation-delay:120ms] motion-reduce:animate-none" />
+      <span className="size-1.5 animate-pulse rounded-full bg-brand-accent [animation-delay:240ms] motion-reduce:animate-none" />
+    </span>
+  );
+}
+
+function UserChatMessage({
+  createdAtLabel,
+  question,
+  userMessageRef
+}: {
+  createdAtLabel: string;
+  question: string;
+  userMessageRef?: (element: HTMLDivElement | null) => void;
+}) {
+  return (
+    <div className="flex scroll-mt-5 items-start justify-end gap-3" ref={userMessageRef}>
+      <div className="min-w-0 max-w-[min(42rem,calc(100%-3rem))] rounded-lg bg-primary px-4 py-3 text-on-primary shadow-sm">
+        <p className="break-words text-body-sm leading-6">{question}</p>
+        <p className="mt-2 text-right text-[11px] font-semibold text-on-primary/70">{createdAtLabel}</p>
+      </div>
+      <ChatAvatar label="나" tone="user" />
+    </div>
+  );
+}
+
+function ChatAvatar({ label, tone }: { label: string; tone: "assistant" | "user" }) {
+  return (
+    <span
+      className={`flex size-9 shrink-0 items-center justify-center rounded-md text-caption font-black shadow-sm ${
+        tone === "assistant"
+          ? "border border-brand-accent/30 bg-brand-accent/10 text-brand-accent"
+          : "bg-surface-dark text-white"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
 function FloatingComposer({
+  disabled,
   draft,
   onDraftChange,
+  onPromptSelect,
   onSubmit,
   scenarios
 }: {
+  disabled: boolean;
   draft: string;
   onDraftChange: (value: string) => void;
+  onPromptSelect: (question: string) => void;
   onSubmit: (question: string) => void;
   scenarios: AiCanvasScenario[];
 }) {
   return (
     <section className="fixed bottom-4 left-[var(--shell-content-left)] right-[var(--shell-content-right)] z-30" aria-label="AI 질문 입력">
       <form
-        className="mx-auto w-full max-w-[var(--shell-content-max)] rounded-lg border border-hairline bg-white/95 p-3 shadow-[0_18px_46px_rgba(15,23,42,0.18)] backdrop-blur"
+        aria-busy={disabled}
+        className="w-full rounded-lg border border-hairline bg-white/95 p-3 shadow-[0_18px_46px_rgba(15,23,42,0.18)] backdrop-blur"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmit(draft);
         }}
       >
-        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1" aria-label="빠른 질문">
           {scenarios.map((scenario) => (
             <button
               key={scenario.id}
-              className="shrink-0 rounded-full border border-hairline bg-white px-3 py-1.5 text-caption font-bold text-ink transition hover:border-brand-accent hover:bg-brand-accent/5 hover:text-brand-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="max-w-[14rem] shrink-0 truncate rounded-full border border-hairline bg-white px-3 py-1.5 text-caption font-bold text-ink transition hover:border-brand-accent hover:bg-brand-accent/5 hover:text-brand-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={disabled}
               type="button"
-              onClick={() => onSubmit(scenario.prompt)}
+              onClick={() => onPromptSelect(scenario.prompt)}
             >
               {scenario.shortLabel}
             </button>
@@ -304,19 +495,20 @@ function FloatingComposer({
           <span className="flex size-10 items-center justify-center rounded-md border border-brand-accent/30 bg-brand-accent/10 text-title-sm font-black text-brand-accent">AI</span>
           <input
             aria-label="AI 질문 입력"
-            className="h-10 min-w-0 rounded-md border border-hairline bg-canvas px-4 text-body-sm text-ink outline-none transition focus:border-brand-accent"
-            placeholder="4개 샘플 질문을 입력하거나 위 배지를 선택하세요"
+            className="h-10 min-w-0 rounded-md border border-hairline bg-canvas px-4 text-body-sm text-ink outline-none transition focus:border-brand-accent disabled:bg-surface-soft disabled:text-muted"
+            disabled={disabled}
+            placeholder={disabled ? "답변 생성 중입니다" : "메시지를 입력하세요"}
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
           />
-          <Button className="h-10" type="submit">분석 요청</Button>
+          <Button className="h-10" disabled={disabled || !draft.trim()} type="submit">전송</Button>
         </div>
       </form>
     </section>
   );
 }
 
-function ConfidencePanel({ answer }: { answer: CanvasAnswer }) {
+function ConfidencePanel({ answer }: { answer: AiCanvasScenario }) {
   return (
     <aside className="rounded-lg border border-hairline-soft bg-white p-4 shadow-soft">
       <div className="flex items-start gap-3">

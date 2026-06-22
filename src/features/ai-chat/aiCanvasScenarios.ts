@@ -129,7 +129,7 @@ export function findAiCanvasPromptScenario(question: string, state: PrototypeSta
 
 export function getAiCanvasFallbackGuide(state: PrototypeState): AiCanvasFallbackGuide {
   return {
-    content: "현재 AI 대화 샘플은 실제 LLM/API/RAG 분석 없이 아래 4개 질문에 대해서만 고정된 샘플 답변을 제공합니다. 질문 배지를 선택하거나 같은 의미로 입력하면 차트, 근거, 연결 정보를 포함한 canvas 답변을 확인할 수 있습니다.",
+    content: "현재 AI 대화 샘플은 실제 LLM/API/RAG 분석 없이 아래 4개 질문에 대해서만 고정된 샘플 답변을 제공합니다. 질문 배지를 선택하면 입력창에 채워지고, 전송하면 차트, 근거, 연결 정보를 포함한 canvas 답변을 확인할 수 있습니다.",
     prompts: getFixedAiCanvasScenarios(state).map((scenario) => ({
       id: scenario.id,
       label: scenario.shortLabel,

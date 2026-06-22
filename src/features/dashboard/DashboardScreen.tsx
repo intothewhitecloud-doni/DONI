@@ -342,7 +342,7 @@ function OperationalMetricSummary({ view }: { view: DashboardView }) {
         <Badge tone="info">{chartTypeLabel(view.primaryChart.type)}</Badge>
       </div>
 
-      <div className={primaryWidget ? "space-y-3" : "grid min-w-0 gap-3"}>
+      <div className={primaryWidget ? "grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.56fr)]" : "grid min-w-0 gap-3"}>
         {view.primaryChartWidgets.slice(0, 3).map((widget) => (
           <div key={`${widget.id}-snapshot-chart`} className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3">
             <div className="flex min-w-0 items-center justify-between gap-3">

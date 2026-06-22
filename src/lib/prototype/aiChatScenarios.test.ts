@@ -10,6 +10,12 @@ import {
   getFixedAiCanvasScenarios
 } from "../../features/ai-chat/aiCanvasScenarios";
 import { aiChatScenarios, buildAiChatResponse, findAiChatScenario } from "../../features/ai-chat/aiChatScenarios";
+import {
+  cancelAiCanvasPendingTurn,
+  createAiCanvasPendingTurn,
+  hasPendingAiCanvasTurn,
+  resolveAiCanvasPendingTurn
+} from "./aiCanvasConversation";
 import { createInitialState } from "./store";
 
 test("supplier A impact is the first recommended ai chat question", () => {
@@ -97,6 +103,7 @@ test("ai canvas fallback guide points users back to the four supported prompts",
   const guide = getAiCanvasFallbackGuide(initialPrototypeState);
 
   assert.match(guide.content, /4개 질문/);
+  assert.match(guide.content, /입력창에 채워지고/);
   assert.equal(guide.prompts.length, 4);
   assert.deepEqual(guide.prompts.map((prompt) => prompt.id), [
     "supplier-a-impact",
@@ -114,15 +121,116 @@ test("ai canvas recommendation cards do not trigger prototype navigation", () =>
   assert.equal(source.includes("onClick={() => onAction"), false);
 });
 
-test("ai canvas screen keeps the shared breadcrumb and page title header", () => {
+test("ai canvas screen keeps the shared menu title header without breadcrumb", () => {
   const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
 
-  assert.match(source, /AI_CANVAS_BREADCRUMB = "AI 대화 > 분석 캔버스"/);
-  assert.match(source, /AI_CANVAS_PAGE_TITLE = "샘플 데이터 기반 AI 분석"/);
+  assert.equal(source.includes("AI_CANVAS_BREADCRUMB"), false);
+  assert.match(source, /AI_CANVAS_PAGE_TITLE = "AI 대화"/);
   assert.match(source, /function AiCanvasPageHeader/);
-  assert.match(source, /<header className="space-y-3">/);
-  assert.match(source, /eyebrow=\{AI_CANVAS_BREADCRUMB\}/);
+  assert.equal(source.includes("eyebrow={AI_CANVAS_BREADCRUMB}"), false);
   assert.match(source, /title=\{AI_CANVAS_PAGE_TITLE\}/);
+});
+
+test("ai canvas opens as a chat surface without the initial guide canvas", () => {
+  const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
+
+  assert.equal(source.includes("function OverviewCanvas"), false);
+  assert.equal(source.includes("<OverviewCanvas"), false);
+  assert.equal(source.includes("사용 가이드"), false);
+  assert.match(source, /function EmptyChatMessage/);
+  assert.match(source, /function UserChatMessage/);
+  assert.match(source, /function ChatAvatar/);
+  assert.match(source, /placeholder=\{disabled \? "답변 생성 중입니다" : "메시지를 입력하세요"\}/);
+});
+
+test("ai canvas keeps the four fixed quick question badges in the chat composer", () => {
+  const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
+
+  assert.match(source, /scenarios=\{scenarios\}/);
+  assert.match(source, /aria-label="빠른 질문"/);
+  assert.match(source, /scenarios\.map\(\(scenario\)/);
+  assert.match(source, /onPromptSelect=\{setDraft\}/);
+  assert.match(source, /onClick=\{\(\) => onPromptSelect\(scenario\.prompt\)\}/);
+  assert.equal(source.includes("onClick={() => onSubmit(scenario.prompt)}"), false);
+  assert.match(source, /\{scenario\.shortLabel\}/);
+});
+
+test("ai canvas submits only from the composer and shows pending generation states", () => {
+  const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
+  const conversationSource = readFileSync("src/lib/prototype/aiCanvasConversation.ts", "utf8");
+
+  assert.match(source, /kind: "pending"/);
+  assert.match(conversationSource, /phase: "loading"/);
+  assert.match(source, /schedulePendingResolution/);
+  assert.match(source, /AI_CANVAS_PENDING_PHASES/);
+  assert.match(source, /disabled=\{disabled \|\| !draft\.trim\(\)\}/);
+  assert.match(source, /placeholder=\{disabled \? "답변 생성 중입니다" : "메시지를 입력하세요"\}/);
+});
+
+test("ai canvas answer cards do not show sample metadata badges", () => {
+  const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
+
+  assert.equal(source.includes("<Badge tone=\"success\">AI 답변</Badge>"), false);
+  assert.equal(source.includes("<Badge tone=\"neutral\">{turn.scenario.shortLabel}</Badge>"), false);
+  assert.equal(source.includes("<Badge tone=\"info\">{turn.scenario.sampleDataLabel}</Badge>"), false);
+});
+
+test("ai canvas conversation helper resolves pending turns deterministically", () => {
+  const pendingAnswer = createAiCanvasPendingTurn<{ title: string }, { content: string }>({
+    id: "turn-answer",
+    question: "공급업체 A사가 어떤 영향을 줘?",
+    createdAtLabel: "오후 01:30",
+    result: {
+      kind: "answer",
+      scenario: { title: "공급업체 A사 영향" }
+    }
+  });
+  const pendingFallback = createAiCanvasPendingTurn<{ title: string }, { content: string }>({
+    id: "turn-fallback",
+    question: "지원하지 않는 질문",
+    createdAtLabel: "오후 01:31",
+    result: {
+      kind: "fallback",
+      guide: { content: "지원 범위 안내" }
+    }
+  });
+
+  assert.equal(pendingAnswer.kind, "pending");
+  assert.equal(pendingAnswer.phase, "loading");
+  assert.deepEqual(resolveAiCanvasPendingTurn(pendingAnswer), {
+    id: "turn-answer",
+    kind: "answer",
+    question: "공급업체 A사가 어떤 영향을 줘?",
+    createdAtLabel: "오후 01:30",
+    scenario: { title: "공급업체 A사 영향" }
+  });
+  assert.deepEqual(resolveAiCanvasPendingTurn(pendingFallback), {
+    id: "turn-fallback",
+    kind: "fallback",
+    question: "지원하지 않는 질문",
+    createdAtLabel: "오후 01:31",
+    guide: { content: "지원 범위 안내" }
+  });
+  assert.deepEqual(cancelAiCanvasPendingTurn(pendingAnswer), {
+    id: "turn-answer",
+    kind: "canceled",
+    question: "공급업체 A사가 어떤 영향을 줘?",
+    createdAtLabel: "오후 01:30"
+  });
+  assert.equal(hasPendingAiCanvasTurn([resolveAiCanvasPendingTurn(pendingAnswer), cancelAiCanvasPendingTurn(pendingFallback)]), false);
+  assert.equal(hasPendingAiCanvasTurn([resolveAiCanvasPendingTurn(pendingAnswer), pendingFallback]), true);
+});
+
+test("ai canvas generation is cancelable without reversing message order", () => {
+  const source = readFileSync("src/features/ai-chat/AiCanvasScreen.tsx", "utf8");
+
+  assert.match(source, /function cancelPendingAnswer/);
+  assert.match(source, /kind: "canceled"/);
+  assert.match(source, /취소됐습니다\./);
+  assert.match(source, /clearPendingTimers\(pendingTimersRef\.current\)/);
+  assert.match(source, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.match(source, /scrollIntoView\(\{ behavior: prefersReducedMotion \? "auto" : "smooth", block: "start" \}\)/);
+  assert.equal(source.includes("reverse()"), false);
 });
 
 test("ai chat scenario answers include fixture citations and navigation actions", () => {
