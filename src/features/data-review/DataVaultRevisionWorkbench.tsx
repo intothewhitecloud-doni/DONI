@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Badge, type BadgeTone } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -43,6 +43,8 @@ type EditingFileDraft = {
   name: string;
   organizationCategoryId: string;
 };
+
+type LocalApplyStatus = "idle" | PhaseOneApplyStatus;
 
 type DataVaultRevisionWorkbenchProps = {
   activeFile?: SourceFile;
@@ -100,14 +102,15 @@ export function DataVaultRevisionWorkbench({
   const [activeDraftId, setActiveDraftId] = useState(vaultDraftItems[0]?.id ?? "");
   const [activeCorrectionId, setActiveCorrectionId] = useState(vaultCorrectionItems[0]?.id ?? "");
   const [activeCurrentDataId, setActiveCurrentDataId] = useState(vaultCurrentDataItems[0]?.id ?? "");
-  const [localApplyStatusByFileId, setLocalApplyStatusByFileId] = useState<Record<string, PhaseOneApplyStatus>>({});
+  const [localApplyStatusByFileId, setLocalApplyStatusByFileId] = useState<Record<string, LocalApplyStatus>>({});
+  const localApplyTimers = useRef<number[]>([]);
   const fixture = useMemo(
     () => activeFile ? getDataVaultRevisionFixture(activeFile.id) ?? createUploadedFileRevisionFixture(activeFile) : undefined,
     [activeFile]
   );
   const fileProjection = findPhaseOneFileProjection(phaseOneProjection, activeFile?.id);
   const localApplyStatus = activeFile ? localApplyStatusByFileId[activeFile.id] : undefined;
-  const effectiveApplyStatus = localApplyStatus ?? fileProjection?.applyStatus ?? "pending";
+  const effectiveApplyStatus = applyStatusForFile(activeFile, localApplyStatus);
   const activeDraft = getVaultDraftItem(activeDraftId) ?? vaultDraftItems[0];
   const activeCorrection = getVaultCorrectionItem(activeCorrectionId) ?? vaultCorrectionItems[0];
   const activeCurrentData = getVaultCurrentDataItem(activeCurrentDataId) ?? vaultCurrentDataItems[0];
@@ -125,15 +128,32 @@ export function DataVaultRevisionWorkbench({
     organizationCategories.find((category) => category.id === (activeFile?.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID))?.name ?? "미지정";
   const matchedEvidence = fixture ? canonicalEvidence.filter((evidence) => fixture.evidenceIds.includes(evidence.id)) : [];
 
-  function handleAdvanceLocalApplyStatus() {
+  useEffect(() => () => {
+    localApplyTimers.current.forEach((timer) => window.clearTimeout(timer));
+    localApplyTimers.current = [];
+  }, []);
+
+  function handleStartLocalApplyStatus() {
     if (!activeFile) {
       return;
     }
 
-    setLocalApplyStatusByFileId((current) => ({
-      ...current,
-      [activeFile.id]: nextApplyStatus(current[activeFile.id] ?? fileProjection?.applyStatus ?? "pending")
-    }));
+    const fileId = activeFile.id;
+    const currentStatus = applyStatusForFile(activeFile, localApplyStatusByFileId[fileId]);
+
+    if (currentStatus !== "idle") {
+      return;
+    }
+
+    setLocalApplyStatusByFileId((current) => ({ ...current, [fileId]: "pending" }));
+    const analyzingTimer = window.setTimeout(() => {
+      setLocalApplyStatusByFileId((current) => ({ ...current, [fileId]: current[fileId] === "pending" ? "analyzing" : current[fileId] }));
+    }, 1000);
+    const appliedTimer = window.setTimeout(() => {
+      setLocalApplyStatusByFileId((current) => ({ ...current, [fileId]: current[fileId] === "analyzing" ? "applied" : current[fileId] }));
+    }, 3000);
+
+    localApplyTimers.current = [...localApplyTimers.current, analyzingTimer, appliedTimer];
   }
 
   return (
@@ -231,7 +251,9 @@ export function DataVaultRevisionWorkbench({
                           {file.uploadedAt ? new Date(file.uploadedAt).toLocaleString("ko-KR") : "등록 시간 없음"}
                         </p>
                       </div>
-                      <Badge tone={sourceStatusTone(file.status)}>{fileStatusLabel(file.status)}</Badge>
+                      <Badge tone={sourceStatusTone(file, localApplyStatusByFileId[file.id])}>
+                        {fileStatusLabel(file, localApplyStatusByFileId[file.id])}
+                      </Badge>
                     </div>
                   </button>
                 ))
@@ -278,7 +300,7 @@ export function DataVaultRevisionWorkbench({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={sourceStatusTone(activeFile.status)}>{fileStatusLabel(activeFile.status)}</Badge>
+                      <Badge tone={sourceStatusTone(activeFile, effectiveApplyStatus)}>{fileStatusLabel(activeFile, effectiveApplyStatus)}</Badge>
                       <Badge tone="neutral">{fixture.statusLabel}</Badge>
                       <span className="text-xs font-semibold text-slate-500">
                         {fixture.updatedAt}
@@ -373,7 +395,7 @@ export function DataVaultRevisionWorkbench({
                   <ApplyStatusPanel
                     fileProjection={fileProjection}
                     localStatus={effectiveApplyStatus}
-                    onAdvance={handleAdvanceLocalApplyStatus}
+                    onStart={handleStartLocalApplyStatus}
                   />
                 )}
 
@@ -471,7 +493,7 @@ export function DataVaultRevisionWorkbench({
             fixture={fixture}
             hasActiveFile={Boolean(activeFile)}
             localApplyStatus={effectiveApplyStatus}
-            onAdvanceLocalApplyStatus={handleAdvanceLocalApplyStatus}
+            onStartLocalApplyStatus={handleStartLocalApplyStatus}
           />
         ) : activeTab === "draft" && activeDraft ? (
           <DraftRightRail evidence={canonicalEvidence.filter((item) => activeDraft.evidenceIds.includes(item.id))} item={activeDraft} />
@@ -485,8 +507,8 @@ export function DataVaultRevisionWorkbench({
             evidence={[]}
             fixture={undefined}
             hasActiveFile={false}
-            localApplyStatus="pending"
-            onAdvanceLocalApplyStatus={handleAdvanceLocalApplyStatus}
+            localApplyStatus="idle"
+            onStartLocalApplyStatus={handleStartLocalApplyStatus}
           />
         )}
       </div>
@@ -796,15 +818,15 @@ function SourceRightRail({
   fixture,
   hasActiveFile,
   localApplyStatus,
-  onAdvanceLocalApplyStatus
+  onStartLocalApplyStatus
 }: {
   decisionCandidates: PhaseOneAnalysisProjection["decisionCandidates"];
   evidence: EvidenceReference[];
   fileProjection?: PhaseOneFileProjection;
   fixture?: VaultRevisionFixture;
   hasActiveFile: boolean;
-  localApplyStatus: PhaseOneApplyStatus;
-  onAdvanceLocalApplyStatus: () => void;
+  localApplyStatus: LocalApplyStatus;
+  onStartLocalApplyStatus: () => void;
 }) {
   return (
     <aside className="min-w-0 space-y-4">
@@ -815,7 +837,7 @@ function SourceRightRail({
               <ApplyFlowPanel
                 fileProjection={fileProjection}
                 localStatus={localApplyStatus}
-                onAdvance={onAdvanceLocalApplyStatus}
+                onStart={onStartLocalApplyStatus}
               />
             </RightPanel>
           )}
@@ -917,12 +939,14 @@ function CurrentDataRightRail({ evidence, item }: { evidence: EvidenceReference[
 function ApplyStatusPanel({
   fileProjection,
   localStatus,
-  onAdvance
+  onStart
 }: {
   fileProjection: PhaseOneFileProjection;
-  localStatus: PhaseOneApplyStatus;
-  onAdvance: () => void;
+  localStatus: LocalApplyStatus;
+  onStart: () => void;
 }) {
+  const canStart = localStatus === "idle";
+
   return (
     <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -931,12 +955,12 @@ function ApplyStatusPanel({
           <h3 className="mt-1 text-lg font-bold text-slate-950">{applyStatusLabel(localStatus)}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-700">{fileProjection.impactSummary}</p>
           <p className="mt-1 text-xs leading-5 text-blue-700">
-            Phase 1에서는 실제 기준 데이터 교체 없이 이 화면의 local UI 상태만 변경합니다.
+            클릭 후 반영 대기와 AI 분석 중 상태를 거쳐 반영 완료로 잠깁니다.
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <Badge tone={applyStatusTone(localStatus)}>{fileProjection.aiStatusLabel}</Badge>
-          <Button className="h-9 px-3" variant="secondary" onClick={onAdvance}>
+          <Badge tone={applyStatusTone(localStatus)}>{applyAiStatusLabel(localStatus, fileProjection)}</Badge>
+          <Button className="h-9 px-3" disabled={!canStart} variant="secondary" onClick={onStart}>
             {applyButtonLabel(localStatus)}
           </Button>
         </div>
@@ -948,21 +972,23 @@ function ApplyStatusPanel({
 function ApplyFlowPanel({
   fileProjection,
   localStatus,
-  onAdvance
+  onStart
 }: {
   fileProjection: PhaseOneFileProjection;
-  localStatus: PhaseOneApplyStatus;
-  onAdvance: () => void;
+  localStatus: LocalApplyStatus;
+  onStart: () => void;
 }) {
+  const canStart = localStatus === "idle";
+
   return (
     <div className="space-y-3">
       <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-bold text-slate-950">{applyStatusLabel(localStatus)}</p>
-          <Badge tone={applyStatusTone(localStatus)}>{localStatus === "applied" ? "표시 완료" : "mock"}</Badge>
+          <Badge tone={applyStatusTone(localStatus)}>{applyFlowBadgeLabel(localStatus)}</Badge>
         </div>
-        <p className="mt-2 text-xs leading-5 text-slate-600">{fileProjection.applyStatusLabel} · {fileProjection.aiStatusLabel}</p>
-        <Button className="mt-3 h-8 px-3" variant="secondary" onClick={onAdvance}>
+        <p className="mt-2 text-xs leading-5 text-slate-600">{applyStatusLabel(localStatus)} · {applyAiStatusLabel(localStatus, fileProjection)}</p>
+        <Button className="mt-3 h-8 px-3" disabled={!canStart} variant="secondary" onClick={onStart}>
           {applyButtonLabel(localStatus)}
         </Button>
       </div>
@@ -1170,43 +1196,79 @@ function formatDateTime(value: string): string {
   return new Date(value).toLocaleString("ko-KR");
 }
 
-function nextApplyStatus(status: PhaseOneApplyStatus): PhaseOneApplyStatus {
-  if (status === "pending") {
-    return "analyzing";
-  }
-
-  if (status === "analyzing") {
+function applyStatusForFile(file: SourceFile | undefined, localStatus: LocalApplyStatus | undefined): LocalApplyStatus {
+  if (file?.appliedAt) {
     return "applied";
   }
 
-  return "pending";
+  return localStatus ?? "idle";
 }
 
-function applyStatusLabel(status: PhaseOneApplyStatus): string {
+function applyStatusLabel(status: LocalApplyStatus): string {
   if (status === "applied") {
-    return "반영 완료 표시";
+    return "반영 완료";
   }
 
   if (status === "analyzing") {
     return "AI 분석 중";
   }
 
-  return "반영 대기";
+  if (status === "pending") {
+    return "반영 대기";
+  }
+
+  return "분석 반영 전";
 }
 
-function applyButtonLabel(status: PhaseOneApplyStatus): string {
+function applyButtonLabel(status: LocalApplyStatus): string {
   if (status === "applied") {
-    return "로컬 상태 초기화";
+    return "반영됨";
   }
 
   if (status === "analyzing") {
-    return "반영 완료로 표시";
+    return "AI 분석 중";
+  }
+
+  if (status === "pending") {
+    return "반영 대기";
   }
 
   return "분석에 반영";
 }
 
-function applyStatusTone(status: PhaseOneApplyStatus): PhaseOneSignal["tone"] {
+function applyAiStatusLabel(status: LocalApplyStatus, fileProjection: PhaseOneFileProjection): string {
+  if (status === "applied") {
+    return "AI 분석 반영됨";
+  }
+
+  if (status === "analyzing") {
+    return "AI 분석 중";
+  }
+
+  if (status === "pending") {
+    return "반영 대기 중";
+  }
+
+  return fileProjection.aiStatusLabel;
+}
+
+function applyFlowBadgeLabel(status: LocalApplyStatus): string {
+  if (status === "applied") {
+    return "반영됨";
+  }
+
+  if (status === "analyzing") {
+    return "분석 중";
+  }
+
+  if (status === "pending") {
+    return "대기 중";
+  }
+
+  return "반영 대기";
+}
+
+function applyStatusTone(status: LocalApplyStatus): PhaseOneSignal["tone"] {
   if (status === "applied") {
     return "success";
   }
@@ -1215,7 +1277,11 @@ function applyStatusTone(status: PhaseOneApplyStatus): PhaseOneSignal["tone"] {
     return "info";
   }
 
-  return "warning";
+  if (status === "pending") {
+    return "warning";
+  }
+
+  return "neutral";
 }
 
 function ImpactRow({ item }: { item: VaultImpactItem }) {
@@ -1315,25 +1381,37 @@ function StageCell({
   );
 }
 
-function fileStatusLabel(status: SourceFile["status"]): string {
-  if (status === "parsed") {
-    return "분석됨";
+function fileStatusLabel(file: SourceFile, localStatus: LocalApplyStatus | undefined): string {
+  const status = applyStatusForFile(file, localStatus);
+
+  if (status === "applied") {
+    return "반영됨";
   }
 
-  if (status === "uploaded") {
-    return "업로드됨";
+  if (status === "analyzing") {
+    return "AI 분석 중";
+  }
+
+  if (status === "pending") {
+    return "반영 대기";
   }
 
   return "추가됨";
 }
 
-function sourceStatusTone(status: SourceFile["status"]): BadgeTone {
-  if (status === "uploaded") {
+function sourceStatusTone(file: SourceFile, localStatus: LocalApplyStatus | undefined): BadgeTone {
+  const status = applyStatusForFile(file, localStatus);
+
+  if (status === "applied") {
     return "success";
   }
 
-  if (status === "parsed") {
+  if (status === "analyzing") {
     return "info";
+  }
+
+  if (status === "pending") {
+    return "warning";
   }
 
   return "neutral";
