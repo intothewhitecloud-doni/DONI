@@ -59,8 +59,7 @@ export function VerificationDetailScreen() {
 
   return (
     <div className="space-y-8">
-      <Button variant="secondary" onClick={() => commands.navigate("verification")}>목록으로 돌아가기</Button>
-      <SectionTitle title="검증 기록" />
+      <SectionTitle breadcrumb={["검증 기록", "검증 상세"]} title="검증 기록" />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Card className="min-w-0 space-y-4">
           <Badge tone="success">검증 완료</Badge>
@@ -115,6 +114,9 @@ export function VerificationDetailScreen() {
           ))}
         </Card>
       </div>
+      <div className="flex justify-start">
+        <Button variant="secondary" onClick={() => commands.navigate("verification")}>목록으로 돌아가기</Button>
+      </div>
     </div>
   );
 }
@@ -136,7 +138,7 @@ export function OutcomeScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle title="검증 기록" />
+      <SectionTitle breadcrumb={["검증 기록", "실행 결과"]} title="검증 기록" />
       <Card className="space-y-4">
         {outcome ? (
           <>

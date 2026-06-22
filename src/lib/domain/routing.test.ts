@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { accessibleScreenForSession, activeSidebarScreen, permittedScreenForRole, screenRequiresLogin, sidebarItemsForRole } from "../prototype/navigation";
 import { pathForScreen, routeSegments, screenFromPathname } from "../prototype/routes";
@@ -31,6 +32,22 @@ test("nested service screens keep their parent sidebar highlight", () => {
   assert.equal(activeSidebarScreen("decisionConfirm"), "proposalVote");
   assert.equal(activeSidebarScreen("verificationDetail"), "verification");
   assert.equal(activeSidebarScreen("outcome"), "verification");
+});
+
+test("detail screens show breadcrumbs and keep list navigation at the bottom", () => {
+  const sectionTitleSource = readFileSync("src/components/ui/Card.tsx", "utf8");
+  const decisionSource = readFileSync("src/features/decisions/DecisionScreens.tsx", "utf8");
+  const insightSource = readFileSync("src/features/insights/InsightScreens.tsx", "utf8");
+  const verificationSource = readFileSync("src/features/verification/VerificationScreens.tsx", "utf8");
+
+  assert.match(sectionTitleSource, /aria-label="현재 위치"/);
+  assert.match(sectionTitleSource, /breadcrumbItems/);
+  assert.match(decisionSource, /breadcrumb=\{\["의사결정", "의사결정 상세"\]\}/);
+  assert.match(insightSource, /breadcrumb=\{\["인사이트", "인사이트 상세"\]\}/);
+  assert.match(verificationSource, /breadcrumb=\{\["검증 기록", "검증 상세"\]\}/);
+  assert.match(decisionSource, /<div className="flex justify-start">\s*<Button variant="secondary" onClick=\{\(\) => commands\.navigate\("proposalVote"\)\}>목록으로 돌아가기<\/Button>/);
+  assert.match(insightSource, /<div className="flex justify-start">\s*<Button variant="secondary" onClick=\{\(\) => commands\.navigate\("insights"\)\}>목록으로 돌아가기<\/Button>/);
+  assert.match(verificationSource, /<div className="flex justify-start">\s*<Button variant="secondary" onClick=\{\(\) => commands\.navigate\("verification"\)\}>목록으로 돌아가기<\/Button>/);
 });
 
 test("sidebar menus follow owner and manager roles", () => {

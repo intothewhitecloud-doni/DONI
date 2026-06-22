@@ -61,8 +61,7 @@ export function ProposalVoteScreen() {
 
   return (
     <div className="space-y-8">
-      <Button variant="secondary" onClick={() => commands.navigate("proposalVote")}>목록으로 돌아가기</Button>
-      <SectionTitle title="의사결정" />
+      <SectionTitle breadcrumb={["의사결정", "의사결정 상세"]} title="의사결정" />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <p className="text-sm leading-6 text-slate-600">{proposal.summary}</p>
@@ -144,6 +143,9 @@ export function ProposalVoteScreen() {
           </div>
         </Card>
       </div>
+      <div className="flex justify-start">
+        <Button variant="secondary" onClick={() => commands.navigate("proposalVote")}>목록으로 돌아가기</Button>
+      </div>
     </div>
   );
 }
@@ -224,7 +226,7 @@ export function DecisionConfirmScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle title="의사결정" />
+      <SectionTitle breadcrumb={["의사결정", "결과 확정"]} title="의사결정" />
       <Card className="space-y-4">
         <Badge tone="success">최종 확정</Badge>
         <p className="text-sm leading-6 text-slate-600">{decision.summary}</p>

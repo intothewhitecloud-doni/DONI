@@ -125,7 +125,7 @@ export function InsightDetailScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle title="인사이트" />
+      <SectionTitle breadcrumb={["인사이트", "인사이트 상세"]} title="인사이트" />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <div>
@@ -201,6 +201,9 @@ export function InsightDetailScreen() {
             );
           })}
         </Card>
+      </div>
+      <div className="flex justify-start">
+        <Button variant="secondary" onClick={() => commands.navigate("insights")}>목록으로 돌아가기</Button>
       </div>
     </div>
   );
@@ -297,7 +300,7 @@ export function ProposalCreateScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle title="인사이트" />
+      <SectionTitle breadcrumb={["인사이트", "안건 초안"]} title="인사이트" />
       <Card className="space-y-4">
         <Badge tone="info">Decision 후보 기반</Badge>
         <h2 className="text-xl font-bold text-slate-950">{draft.title}</h2>
