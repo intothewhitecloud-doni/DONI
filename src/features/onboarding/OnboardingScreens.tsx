@@ -198,7 +198,7 @@ export function LoginScreen() {
     <AuthLayout
       badge="1개 기업 · 1개 콘솔"
       title="기업 코드 기반 승인형 콘솔"
-      description="기업 소유자가 승인한 사용자만 접속할 수 있습니다. 승인 전 계정은 로그인 화면에서 승인 대기 안내만 표시됩니다."
+      description="하나의 기업 코드로 운영 데이터와 의사결정 흐름을 관리합니다."
       side={
         <div className="rounded-lg border border-hairline bg-surface-soft p-4 text-body-sm shadow-soft">
           <div className="flex items-center justify-between gap-3">
@@ -225,7 +225,7 @@ export function LoginScreen() {
         </div>
       }
     >
-      <SectionTitle title="로그인" description="승인 완료된 기업 사용자만 대시보드로 이동합니다." variant="section" />
+      <SectionTitle title="로그인" variant="section" />
       {loginFeedback && (
         <div
           aria-live="assertive"
