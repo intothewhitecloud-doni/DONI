@@ -11,6 +11,7 @@ import type { PrototypeAction } from "../store";
 type SourceFileInput = {
   name: string;
   size: number;
+  description?: string;
   organizationCategoryId?: string;
   mimeType?: string;
   dataUrl?: string;
@@ -31,6 +32,7 @@ function toSourceFile(file: SourceFileInput, index: number): SourceFile {
     id: `source-${fileIdStem || "file"}-${index + 1}`,
     name: file.name,
     kind: sourceFileKindForName(file.name),
+    description: file.description ?? defaultSourceFileDescription(file),
     rowCount: file.rowCount ?? 0,
     status: "ready",
     organizationCategoryId: file.organizationCategoryId,
@@ -41,6 +43,15 @@ function toSourceFile(file: SourceFileInput, index: number): SourceFile {
     previewColumns: file.previewColumns,
     previewRows: file.previewRows
   };
+}
+
+function defaultSourceFileDescription(file: SourceFileInput): string {
+  const fields = file.previewColumns?.filter(Boolean).slice(0, 4) ?? [];
+  if (fields.length > 0) {
+    return `${fields.join(", ")} 필드를 포함한 원천 데이터입니다.`;
+  }
+
+  return `${file.name} 업로드 원천 데이터입니다.`;
 }
 
 export function addSourceFiles(
@@ -80,7 +91,7 @@ export function updateSourceFile(
   state: PrototypeState,
   dispatch: Dispatch<PrototypeAction>,
   fileId: string,
-  patch: Pick<SourceFile, "kind" | "name">
+  patch: Pick<SourceFile, "kind" | "name"> & Partial<Pick<SourceFile, "description">> & { organizationCategoryId?: string }
 ): boolean {
   if (!canCurrentUser(state, "source:upload")) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 파일 정보를 수정할 수 없습니다." });
@@ -105,6 +116,27 @@ export function updateSourceFile(
     patch: { ...patch, name: renameResult.name },
     notificationId: `notice-source-file-update-${Date.now()}`,
     ...commandMeta(state, "파일 정보 수정", "source_file", fileId, "데이터 보관함의 파일 정보를 수정했습니다.")
+  });
+  return true;
+}
+
+export function applySourceFileToCurrentStandard(state: PrototypeState, dispatch: Dispatch<PrototypeAction>, fileId: string): boolean {
+  if (!canCurrentUser(state, "source:upload") || !canCurrentUser(state, "analysis:start")) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "현재 역할은 파일을 현재 기준에 반영할 수 없습니다." });
+    return false;
+  }
+
+  const currentFile = state.sourceFiles.find((file) => file.id === fileId);
+  if (!currentFile) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "반영할 파일을 찾지 못했습니다." });
+    return false;
+  }
+
+  dispatch({
+    type: "APPLY_SOURCE_FILE_TO_CURRENT_STANDARD",
+    fileId,
+    notificationId: `notice-source-file-apply-${Date.now()}`,
+    ...commandMeta(state, "현재 기준 반영", "source_file", fileId, "원천 데이터 관계를 현재 기준 데이터에 반영했습니다.")
   });
   return true;
 }

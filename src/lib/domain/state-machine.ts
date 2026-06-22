@@ -80,7 +80,8 @@ export type PrototypeAction = ActionMeta &
     | { type: "DELETE_ORGANIZATION_CATEGORY"; organizationCategoryId: string }
     | { type: "SET_CANDIDATE_TYPE"; candidateType: CandidateType }
     | { type: "ADD_SOURCE_FILES"; files: SourceFile[]; organizationCategoryId?: string }
-    | { type: "UPDATE_SOURCE_FILE"; fileId: string; patch: Pick<SourceFile, "kind" | "name"> & { organizationCategoryId?: string } }
+    | { type: "UPDATE_SOURCE_FILE"; fileId: string; patch: Pick<SourceFile, "kind" | "name"> & Partial<Pick<SourceFile, "description">> & { organizationCategoryId?: string } }
+    | { type: "APPLY_SOURCE_FILE_TO_CURRENT_STANDARD"; fileId: string }
     | { type: "REMOVE_SOURCE_FILE"; fileId: string }
     | { type: "SET_STRUCTURE_MAP_VIEW"; patch: Partial<StructureMapViewState> }
     | { type: "UPDATE_STRUCTURE_MAP_NODE"; nodeId: string; patch: StructureMapNodePatch }
@@ -605,7 +606,254 @@ function organizationCategoryIdForName(name: string, existingIds: string[]): str
 function normalizeSourceFile(file: SourceFile): SourceFile {
   return {
     ...file,
+    description: file.description?.trim() || `${file.name} 업로드 원천 데이터입니다.`,
     organizationCategoryId: file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID
+  };
+}
+
+type SourceFileOperationalIds = {
+  applyEventId: string;
+  correctionEventId: string;
+  entityId: string;
+  evidenceId: string;
+  insightId: string;
+  metricId: string;
+  metricValueId: string;
+  relationId: string;
+  uploadEventId: string;
+  workflowMetricBindingId: string;
+};
+
+function sourceFileOperationalIds(fileId: string): SourceFileOperationalIds {
+  const stem = fileId.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "") || "source-file";
+  return {
+    applyEventId: `event-${stem}-apply`,
+    correctionEventId: `event-${stem}-correction`,
+    entityId: `entity-${stem}`,
+    evidenceId: `evidence-${stem}-profile`,
+    insightId: `insight-${stem}-lineage`,
+    metricId: `metric-${stem}-readiness`,
+    metricValueId: `metric-value-${stem}-readiness`,
+    relationId: `relation-${stem}-current-standard`,
+    uploadEventId: `event-${stem}-upload`,
+    workflowMetricBindingId: `binding-${stem}-readiness`
+  };
+}
+
+function sourceFileDataName(file: SourceFile): string {
+  return file.name.replace(/\.[^.]+$/, "") || file.name;
+}
+
+function sourceFileFieldNames(file: SourceFile): string[] {
+  const previewFields = file.previewColumns?.map((field) => field.trim()).filter(Boolean) ?? [];
+  if (previewFields.length > 0) {
+    return previewFields.slice(0, 8);
+  }
+
+  return ["데이터명", "설명", "데이터 유형", "담당 부서"];
+}
+
+function organizationCategoryNameForSourceFile(state: PrototypeState, file: SourceFile): string {
+  const categoryId = file.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID;
+  return state.organizationCategories.find((category) => category.id === categoryId)?.name ?? "미지정";
+}
+
+function sourceFileReadinessScore(file: SourceFile): number {
+  const fields = sourceFileFieldNames(file);
+  const hasDescription = Boolean(file.description?.trim());
+  const hasOwner = Boolean(file.organizationCategoryId && file.organizationCategoryId !== UNASSIGNED_ORGANIZATION_CATEGORY_ID);
+  const hasPreview = Boolean(file.previewRows?.length || file.rowCount > 0);
+  return Math.min(100, 50 + fields.length * 4 + (hasDescription ? 14 : 0) + (hasOwner ? 12 : 0) + (hasPreview ? 8 : 0));
+}
+
+function removeSourceFileOperationalData(state: PrototypeState, ids: SourceFileOperationalIds): PrototypeState {
+  const evidenceIds = new Set([ids.evidenceId]);
+  const entityIds = new Set([ids.entityId]);
+  const eventIds = new Set([ids.uploadEventId, ids.correctionEventId, ids.applyEventId]);
+  const relationIds = new Set([ids.relationId]);
+  const metricIds = new Set([ids.metricId]);
+  const metricValueIds = new Set([ids.metricValueId]);
+  const bindingIds = new Set([ids.workflowMetricBindingId]);
+  const insightIds = new Set([ids.insightId]);
+
+  return {
+    ...state,
+    evidence: state.evidence.filter((item) => !evidenceIds.has(item.id)),
+    entities: state.entities.filter((item) => !entityIds.has(item.id)),
+    events: state.events.filter((item) => !eventIds.has(item.id)),
+    insights: state.insights.filter((item) => !insightIds.has(item.id)),
+    metricDefinitions: state.metricDefinitions.filter((item) => !metricIds.has(item.id)),
+    metricValues: state.metricValues.filter((item) => !metricValueIds.has(item.id)),
+    relations: state.relations.filter((item) => !relationIds.has(item.id)),
+    workflowMetricBindings: state.workflowMetricBindings.filter((item) => !bindingIds.has(item.id))
+  };
+}
+
+function applySourceFileOperationalData(state: PrototypeState, file: SourceFile, appliedAt: string): PrototypeState {
+  const normalizedFile = normalizeSourceFile(file);
+  const ids = sourceFileOperationalIds(normalizedFile.id);
+  const cleared = removeSourceFileOperationalData(state, ids);
+  const dataName = sourceFileDataName(normalizedFile);
+  const owner = organizationCategoryNameForSourceFile(state, normalizedFile);
+  const fields = sourceFileFieldNames(normalizedFile);
+  const rowCount = Math.max(normalizedFile.rowCount, normalizedFile.previewRows?.length ?? 0);
+  const rowCountLabel = rowCount > 0 ? `${rowCount.toLocaleString("ko-KR")}행` : "미리보기 기준";
+  const readiness = sourceFileReadinessScore(normalizedFile);
+  const description = normalizedFile.description ?? `${normalizedFile.name} 업로드 원천 데이터입니다.`;
+  const uploadedAt = normalizedFile.uploadedAt ?? appliedAt;
+
+  const evidence: PrototypeState["evidence"][number] = {
+    id: ids.evidenceId,
+    sourceFileId: normalizedFile.id,
+    sourceKind: "vault_file",
+    sourceName: normalizedFile.name,
+    columns: fields,
+    confidence: 0.82,
+    label: `${dataName} 원천 프로필`,
+    location: `${normalizedFile.name} / ${fields.slice(0, 4).join(", ")}`,
+    excerpt: `${description} 담당 부서 ${owner}, 데이터 유형 ${normalizedFile.kind}, 데이터 규모 ${rowCountLabel} 기준으로 현재 기준 반영 관계를 생성했습니다.`
+  };
+
+  const entity: PrototypeState["entities"][number] = {
+    id: ids.entityId,
+    kind: normalizedFile.kind,
+    name: dataName,
+    owner,
+    status: readiness >= 88 ? "반영 완료" : "보정 필요",
+    summary: description,
+    metricIds: [ids.metricId],
+    relationIds: [ids.relationId],
+    eventIds: [ids.uploadEventId, ids.correctionEventId, ids.applyEventId],
+    insightIds: [ids.insightId],
+    decisionIds: []
+  };
+
+  const events: PrototypeState["events"] = [
+    {
+      id: ids.uploadEventId,
+      objectId: ids.entityId,
+      workflowType: "원천 기록",
+      name: "원천 기록 생성",
+      occurredAt: uploadedAt,
+      durationHours: 0.2,
+      evidenceIds: [ids.evidenceId]
+    },
+    {
+      id: ids.correctionEventId,
+      objectId: ids.entityId,
+      workflowType: "정보 보정",
+      name: "정보 보정",
+      occurredAt: appliedAt,
+      durationHours: 0.4,
+      evidenceIds: [ids.evidenceId]
+    },
+    {
+      id: ids.applyEventId,
+      objectId: ids.entityId,
+      workflowType: "현재 기준 반영",
+      name: "현재 기준 반영",
+      occurredAt: appliedAt,
+      durationHours: 0.3,
+      evidenceIds: [ids.evidenceId]
+    }
+  ];
+
+  const relation: PrototypeState["relations"][number] = {
+    id: ids.relationId,
+    fromId: ids.entityId,
+    toId: ids.applyEventId,
+    type: "현재 기준 반영 관계",
+    relationKind: "lineage",
+    confidence: 0.82,
+    strength: readiness >= 88 ? "strong" : "medium",
+    description: `${dataName} 데이터가 정보 보정 후 현재 기준 반영 업무흐름으로 연결됩니다.`,
+    impact: "구조맵, 업무흐름, 지표, 인사이트 화면에서 같은 원천 데이터 관계를 조회합니다.",
+    status: readiness >= 88 ? "반영 완료" : "보정 후 반영",
+    evidenceIds: [ids.evidenceId],
+    metricIds: [ids.metricId]
+  };
+
+  const metricDefinition: PrototypeState["metricDefinitions"][number] = {
+    id: ids.metricId,
+    name: `${dataName} 보정 완료율`,
+    unit: "%",
+    formula: "필수 메타데이터 입력값과 미리보기 필드 보유 여부를 합산",
+    relatedObjectIds: [ids.entityId]
+  };
+
+  const metricValue: PrototypeState["metricValues"][number] = {
+    id: ids.metricValueId,
+    metricId: ids.metricId,
+    value: readiness,
+    previousValue: Math.max(0, readiness - 18),
+    trend: "up",
+    status: readiness >= 88 ? "normal" : "warning",
+    chartType: "bar",
+    series: [
+      { label: "데이터명", value: 100 },
+      { label: "설명", value: normalizedFile.description?.trim() ? 100 : 0 },
+      { label: "유형", value: normalizedFile.kind ? 100 : 0 },
+      { label: "담당 부서", value: owner === "미지정" ? 0 : 100 }
+    ],
+    calculatedAt: appliedAt,
+    evidenceIds: [ids.evidenceId],
+    basis: {
+      fields: fields.length,
+      rows: rowCount,
+      source: normalizedFile.name
+    }
+  };
+
+  const workflowMetricBinding: PrototypeState["workflowMetricBindings"][number] = {
+    id: ids.workflowMetricBindingId,
+    eventId: ids.applyEventId,
+    metricId: ids.metricId,
+    sourceManagedObjectIds: [ids.entityId]
+  };
+
+  const insight: PrototypeState["insights"][number] = {
+    id: ids.insightId,
+    title: `${dataName} 기준 반영 관계 생성`,
+    status: "new",
+    severity: readiness >= 88 ? "medium" : "low",
+    detected: `${normalizedFile.name}의 데이터명, 설명, 유형, 담당 부서 기준이 현재 구조맵에 반영되었습니다.`,
+    reason: "업로드 파일을 운영 기준 컬렉션에 연결해 관리 대상, 업무흐름, 지표, 인사이트가 같은 원천을 바라보도록 했습니다.",
+    likelyCauses: [`담당 부서: ${owner}`, `데이터 유형: ${normalizedFile.kind}`, `주요 필드: ${fields.slice(0, 4).join(", ")}`],
+    recommendedActions: ["구조 보기에서 추출 필드를 확인합니다.", "필요한 설명과 담당 부서를 보정합니다.", "현재 기준 반영 후 지표 연결을 검토합니다."],
+    relatedMetricIds: [ids.metricId],
+    relatedObjectIds: [ids.entityId],
+    relatedEventIds: events.map((event) => event.id),
+    relatedRelationIds: [ids.relationId],
+    evidenceIds: [ids.evidenceId],
+    supportSummary: [`${fields.length}개 필드와 ${rowCountLabel} 기준으로 반영했습니다.`]
+  };
+
+  return {
+    ...cleared,
+    activeInsightId: ids.insightId,
+    company: { ...cleared.company, dataReadiness: "ready" },
+    evidence: [evidence, ...cleared.evidence],
+    entities: [entity, ...cleared.entities],
+    events: [...events, ...cleared.events],
+    insights: [insight, ...cleared.insights],
+    managedObjectTypes: mergeDomainTypes("managed_object", cleared.managedObjectTypes, inferDomainTypes("managed_object", [normalizedFile.kind])),
+    metricDefinitions: [metricDefinition, ...cleared.metricDefinitions],
+    metricValues: [metricValue, ...cleared.metricValues],
+    relations: [relation, ...cleared.relations],
+    sourceFiles: cleared.sourceFiles.map((item) =>
+      item.id === normalizedFile.id
+        ? { ...normalizeSourceFile(item), description, status: "parsed" as const, uploadedAt, appliedAt }
+        : normalizeSourceFile(item)
+    ),
+    structureMapView: normalizeStructureMapViewState({
+      ...cleared.structureMapView,
+      hiddenEdgeIds: [],
+      hiddenNodeIds: [],
+      searchQuery: "",
+      selectedItemId: ids.entityId
+    }),
+    workflowMetricBindings: [workflowMetricBinding, ...cleared.workflowMetricBindings],
+    workflowTypes: mergeDomainTypes("workflow", cleared.workflowTypes, inferDomainTypes("workflow", events.map((event) => event.workflowType)))
   };
 }
 
@@ -1235,14 +1483,22 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       );
     }
 
-    case "UPDATE_SOURCE_FILE":
+    case "UPDATE_SOURCE_FILE": {
+      const cleared = removeSourceFileOperationalData(state, sourceFileOperationalIds(action.fileId));
       return withAudit(
         {
-          ...state,
-          sourceFiles: state.sourceFiles.map((file) =>
+          ...cleared,
+          sourceFiles: cleared.sourceFiles.map((file) =>
             file.id === action.fileId
-              ? { ...normalizeSourceFile(file), ...action.patch, organizationCategoryId: normalizeCategoryId(state, action.patch.organizationCategoryId ?? file.organizationCategoryId), status: "ready" as const, uploadedAt: undefined }
-              : { ...normalizeSourceFile(file), status: "ready" as const, uploadedAt: undefined }
+              ? {
+                  ...normalizeSourceFile(file),
+                  ...action.patch,
+                  description: action.patch.description?.trim() || file.description,
+                  organizationCategoryId: normalizeCategoryId(state, action.patch.organizationCategoryId ?? file.organizationCategoryId),
+                  status: "ready" as const,
+                  appliedAt: undefined
+                }
+              : normalizeSourceFile(file)
           ),
           notifications: [
             { id: action.notificationId ?? "notice-source-file-update", level: "success", message: "파일 정보가 수정되었습니다." },
@@ -1251,14 +1507,36 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         },
         action
       );
+    }
 
-    case "REMOVE_SOURCE_FILE":
+    case "APPLY_SOURCE_FILE_TO_CURRENT_STANDARD": {
+      const sourceFile = state.sourceFiles.find((file) => file.id === action.fileId);
+      if (!sourceFile) {
+        return { ...state, permissionDenied: "반영할 파일을 찾지 못했습니다." };
+      }
+
       return withAudit(
         {
-          ...state,
-          sourceFiles: state.sourceFiles
+          ...applySourceFileOperationalData(state, sourceFile, at(action)),
+          screen: "vault",
+          permissionDenied: undefined,
+          notifications: [
+            { id: action.notificationId ?? "notice-source-file-apply", level: "success", message: "원천 데이터 관계를 현재 기준에 반영했습니다." },
+            ...state.notifications
+          ]
+        },
+        action
+      );
+    }
+
+    case "REMOVE_SOURCE_FILE": {
+      const cleared = removeSourceFileOperationalData(state, sourceFileOperationalIds(action.fileId));
+      return withAudit(
+        {
+          ...cleared,
+          sourceFiles: cleared.sourceFiles
             .filter((file) => file.id !== action.fileId)
-            .map((file) => ({ ...normalizeSourceFile(file), status: "ready" as const, uploadedAt: undefined })),
+            .map((file) => normalizeSourceFile(file)),
           notifications: [
             { id: action.notificationId ?? "notice-source-file-remove", level: "info", message: "파일이 데이터 보관함에서 제거되었습니다." },
             ...state.notifications
@@ -1266,6 +1544,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         },
         action
       );
+    }
 
     case "SET_STRUCTURE_MAP_VIEW":
       return {

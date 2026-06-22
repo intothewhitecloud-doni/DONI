@@ -207,10 +207,12 @@ export interface SourceFile {
   id: string;
   name: string;
   kind: string;
+  description?: string;
   rowCount: number;
   status: "ready" | "uploaded" | "parsed";
   organizationCategoryId?: string;
   uploadedAt?: string;
+  appliedAt?: string;
   size?: number;
   mimeType?: string;
   dataUrl?: string;

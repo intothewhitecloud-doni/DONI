@@ -7,18 +7,20 @@ import { buildProposalDraftFromInsight } from "../../lib/domain/result-scenarios
 import type { EvidenceReference } from "../../lib/domain/types";
 import { canCurrentUser } from "../../lib/prototype/permissions";
 import { proposalVoterUserIds } from "../../lib/prototype/policy";
+import { getPhaseOneAnalysisProjection, type PhaseOneDecisionCandidate } from "../../lib/prototype/queries/phaseOneAnalysisProjection";
 import { activeInsight, evidenceById } from "../../lib/prototype/selectors";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 
 export function InsightsScreen() {
   const { commands, state } = usePrototype();
+  const phaseOneProjection = getPhaseOneAnalysisProjection(state);
   const hasFiles = state.sourceFiles.length > 0;
   const canPrepareAnalysis = canCurrentUser(state, "source:upload") && canCurrentUser(state, "analysis:start");
 
   if (state.insights.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="인공지능 인사이트" title="아직 분석된 운영 신호가 없습니다" />
+        <SectionTitle title="인사이트" />
         <Card className="space-y-4 border-dashed bg-slate-50">
           <Badge tone="neutral">준비 필요</Badge>
           <div>
@@ -49,20 +51,34 @@ export function InsightsScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="인공지능 인사이트" title="검토가 필요한 운영 신호" />
+      <SectionTitle title="인사이트" />
+      <Card className="space-y-3" density="compact">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <Badge tone="warning">Decision 후보 최종 검토</Badge>
+            <h2 className="mt-3 text-xl font-bold text-slate-950">분석 결과를 안건으로 전환하기 전 확인할 후보</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Entity, Event, Relation, Metric 근거가 연결된 후보만 이 화면에서 검토합니다.
+            </p>
+          </div>
+          <Badge tone="info">{phaseOneProjection.decisionCandidates.length}건</Badge>
+        </div>
+      </Card>
       <div className="grid gap-4 xl:grid-cols-2">
-        {state.insights.map((insight) => (
-          <Card key={insight.id} className="space-y-4">
+        {phaseOneProjection.decisionCandidates.map((candidate) => (
+          <Card key={candidate.id} className="space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <Badge tone={insight.severity === "high" ? "danger" : "warning"}>{insight.severity === "high" ? "높은 영향" : "검토"}</Badge>
-              <Badge tone={insight.status === "proposal_created" ? "success" : "info"}>
-                {insight.status === "proposal_created" ? "안건 생성됨" : insight.status === "resolved" ? "해결됨" : "신규"}
-              </Badge>
+              <Badge tone={candidate.impactLabel === "높은 영향" ? "danger" : "warning"}>{candidate.impactLabel}</Badge>
+              <Badge tone={candidate.statusLabel === "안건 전환됨" ? "success" : "info"}>{candidate.statusLabel}</Badge>
             </div>
-            <h2 className="text-xl font-bold text-slate-950">{insight.title}</h2>
-            <p className="text-sm leading-6 text-slate-600">{insight.detected}</p>
-            <Button onClick={() => commands.navigateToTarget({ screen: "insightDetail", focusId: insight.id, label: "상세 근거 보기" })}>
-              상세 근거 보기
+            <h2 className="text-xl font-bold text-slate-950">{candidate.title}</h2>
+            <p className="text-sm leading-6 text-slate-600">{candidate.summary}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <InlineReviewFact label="근거" value={candidate.evidenceStrengthLabel} />
+              <InlineReviewFact label="예상 효과" value={candidate.expectedImpact} />
+            </div>
+            <Button onClick={() => commands.navigateToTarget(candidate.target)}>
+              Decision 후보 검토
             </Button>
           </Card>
         ))}
@@ -74,24 +90,27 @@ export function InsightsScreen() {
 export function InsightDetailScreen() {
   const { commands, state } = usePrototype();
   const insight = activeInsight(state);
+  const phaseOneProjection = getPhaseOneAnalysisProjection(state);
   const canCreateProposal = canCurrentUser(state, "insight:proposal");
 
   if (!insight) {
     return (
       <div className="space-y-8">
-        <SectionTitle
-          eyebrow="인사이트"
-          title="아직 분석된 운영 신호가 없습니다"
-        />
+        <SectionTitle title="인사이트" />
         <Button onClick={() => commands.navigate("dashboard")}>대시보드로 이동</Button>
       </div>
     );
   }
 
-  const linkedMetrics = state.metricDefinitions.filter((metric) => insight.relatedMetricIds.includes(metric.id));
-  const linkedObjects = state.entities.filter((entity) => insight.relatedObjectIds.includes(entity.id));
-  const linkedEvents = state.events.filter((event) => insight.relatedEventIds.includes(event.id));
-  const linkedRelations = state.relations.filter((relation) => insight.relatedRelationIds.includes(relation.id));
+  const decisionCandidate = phaseOneProjection.decisionCandidates.find((candidate) => candidate.id === insight.id);
+  const relatedMetricIds = decisionCandidate?.relatedMetricIds ?? insight.relatedMetricIds;
+  const relatedObjectIds = decisionCandidate?.relatedObjectIds ?? insight.relatedObjectIds;
+  const relatedEventIds = decisionCandidate?.relatedEventIds ?? insight.relatedEventIds;
+  const relatedRelationIds = decisionCandidate?.relatedRelationIds ?? insight.relatedRelationIds;
+  const linkedMetrics = state.metricDefinitions.filter((metric) => relatedMetricIds.includes(metric.id));
+  const linkedObjects = state.entities.filter((entity) => relatedObjectIds.includes(entity.id));
+  const linkedEvents = state.events.filter((event) => relatedEventIds.includes(event.id));
+  const linkedRelations = state.relations.filter((relation) => relatedRelationIds.includes(relation.id));
   const linkedMetricItems = linkedMetrics.map((metric) => {
     const value = state.metricValues.find((item) => item.metricId === metric.id);
     return `${metric.name}: ${value?.value ?? "-"}${metric.unit}`;
@@ -106,18 +125,35 @@ export function InsightDetailScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="인사이트 > 인사이트 상세" title={insight.title} />
+      <SectionTitle title="인사이트" />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <div>
-            <Badge tone="danger">높은 영향</Badge>
-            <h2 className="mt-3 text-lg font-bold text-slate-950">무엇이 감지되었나요?</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{insight.detected}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={decisionCandidate?.impactLabel === "높은 영향" ? "danger" : "warning"}>
+                {decisionCandidate?.impactLabel ?? "검토 필요"}
+              </Badge>
+              <Badge tone="info">{decisionCandidate?.evidenceStrengthLabel ?? "근거 확인"}</Badge>
+            </div>
+            <h2 className="mt-3 text-xl font-bold text-slate-950">{decisionCandidate?.title ?? insight.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{decisionCandidate?.summary ?? insight.detected}</p>
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-950">왜 중요한가요?</h2>
+            <h2 className="text-lg font-bold text-slate-950">왜 검토해야 하나요?</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{insight.reason}</p>
+            {decisionCandidate && (
+              <p className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 p-3 text-sm font-semibold leading-6 text-emerald-800">
+                예상 효과: {decisionCandidate.expectedImpact}
+              </p>
+            )}
           </div>
+          <EvidencePathPanel
+            decisionCandidate={decisionCandidate}
+            linkedEvents={linkedEvents.map((event) => event.name)}
+            linkedMetrics={linkedMetricItems}
+            linkedObjects={linkedObjects.map((object) => `${object.kind} · ${object.id === "entity-customer-core" ? "핵심 고객군" : object.name}`)}
+            linkedRelations={linkedRelationItems}
+          />
           {insight.supportSummary && insight.supportSummary.length > 0 && (
             <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
               <h3 className="font-bold text-slate-900">근거 조합</h3>
@@ -128,15 +164,15 @@ export function InsightDetailScreen() {
           )}
           <div className="grid gap-4 xl:grid-cols-2">
             <div>
-              <h3 className="font-bold text-slate-900">원인 후보</h3>
+              <h3 className="font-bold text-slate-900">위험/주의점</h3>
               <ul className="mt-2 space-y-2 text-sm text-slate-600">
-                {insight.likelyCauses.map((cause) => <li key={cause}>• {cause}</li>)}
+                {(decisionCandidate?.risks ?? insight.likelyCauses).map((cause) => <li key={cause}>• {cause}</li>)}
               </ul>
             </div>
             <div>
-              <h3 className="font-bold text-slate-900">추천 조치</h3>
+              <h3 className="font-bold text-slate-900">실행 전 확인 항목</h3>
               <ul className="mt-2 space-y-2 text-sm text-slate-600">
-                {insight.recommendedActions.map((action) => <li key={action}>• {action}</li>)}
+                {(decisionCandidate?.preDecisionChecks ?? insight.recommendedActions).map((action) => <li key={action}>• {action}</li>)}
               </ul>
             </div>
           </div>
@@ -148,7 +184,7 @@ export function InsightDetailScreen() {
           </div>
           {canCreateProposal && (
             <Button onClick={() => commands.createProposalFromInsight(insight.id)}>
-              이 인사이트로 안건 만들기
+              Decision 후보를 안건으로 전환
             </Button>
           )}
         </Card>
@@ -181,6 +217,54 @@ function LinkedInsightGroup({ items, title }: { items: string[]; title: string }
   );
 }
 
+function InlineReviewFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function EvidencePathPanel({
+  decisionCandidate,
+  linkedEvents,
+  linkedMetrics,
+  linkedObjects,
+  linkedRelations
+}: {
+  decisionCandidate?: PhaseOneDecisionCandidate;
+  linkedEvents: string[];
+  linkedMetrics: string[];
+  linkedObjects: string[];
+  linkedRelations: string[];
+}) {
+  const pathItems = [
+    { label: "Entity", value: linkedObjects.slice(0, 2).join(" / ") || "연결 Entity 없음" },
+    { label: "Event", value: linkedEvents.slice(0, 2).join(" / ") || "연결 Event 없음" },
+    { label: "Relation", value: linkedRelations.slice(0, 2).join(" / ") || "연결 Relation 없음" },
+    { label: "Metric", value: linkedMetrics.slice(0, 2).join(" / ") || "연결 Metric 없음" },
+    { label: "Decision", value: decisionCandidate?.title ?? "Decision 후보" }
+  ];
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-bold text-slate-900">근거 경로</h3>
+        <Badge tone="info">E/E/R/M/D</Badge>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-5">
+        {pathItems.map((item) => (
+          <div key={item.label} className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+            <p className="text-xs font-bold text-slate-500">{item.label}</p>
+            <p className="mt-1 line-clamp-3 text-xs font-semibold leading-5 text-slate-800">{item.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function formatInsightEvidenceSource(evidence: EvidenceReference): string {
   const source = evidence.sourceKind === "canonical_sample" ? "보관 파일" : "업로드 파일";
   const rows = evidence.rowNumbers && evidence.rowNumbers.length > 0 ? `${evidence.rowNumbers.join(", ")}행` : undefined;
@@ -198,10 +282,7 @@ export function ProposalCreateScreen() {
   if (!insight) {
     return (
       <div className="space-y-8">
-        <SectionTitle
-          eyebrow="인사이트 > 안건 초안"
-          title="안건으로 전환할 인사이트가 없습니다"
-        />
+        <SectionTitle title="인사이트" />
         <Button onClick={() => commands.navigate("dashboard")}>대시보드로 이동</Button>
       </div>
     );
@@ -216,13 +297,13 @@ export function ProposalCreateScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="인사이트 > 안건 초안" title="운영 조정안을 생성합니다" />
+      <SectionTitle title="인사이트" />
       <Card className="space-y-4">
-        <Badge tone="info">인사이트 기반</Badge>
+        <Badge tone="info">Decision 후보 기반</Badge>
         <h2 className="text-xl font-bold text-slate-950">{draft.title}</h2>
         <p className="text-sm leading-6 text-slate-600">{draft.summary}</p>
         <p className="text-sm leading-6 text-slate-600">예상 효과: {draft.expectedImpact}</p>
-        {canCreateProposal && <Button onClick={() => commands.createProposalFromInsight(insight.id)}>안건 생성 후 투표로 이동</Button>}
+        {canCreateProposal && <Button onClick={() => commands.createProposalFromInsight(insight.id)}>Decision 후보 안건 생성 후 투표로 이동</Button>}
       </Card>
     </div>
   );

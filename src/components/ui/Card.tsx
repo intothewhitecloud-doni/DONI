@@ -48,7 +48,6 @@ export function Card({
 
 type SectionTitleVariant = "page" | "section" | "compact";
 type SectionTitleBaseProps = {
-  eyebrow?: string;
   title: string;
   delay?: number;
 };
@@ -69,7 +68,7 @@ const titleClass: Record<SectionTitleVariant, string> = {
 };
 
 export function SectionTitle(props: SectionTitleProps) {
-  const { delay = 0, eyebrow, title } = props;
+  const { delay = 0, title } = props;
   const variant = props.variant ?? "page";
   const description = props.variant === "section" || props.variant === "compact" ? props.description : undefined;
   const reducedMotion = useReducedMotion();
@@ -78,19 +77,15 @@ export function SectionTitle(props: SectionTitleProps) {
   return (
     <motion.div
       animate="show"
-      className={isPageTitle ? "mb-1 flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between" : "mb-2 min-w-0 space-y-2"}
+      className={isPageTitle ? "mb-1 min-w-0" : "mb-2 min-w-0 space-y-2"}
       initial="hidden"
       transition={{ duration: motionDurations.page, ease: easeOut, delay }}
       variants={pageEnter(Boolean(reducedMotion))}
     >
       {isPageTitle ? (
-        <>
-          <h1 className={`${titleClass[variant]} min-w-0 text-balance text-ink`}>{title}</h1>
-          {eyebrow && <p className="shrink-0 text-caption font-bold uppercase text-brand-accent sm:pt-1">{eyebrow}</p>}
-        </>
+        <h1 className={`${titleClass[variant]} min-w-0 text-balance text-ink`}>{title}</h1>
       ) : (
         <>
-          {eyebrow && <p className="text-caption font-bold uppercase text-brand-accent">{eyebrow}</p>}
           <h1 className={`${titleClass[variant]} text-balance text-ink`}>{title}</h1>
           {description && <p className="max-w-3xl text-body-md text-muted">{description}</p>}
         </>

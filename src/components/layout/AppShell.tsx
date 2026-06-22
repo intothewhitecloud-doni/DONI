@@ -102,8 +102,8 @@ export function AppShell({ screen }: { screen: Screen }) {
       <main
         className={
           structureMapShell
-            ? "shell-content-frame h-screen overflow-hidden pb-4 pt-16"
-            : "shell-content-frame min-h-screen pb-10 pt-16"
+            ? "shell-content-frame h-screen overflow-hidden pb-6 pt-20"
+            : "shell-content-frame min-h-screen pb-12 pt-20"
         }
       >
         <Notice />

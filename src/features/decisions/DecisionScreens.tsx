@@ -49,7 +49,7 @@ export function ProposalVoteScreen() {
   if (proposals.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="의사결정" title="아직 생성된 안건이 없습니다" />
+        <SectionTitle title="의사결정" />
         <Button onClick={() => commands.navigate("dashboard")}>대시보드로 이동</Button>
       </div>
     );
@@ -62,7 +62,7 @@ export function ProposalVoteScreen() {
   return (
     <div className="space-y-8">
       <Button variant="secondary" onClick={() => commands.navigate("proposalVote")}>목록으로 돌아가기</Button>
-      <SectionTitle eyebrow="의사결정 > 투표" title={proposal.title} />
+      <SectionTitle title="의사결정" />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           <p className="text-sm leading-6 text-slate-600">{proposal.summary}</p>
@@ -153,10 +153,7 @@ function ProposalList({ canOpenDetail, proposals }: { canOpenDetail: boolean; pr
 
   return (
     <div className="space-y-8">
-      <SectionTitle
-        eyebrow="의사결정"
-        title="인사이트에서 생성된 안건 목록"
-      />
+      <SectionTitle title="의사결정" />
       {!canOpenDetail && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
           상세 권한이 없어 안건 목록과 내 투표 상태만 조회할 수 있습니다.
@@ -219,7 +216,7 @@ export function DecisionConfirmScreen() {
   if (!decision) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="의사결정 > 결과 확정" title="확정된 의사결정이 없습니다" />
+        <SectionTitle title="의사결정" />
         <Button onClick={() => commands.navigate("proposalVote")}>투표로 이동</Button>
       </div>
     );
@@ -227,7 +224,7 @@ export function DecisionConfirmScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="의사결정 > 결과 확정" title={decision.title} />
+      <SectionTitle title="의사결정" />
       <Card className="space-y-4">
         <Badge tone="success">최종 확정</Badge>
         <p className="text-sm leading-6 text-slate-600">{decision.summary}</p>

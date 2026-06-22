@@ -64,7 +64,7 @@ export function DataVaultUploadPopup({
 
         <div className="rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">
           <p className="font-bold text-slate-950">선택 분류: {selectedCategoryName}</p>
-          <p className="mt-1">업로드 후 원천 기록에서 파일명과 파일 종류만 보정할 수 있으며, AI 구조 초안과 현재 기준 반영은 샘플 기준으로 표시됩니다.</p>
+          <p className="mt-1">업로드 후 원천 기록에서 데이터명, 설명, 데이터 유형, 담당 부서를 보정하고 현재 기준 데이터 관계에 반영할 수 있습니다.</p>
         </div>
       </div>
     </Popup>

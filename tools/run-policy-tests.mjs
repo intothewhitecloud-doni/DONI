@@ -6,7 +6,11 @@ const buildDir = ".omx/test-build";
 
 rmSync(buildDir, { recursive: true, force: true });
 
-const compile = spawnSync("npx", ["tsc", "-p", "tsconfig.policy-test.json"], { stdio: "inherit" });
+const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+const compile = spawnSync(npxCommand, ["tsc", "-p", "tsconfig.policy-test.json"], {
+  shell: process.platform === "win32",
+  stdio: "inherit"
+});
 if (compile.status !== 0) {
   process.exit(compile.status ?? 1);
 }

@@ -141,10 +141,7 @@ export function CompanyManagementScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle
-        eyebrow="기업 관리"
-        title="기업 정보, 사용자, 조직"
-      />
+      <SectionTitle title="기업 관리" />
 
       <Card className="space-y-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -167,11 +164,7 @@ export function CompanyManagementScreen() {
 
       <Card className="space-y-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <SectionTitle
-            eyebrow="사용자 관리"
-            title="기업 사용자"
-            variant="section"
-          />
+          <SectionTitle title="기업 사용자" variant="section" />
           <div className="flex flex-wrap items-center gap-2">
             {statusFilters.map((filter) => (
               <Button
@@ -494,7 +487,7 @@ function MenuIcon() {
 export function SettingsScreen() {
   return (
     <div className="space-y-6">
-      <SectionTitle eyebrow="설정" title="콘솔 설정" />
+      <SectionTitle title="설정" />
       <Card>
         <p className="text-sm text-slate-600">현재 프로토타입은 기업 단일 콘솔 구조로 동작합니다.</p>
       </Card>

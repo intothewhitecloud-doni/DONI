@@ -4,6 +4,15 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import type { EvidenceReference, OrganizationCategory, SourceFile } from "../../lib/domain/types";
 import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../../lib/domain/types";
+import {
+  findPhaseOneFileProjection,
+  type PhaseOneAnalysisProjection,
+  type PhaseOneApplyStatus,
+  type PhaseOneFileProjection,
+  type PhaseOneSignal,
+  type PhaseOneStructureGroup,
+  type PhaseOneStructureItem
+} from "../../lib/prototype/queries/phaseOneAnalysisProjection";
 import { deriveSourceFileRenderType } from "../../lib/prototype/sourceFiles";
 import {
   createUploadedFileRevisionFixture,
@@ -29,8 +38,10 @@ import {
 } from "./SourceFilePreviewPanel";
 
 type EditingFileDraft = {
+  description: string;
   kind: string;
   name: string;
+  organizationCategoryId: string;
 };
 
 type DataVaultRevisionWorkbenchProps = {
@@ -43,6 +54,7 @@ type DataVaultRevisionWorkbenchProps = {
   fileEvidence: EvidenceReference[];
   fileFeedback: string;
   organizationCategories: OrganizationCategory[];
+  phaseOneProjection: PhaseOneAnalysisProjection;
   selectedOrganizationCategoryId: string;
   sourceFiles: SourceFile[];
   sourceFileKindOptions: string[];
@@ -54,8 +66,6 @@ type DataVaultRevisionWorkbenchProps = {
   onSelectOrganizationCategory: (categoryId: string) => void;
   onSelectTab: (tab: VaultTabId) => void;
 };
-
-type VaultFileActionId = "correction" | "draft" | "current";
 
 const stageColumnClass: Record<VaultTabId, string> = {
   source: "bg-amber-50 text-slate-900",
@@ -74,6 +84,7 @@ export function DataVaultRevisionWorkbench({
   fileEvidence,
   fileFeedback,
   organizationCategories,
+  phaseOneProjection,
   selectedOrganizationCategoryId,
   sourceFiles,
   sourceFileKindOptions,
@@ -86,14 +97,17 @@ export function DataVaultRevisionWorkbench({
   onSelectTab
 }: DataVaultRevisionWorkbenchProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFileAction, setActiveFileAction] = useState<VaultFileActionId | undefined>();
   const [activeDraftId, setActiveDraftId] = useState(vaultDraftItems[0]?.id ?? "");
   const [activeCorrectionId, setActiveCorrectionId] = useState(vaultCorrectionItems[0]?.id ?? "");
   const [activeCurrentDataId, setActiveCurrentDataId] = useState(vaultCurrentDataItems[0]?.id ?? "");
+  const [localApplyStatusByFileId, setLocalApplyStatusByFileId] = useState<Record<string, PhaseOneApplyStatus>>({});
   const fixture = useMemo(
     () => activeFile ? getDataVaultRevisionFixture(activeFile.id) ?? createUploadedFileRevisionFixture(activeFile) : undefined,
     [activeFile]
   );
+  const fileProjection = findPhaseOneFileProjection(phaseOneProjection, activeFile?.id);
+  const localApplyStatus = activeFile ? localApplyStatusByFileId[activeFile.id] : undefined;
+  const effectiveApplyStatus = localApplyStatus ?? fileProjection?.applyStatus ?? "pending";
   const activeDraft = getVaultDraftItem(activeDraftId) ?? vaultDraftItems[0];
   const activeCorrection = getVaultCorrectionItem(activeCorrectionId) ?? vaultCorrectionItems[0];
   const activeCurrentData = getVaultCurrentDataItem(activeCurrentDataId) ?? vaultCurrentDataItems[0];
@@ -107,7 +121,20 @@ export function DataVaultRevisionWorkbench({
   );
   const selectedCategoryName =
     organizationCategories.find((category) => category.id === selectedOrganizationCategoryId)?.name ?? "미지정";
+  const activeFileOrganizationName =
+    organizationCategories.find((category) => category.id === (activeFile?.organizationCategoryId ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID))?.name ?? "미지정";
   const matchedEvidence = fixture ? canonicalEvidence.filter((evidence) => fixture.evidenceIds.includes(evidence.id)) : [];
+
+  function handleAdvanceLocalApplyStatus() {
+    if (!activeFile) {
+      return;
+    }
+
+    setLocalApplyStatusByFileId((current) => ({
+      ...current,
+      [activeFile.id]: nextApplyStatus(current[activeFile.id] ?? fileProjection?.applyStatus ?? "pending")
+    }));
+  }
 
   return (
     <div className="space-y-4">
@@ -274,50 +301,94 @@ export function DataVaultRevisionWorkbench({
                   </div>
                 </div>
 
-                <div className="grid gap-2">
-                  <FileStageActionButton active={activeFileAction === "correction"} label="정보 보정" onClick={() => setActiveFileAction("correction")} />
-                  <FileStageActionButton active={activeFileAction === "draft"} label="구조 보기" onClick={() => setActiveFileAction("draft")} />
-                  <FileStageActionButton active={activeFileAction === "current"} label="현재 기준에 반영" onClick={() => setActiveFileAction("current")} />
-                </div>
-
-                {canManageFiles && (
-                  <div
-                    className={`grid gap-3 rounded-md border p-3 ${
-                      activeFileAction === "correction" ? "border-blue-300 bg-blue-50/70" : "border-slate-200 bg-slate-50"
-                    }`}
-                  >
-                    <label className="min-w-0 space-y-1">
-                      <span className="text-xs font-bold text-slate-500">파일명</span>
-                      <input
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                        value={editingFile.name}
-                        onChange={(event) => onChangeEditingFile({ ...editingFile, name: event.target.value })}
-                      />
-                    </label>
-                    <label className="min-w-0 space-y-1">
-                      <span className="text-xs font-bold text-slate-500">파일 종류</span>
-                      <select
-                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                        value={editingFile.kind}
-                        onChange={(event) => onChangeEditingFile({ ...editingFile, kind: event.target.value })}
-                      >
-                        {sourceFileKindOptions.map((kind) => (
-                          <option key={kind} value={kind}>{kind}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="flex items-end">
-                      <Button className="h-10 w-full px-3" variant="secondary" onClick={onSaveFileInfo}>
-                        정보 저장
-                      </Button>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase text-blue-600">기본 정보</p>
+                      <h3 className="mt-1 text-lg font-bold text-slate-950">데이터 상세</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone="neutral">{activeFileOrganizationName}</Badge>
+                      {activeFile.appliedAt && <Badge tone="success">현재 기준 반영됨</Badge>}
                     </div>
                   </div>
+
+                  {canManageFiles ? (
+                    <div className="mt-3 space-y-3">
+                      <label className="block min-w-0 space-y-1">
+                        <span className="text-xs font-bold text-slate-500">데이터명</span>
+                        <input
+                          className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                          value={editingFile.name}
+                          onChange={(event) => onChangeEditingFile({ ...editingFile, name: event.target.value })}
+                        />
+                      </label>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="min-w-0 space-y-1">
+                          <span className="text-xs font-bold text-slate-500">데이터 유형</span>
+                          <select
+                            className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                            value={editingFile.kind}
+                            onChange={(event) => onChangeEditingFile({ ...editingFile, kind: event.target.value })}
+                          >
+                            {sourceFileKindOptions.map((kind) => (
+                              <option key={kind} value={kind}>{kind}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="min-w-0 space-y-1">
+                          <span className="text-xs font-bold text-slate-500">담당 부서(조직)</span>
+                          <select
+                            className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                            value={editingFile.organizationCategoryId}
+                            onChange={(event) => onChangeEditingFile({ ...editingFile, organizationCategoryId: event.target.value })}
+                          >
+                            {organizationCategories.map((category) => (
+                              <option key={category.id} value={category.id}>{category.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label className="block min-w-0 space-y-1">
+                        <span className="text-xs font-bold text-slate-500">설명</span>
+                        <textarea
+                          className="min-h-20 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900"
+                          placeholder="데이터에 대한 설명을 입력하세요"
+                          value={editingFile.description}
+                          onChange={(event) => onChangeEditingFile({ ...editingFile, description: event.target.value })}
+                        />
+                      </label>
+                      <div className="flex justify-end border-t border-slate-200 pt-3">
+                        <Button className="h-10 px-4" variant="secondary" onClick={onSaveFileInfo}>
+                          정보 저장
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <ReadOnlyFileInfo description={activeFile.description} file={activeFile} organizationName={activeFileOrganizationName} />
+                  )}
+                </div>
+
+                {fileProjection && (
+                  <ApplyStatusPanel
+                    fileProjection={fileProjection}
+                    localStatus={effectiveApplyStatus}
+                    onAdvance={handleAdvanceLocalApplyStatus}
+                  />
                 )}
 
-                <div className="grid gap-3">
-                  <SummaryPanel title="포함된 주요 필드" items={fixture.fields.map((field) => ({ label: "필드", value: field, detail: "원천값 기준", tone: "neutral" }))} />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <SummaryPanel
+                    title="포함된 주요 필드"
+                    items={(fileProjection?.majorFields.length ? fileProjection.majorFields : fixture.fields)
+                      .map((field) => ({ label: "필드", value: field, detail: "원천값 기준", tone: "neutral" }))}
+                  />
                   <SummaryPanel title="영향 요약" items={[...fixture.affected, ...fixture.metrics].slice(0, 4)} />
                 </div>
+
+                {fileProjection && (
+                  <StructureCandidatePanel groups={fileProjection.structureGroups} />
+                )}
 
                 <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,9 +465,13 @@ export function DataVaultRevisionWorkbench({
 
         {activeTab === "source" ? (
           <SourceRightRail
+            decisionCandidates={phaseOneProjection.decisionCandidates}
             evidence={[...matchedEvidence, ...fileEvidence]}
+            fileProjection={fileProjection}
             fixture={fixture}
             hasActiveFile={Boolean(activeFile)}
+            localApplyStatus={effectiveApplyStatus}
+            onAdvanceLocalApplyStatus={handleAdvanceLocalApplyStatus}
           />
         ) : activeTab === "draft" && activeDraft ? (
           <DraftRightRail evidence={canonicalEvidence.filter((item) => activeDraft.evidenceIds.includes(item.id))} item={activeDraft} />
@@ -405,7 +480,14 @@ export function DataVaultRevisionWorkbench({
         ) : activeCurrentData ? (
           <CurrentDataRightRail evidence={canonicalEvidence.filter((item) => activeCurrentData.evidenceIds.includes(item.id))} item={activeCurrentData} />
         ) : (
-          <SourceRightRail evidence={[]} fixture={undefined} hasActiveFile={false} />
+          <SourceRightRail
+            decisionCandidates={phaseOneProjection.decisionCandidates}
+            evidence={[]}
+            fixture={undefined}
+            hasActiveFile={false}
+            localApplyStatus="pending"
+            onAdvanceLocalApplyStatus={handleAdvanceLocalApplyStatus}
+          />
         )}
       </div>
     </div>
@@ -708,18 +790,52 @@ function RevisionComparisonTable({
 }
 
 function SourceRightRail({
+  decisionCandidates,
   evidence,
+  fileProjection,
   fixture,
-  hasActiveFile
+  hasActiveFile,
+  localApplyStatus,
+  onAdvanceLocalApplyStatus
 }: {
+  decisionCandidates: PhaseOneAnalysisProjection["decisionCandidates"];
   evidence: EvidenceReference[];
+  fileProjection?: PhaseOneFileProjection;
   fixture?: VaultRevisionFixture;
   hasActiveFile: boolean;
+  localApplyStatus: PhaseOneApplyStatus;
+  onAdvanceLocalApplyStatus: () => void;
 }) {
   return (
     <aside className="min-w-0 space-y-4">
       {fixture ? (
         <>
+          {fileProjection && (
+            <RightPanel title="분석 반영 상태" eyebrow="적용 흐름" badge={applyStatusLabel(localApplyStatus)} badgeTone={applyStatusTone(localApplyStatus)}>
+              <ApplyFlowPanel
+                fileProjection={fileProjection}
+                localStatus={localApplyStatus}
+                onAdvance={onAdvanceLocalApplyStatus}
+              />
+            </RightPanel>
+          )}
+          {fileProjection && (
+            <RightPanel title="영향 화면" eyebrow="흐름 영향" badge={`${fileProjection.affectedScreens.length}곳`} badgeTone="info">
+              <SignalList signals={fileProjection.affectedScreens} />
+            </RightPanel>
+          )}
+          {fileProjection && (
+            <RightPanel
+              title="Decision 후보"
+              eyebrow="최종 검토 전"
+              badge={`${fileProjection.decisionCandidateIds.length}건`}
+              badgeTone="warning"
+            >
+              <DecisionCandidateRail
+                candidates={decisionCandidates.filter((candidate) => fileProjection.decisionCandidateIds.includes(candidate.id))}
+              />
+            </RightPanel>
+          )}
           <ImpactPreviewPanel items={[...fixture.affected, ...fixture.metrics, ...fixture.insights]} notice={fixture.sampleNotice} />
           <RightPanel title="보정 기록" eyebrow="수정 흐름" badge={`${fixture.correctionEvents.length}건`} badgeTone="warning">
             <CorrectionTimeline events={fixture.correctionEvents} />
@@ -741,8 +857,8 @@ function SourceRightRail({
           <RightPanel title="출처 근거" eyebrow="근거 데이터" badge={`${evidence.length}건`} badgeTone="neutral">
             <EvidenceList evidence={evidence} />
           </RightPanel>
-          <RightPanel title="데이터 흐름 기록" eyebrow="반영 경로" badge="추후 구현" badgeTone="neutral">
-            <p className="text-sm leading-6 text-slate-600">실제 반영 기록은 후속 로직에서 연결합니다.</p>
+          <RightPanel title="데이터 흐름 기록" eyebrow="반영 경로" badge="분석 대기" badgeTone="neutral">
+            <p className="text-sm leading-6 text-slate-600">파일 선택 후 분석 반영 흐름이 표시됩니다.</p>
           </RightPanel>
         </>
       )}
@@ -795,6 +911,160 @@ function CurrentDataRightRail({ evidence, item }: { evidence: EvidenceReference[
         <FlowTimeline events={item.flowEvents} />
       </RightPanel>
     </aside>
+  );
+}
+
+function ApplyStatusPanel({
+  fileProjection,
+  localStatus,
+  onAdvance
+}: {
+  fileProjection: PhaseOneFileProjection;
+  localStatus: PhaseOneApplyStatus;
+  onAdvance: () => void;
+}) {
+  return (
+    <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase text-blue-700">분석에 반영</p>
+          <h3 className="mt-1 text-lg font-bold text-slate-950">{applyStatusLabel(localStatus)}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-700">{fileProjection.impactSummary}</p>
+          <p className="mt-1 text-xs leading-5 text-blue-700">
+            Phase 1에서는 실제 기준 데이터 교체 없이 이 화면의 local UI 상태만 변경합니다.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <Badge tone={applyStatusTone(localStatus)}>{fileProjection.aiStatusLabel}</Badge>
+          <Button className="h-9 px-3" variant="secondary" onClick={onAdvance}>
+            {applyButtonLabel(localStatus)}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ApplyFlowPanel({
+  fileProjection,
+  localStatus,
+  onAdvance
+}: {
+  fileProjection: PhaseOneFileProjection;
+  localStatus: PhaseOneApplyStatus;
+  onAdvance: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-bold text-slate-950">{applyStatusLabel(localStatus)}</p>
+          <Badge tone={applyStatusTone(localStatus)}>{localStatus === "applied" ? "표시 완료" : "mock"}</Badge>
+        </div>
+        <p className="mt-2 text-xs leading-5 text-slate-600">{fileProjection.applyStatusLabel} · {fileProjection.aiStatusLabel}</p>
+        <Button className="mt-3 h-8 px-3" variant="secondary" onClick={onAdvance}>
+          {applyButtonLabel(localStatus)}
+        </Button>
+      </div>
+      <SignalList signals={fileProjection.flowSteps.map((step) => ({
+        ...step,
+        value: step.id.endsWith("flow-apply") ? applyStatusLabel(localStatus) : step.value,
+        tone: step.id.endsWith("flow-apply") ? applyStatusTone(localStatus) : step.tone
+      }))} />
+    </div>
+  );
+}
+
+function StructureCandidatePanel({ groups }: { groups: PhaseOneStructureGroup[] }) {
+  const visibleGroups = groups.filter((group) => group.items.length > 0);
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase text-blue-600">파일이 만드는 구조 후보</p>
+          <h3 className="mt-1 text-lg font-bold text-slate-950">Entity - Event - Relation - Metric - Decision</h3>
+        </div>
+        <Badge tone="info">{visibleGroups.reduce((total, group) => total + group.items.length, 0)}개</Badge>
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {visibleGroups.map((group) => (
+          <div key={group.kind} className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-bold text-slate-500">{group.label}</p>
+              <Badge tone="neutral">{group.items.length}개</Badge>
+            </div>
+            <div className="mt-3 space-y-2">
+              {group.items.slice(0, 3).map((item) => (
+                <StructureCandidateRow key={item.id} item={item} />
+              ))}
+              {group.items.length > 3 && (
+                <p className="text-xs font-semibold text-slate-500">외 {group.items.length - 3}개 후보</p>
+              )}
+            </div>
+          </div>
+        ))}
+        {visibleGroups.length === 0 && (
+          <p className="text-sm leading-6 text-slate-600">미리보기 필드 기반 후보 생성 대기 상태입니다.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StructureCandidateRow({ item }: { item: PhaseOneStructureItem }) {
+  return (
+    <div className="min-w-0 rounded-md border border-slate-200 bg-white p-2.5">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-sm font-bold text-slate-950" title={item.title}>{item.title}</p>
+        <Badge tone={item.tone}>{item.tone === "danger" ? "주의" : "후보"}</Badge>
+      </div>
+      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{item.description}</p>
+    </div>
+  );
+}
+
+function SignalList({ signals }: { signals: PhaseOneSignal[] }) {
+  return (
+    <div className="space-y-2">
+      {signals.map((signal) => (
+        <div key={signal.id} className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-500">{signal.label}</p>
+              <p className="mt-1 break-words text-sm font-bold text-slate-950">{signal.value}</p>
+            </div>
+            <Badge tone={signal.tone}>{signal.tone === "danger" ? "주의" : "연결"}</Badge>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-slate-600">{signal.detail}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DecisionCandidateRail({
+  candidates
+}: {
+  candidates: PhaseOneAnalysisProjection["decisionCandidates"];
+}) {
+  if (candidates.length === 0) {
+    return <p className="text-sm leading-6 text-slate-600">이 파일에서 직접 연결된 Decision 후보는 아직 없습니다.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {candidates.map((candidate) => (
+        <div key={candidate.id} className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="min-w-0 text-sm font-bold leading-5 text-slate-950">{candidate.title}</p>
+            <Badge tone={candidate.impactLabel === "높은 영향" ? "danger" : "warning"}>{candidate.statusLabel}</Badge>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-slate-600">{candidate.summary}</p>
+          <p className="mt-2 text-xs font-semibold text-slate-500">{candidate.evidenceStrengthLabel}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -867,28 +1137,85 @@ function SummaryPanel({ title, items }: { title: string; items: VaultImpactItem[
   );
 }
 
-function FileStageActionButton({
-  active,
-  label,
-  onClick
+function ReadOnlyFileInfo({
+  description,
+  file,
+  organizationName
 }: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
+  description?: string;
+  file: SourceFile;
+  organizationName: string;
 }) {
   return (
-    <button
-      aria-pressed={active}
-      className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm font-bold transition ${
-        active ? "border-blue-500 bg-blue-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
-      }`}
-      type="button"
-      onClick={onClick}
-    >
-      <span className="min-w-0 truncate">{label}</span>
-      <span className={`size-2 shrink-0 rounded-full ${active ? "bg-white" : "bg-slate-300"}`} />
-    </button>
+    <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <DetailInfoItem label="데이터명" value={file.name} />
+      <DetailInfoItem label="데이터 유형" value={file.kind} />
+      <DetailInfoItem className="md:col-span-2" label="설명" value={description || "설명 없음"} />
+      <DetailInfoItem label="담당 부서(조직)" value={organizationName} />
+      <DetailInfoItem label="현재 기준 반영" value={file.appliedAt ? formatDateTime(file.appliedAt) : "대기"} />
+    </div>
   );
+}
+
+function DetailInfoItem({ className = "", label, value }: { className?: string; label: string; value: string }) {
+  return (
+    <div className={`rounded-md border border-slate-200 bg-white p-3 ${className}`}>
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function formatDateTime(value: string): string {
+  return new Date(value).toLocaleString("ko-KR");
+}
+
+function nextApplyStatus(status: PhaseOneApplyStatus): PhaseOneApplyStatus {
+  if (status === "pending") {
+    return "analyzing";
+  }
+
+  if (status === "analyzing") {
+    return "applied";
+  }
+
+  return "pending";
+}
+
+function applyStatusLabel(status: PhaseOneApplyStatus): string {
+  if (status === "applied") {
+    return "반영 완료 표시";
+  }
+
+  if (status === "analyzing") {
+    return "AI 분석 중";
+  }
+
+  return "반영 대기";
+}
+
+function applyButtonLabel(status: PhaseOneApplyStatus): string {
+  if (status === "applied") {
+    return "로컬 상태 초기화";
+  }
+
+  if (status === "analyzing") {
+    return "반영 완료로 표시";
+  }
+
+  return "분석에 반영";
+}
+
+function applyStatusTone(status: PhaseOneApplyStatus): PhaseOneSignal["tone"] {
+  if (status === "applied") {
+    return "success";
+  }
+
+  if (status === "analyzing") {
+    return "info";
+  }
+
+  return "warning";
 }
 
 function ImpactRow({ item }: { item: VaultImpactItem }) {

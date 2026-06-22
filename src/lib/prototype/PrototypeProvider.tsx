@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type
 import type { CandidateType, DomainTypeScope, LinkTarget, PrototypeState, Role, Screen, StructureMapNodePatch, StructureMapRelationInput, StructureMapRelationPatch, StructureMapViewState, VoteChoice } from "../domain/types";
 import { advanceAnalysisJob, confirmCandidates, editCandidate, excludeCandidate, setCandidateType, startAnalysisJob } from "./commands/analysisCommands";
 import { LOGIN_FAILED_MESSAGE, loginWithCredentials, logout, signup } from "./commands/authCommands";
-import { addSourceFiles, removeSourceFile, updateSourceFile, uploadSampleFiles } from "./commands/fileCommands";
+import { addSourceFiles, applySourceFileToCurrentStandard, removeSourceFile, updateSourceFile, uploadSampleFiles } from "./commands/fileCommands";
 import { createProposalFromInsight } from "./commands/insightCommands";
 import {
   addOrganizationCategory,
@@ -56,10 +56,11 @@ interface PrototypeCommands {
   updateDomainType(scope: DomainTypeScope, typeId: string, label: string, color?: string): boolean;
   deleteDomainType(scope: DomainTypeScope, typeId: string): boolean;
   addSourceFiles(
-    files: Array<{ name: string; size: number; organizationCategoryId?: string; mimeType?: string; dataUrl?: string; textContent?: string; previewColumns?: string[]; previewRows?: string[][]; rowCount?: number }>,
+    files: Array<{ name: string; size: number; description?: string; organizationCategoryId?: string; mimeType?: string; dataUrl?: string; textContent?: string; previewColumns?: string[]; previewRows?: string[][]; rowCount?: number }>,
     organizationCategoryId?: string
   ): boolean;
-  updateSourceFile(fileId: string, patch: { name: string; kind: string; organizationCategoryId?: string }): boolean;
+  updateSourceFile(fileId: string, patch: { name: string; kind: string; description?: string; organizationCategoryId?: string }): boolean;
+  applySourceFileToCurrentStandard(fileId: string): boolean;
   removeSourceFile(fileId: string): boolean;
   setStructureMapView(patch: Partial<StructureMapViewState>): void;
   updateStructureMapNode(nodeId: string, patch: StructureMapNodePatch): boolean;
@@ -171,6 +172,7 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
       deleteDomainType: (scope, typeId) => deleteDomainType(state, dispatch, scope, typeId),
       addSourceFiles: (files, organizationCategoryId) => addSourceFiles(state, dispatch, files, organizationCategoryId),
       updateSourceFile: (fileId, patch) => updateSourceFile(state, dispatch, fileId, patch),
+      applySourceFileToCurrentStandard: (fileId) => applySourceFileToCurrentStandard(state, dispatch, fileId),
       removeSourceFile: (fileId) => removeSourceFile(state, dispatch, fileId),
       setStructureMapView: (patch) => setStructureMapView(dispatch, patch),
       updateStructureMapNode: (nodeId, patch) => updateStructureMapNode(state, dispatch, nodeId, patch),

@@ -3,7 +3,7 @@ import test from "node:test";
 import { reducer, type PrototypeAction } from "../../domain/state-machine";
 import { createInitialState } from "../store";
 import { loginWithCredentials } from "./authCommands";
-import { addSourceFiles, updateSourceFile } from "./fileCommands";
+import { addSourceFiles, applySourceFileToCurrentStandard, updateSourceFile } from "./fileCommands";
 
 function loggedInState(): ReturnType<typeof createInitialState> {
   let state = createInitialState();
@@ -131,11 +131,62 @@ test("updateSourceFile allows same-extension rename and blocks extension changes
   assert.equal(addSourceFiles(harness.state, harness.dispatch, [{ name: "sample.png", size: 128, mimeType: "image/png" }]), true);
   const fileId = harness.state.sourceFiles[0].id;
 
-  assert.equal(updateSourceFile(harness.state, harness.dispatch, fileId, { kind: "업무 문서", name: "hero.png" }), true);
+  assert.equal(updateSourceFile(harness.state, harness.dispatch, fileId, { description: "화면 캡처", kind: "업무 문서", name: "hero.png" }), true);
   assert.equal(harness.state.sourceFiles[0].name, "hero.png");
   assert.equal(harness.state.sourceFiles[0].kind, "업무 문서");
+  assert.equal(harness.state.sourceFiles[0].description, "화면 캡처");
 
   assert.equal(updateSourceFile(harness.state, harness.dispatch, fileId, { kind: "업무 문서", name: "hero.pdf" }), false);
   assert.equal(harness.state.sourceFiles[0].name, "hero.png");
   assert.equal(harness.state.permissionDenied, "파일 확장자는 변경할 수 없습니다.");
+});
+
+test("applySourceFileToCurrentStandard creates linked operational records for uploaded file", () => {
+  const harness = statefulDispatch();
+
+  assert.equal(
+    addSourceFiles(
+      harness.state,
+      harness.dispatch,
+      [
+        {
+          description: "고객 마스터 원천",
+          name: "CRM_Master.csv",
+          previewColumns: ["고객ID", "고객명", "업종", "담당부서"],
+          previewRows: [["C-1", "고객A", "IT 서비스", "영업 1팀"]],
+          rowCount: 1,
+          size: 128
+        }
+      ],
+      "org-operations"
+    ),
+    true
+  );
+
+  const fileId = harness.state.sourceFiles[0].id;
+  assert.equal(applySourceFileToCurrentStandard(harness.state, harness.dispatch, fileId), true);
+
+  assert.equal(harness.state.sourceFiles[0].status, "parsed");
+  assert.ok(harness.state.entities.some((entity) => entity.id === `entity-${fileId}` && entity.owner === "운영"));
+  assert.ok(harness.state.relations.some((relation) => relation.id === `relation-${fileId}-current-standard`));
+  assert.ok(harness.state.events.some((event) => event.id === `event-${fileId}-apply`));
+  assert.ok(harness.state.metricDefinitions.some((metric) => metric.id === `metric-${fileId}-readiness`));
+  assert.ok(harness.state.insights.some((insight) => insight.id === `insight-${fileId}-lineage`));
+  assert.equal(harness.state.structureMapView.selectedItemId, `entity-${fileId}`);
+});
+
+test("updateSourceFile clears generated operational records until the file is applied again", () => {
+  const harness = statefulDispatch();
+
+  assert.equal(addSourceFiles(harness.state, harness.dispatch, [{ name: "CRM_Master.csv", previewColumns: ["고객ID"], rowCount: 1, size: 128 }], "org-operations"), true);
+  const fileId = harness.state.sourceFiles[0].id;
+  assert.equal(applySourceFileToCurrentStandard(harness.state, harness.dispatch, fileId), true);
+  assert.ok(harness.state.entities.some((entity) => entity.id === `entity-${fileId}`));
+
+  assert.equal(updateSourceFile(harness.state, harness.dispatch, fileId, { description: "수정된 고객 원천", kind: "표 형식 데이터", name: "CRM_Customers.csv" }), true);
+
+  assert.equal(harness.state.sourceFiles[0].status, "ready");
+  assert.equal(harness.state.sourceFiles[0].appliedAt, undefined);
+  assert.equal(harness.state.entities.some((entity) => entity.id === `entity-${fileId}`), false);
+  assert.equal(harness.state.relations.some((relation) => relation.id === `relation-${fileId}-current-standard`), false);
 });

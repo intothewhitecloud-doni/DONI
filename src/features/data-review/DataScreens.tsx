@@ -16,6 +16,7 @@ import {
 } from "../../lib/domain/type-catalog";
 import { canCurrentUser } from "../../lib/prototype/permissions";
 import { getManagedObjectView } from "../../lib/prototype/queries/managedObjectQueries";
+import { getPhaseOneAnalysisProjection } from "../../lib/prototype/queries/phaseOneAnalysisProjection";
 import { usePrototype } from "../../lib/prototype/PrototypeProvider";
 import { visibleOrganizationCategories } from "../../lib/prototype/organizationCategories";
 import {
@@ -35,6 +36,7 @@ import {
 type SourceFileUploadDraft = {
   name: string;
   size: number;
+  description?: string;
   mimeType?: string;
   dataUrl?: string;
   textContent?: string;
@@ -52,7 +54,7 @@ export function DataVaultScreen() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [activeFileId, setActiveFileId] = useState("");
   const [isReadingFiles, setIsReadingFiles] = useState(false);
-  const [editingFile, setEditingFile] = useState({ kind: "", name: "" });
+  const [editingFile, setEditingFile] = useState({ description: "", kind: "", name: "", organizationCategoryId: "" });
   const [fileFeedback, setFileFeedback] = useState("");
   const [activeOrganizationCategoryId, setActiveOrganizationCategoryId] = useState("");
   const [activeVaultTab, setActiveVaultTab] = useState<VaultTabId>("source");
@@ -61,6 +63,7 @@ export function DataVaultScreen() {
     () => visibleOrganizationCategories(state.organizationCategories, { sourceFiles: state.sourceFiles }),
     [state.organizationCategories, state.sourceFiles]
   );
+  const phaseOneProjection = useMemo(() => getPhaseOneAnalysisProjection(state), [state]);
   const selectedOrganizationCategoryId = organizationCategories.some((category) => category.id === activeOrganizationCategoryId)
     ? activeOrganizationCategoryId
     : organizationCategories[0]?.id ?? UNASSIGNED_ORGANIZATION_CATEGORY_ID;
@@ -97,10 +100,12 @@ export function DataVaultScreen() {
 
   useEffect(() => {
     setEditingFile({
+      description: activeFile?.description ?? "",
       kind: activeFile?.kind ?? "",
-      name: activeFile?.name ?? ""
+      name: activeFile?.name ?? "",
+      organizationCategoryId: activeFile?.organizationCategoryId ?? selectedOrganizationCategoryId
     });
-  }, [activeFile]);
+  }, [activeFile, selectedOrganizationCategoryId]);
 
   async function handleFileInputChange(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
@@ -171,7 +176,7 @@ export function DataVaultScreen() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <SectionTitle eyebrow="데이터 보관함" title="원천 데이터 영향과 변화 흐름" />
+          <SectionTitle title="데이터 보관함" />
         </div>
         {canManageFiles && (
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -205,6 +210,7 @@ export function DataVaultScreen() {
           fileEvidence={fileEvidence}
           fileFeedback={fileFeedback}
           organizationCategories={organizationCategories}
+          phaseOneProjection={phaseOneProjection}
           selectedOrganizationCategoryId={selectedOrganizationCategoryId}
           sourceFileKindOptions={sourceFileKindOptions}
           sourceFiles={visibleSourceFiles}
@@ -269,6 +275,7 @@ async function readSourceFileUpload(file: File): Promise<SourceFileUploadDraft> 
   const dataUrl = await readFileAsDataUrl(file);
   const base = {
     dataUrl,
+    description: `${file.name} 업로드 원천 데이터입니다.`,
     mimeType: file.type,
     name: file.name,
     size: file.size
@@ -681,7 +688,7 @@ export function ManagedObjectsScreen() {
   if (state.entities.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="관리 대상" title="아직 정의된 관리 대상이 없습니다" />
+        <SectionTitle title="관리 대상" />
         <EmptyAnalysisState
           body={hasFiles ? "추가된 파일을 분석하면 관리 대상 후보를 검토하고 확정할 수 있습니다." : "데이터 보관함에 업무 파일을 추가하면 관리 대상 후보를 추출할 수 있습니다."}
           buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
@@ -694,7 +701,7 @@ export function ManagedObjectsScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="관리 대상" title="관리 대상 목록과 유형" />
+      <SectionTitle title="관리 대상" />
       <div className="grid items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card className="space-y-4">
@@ -1143,7 +1150,7 @@ export function WorkflowScreen() {
   if (state.events.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="업무 흐름" title="아직 정의된 업무 이벤트가 없습니다" />
+        <SectionTitle title="업무 흐름" />
         <EmptyAnalysisState
           body={hasFiles ? "추가된 파일을 분석하면 업무 이벤트와 병목 후보가 표시됩니다." : "업무 파일을 먼저 추가하면 주문, 출고, 클레임 흐름을 추출할 수 있습니다."}
           buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
@@ -1156,7 +1163,7 @@ export function WorkflowScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="업무 흐름" title="업무흐름 이벤트와 유형" />
+      <SectionTitle title="업무 흐름" />
       <div className="grid items-start gap-5">
         <Card className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1275,7 +1282,7 @@ export function MetricsScreen() {
   if (state.metricDefinitions.length === 0) {
     return (
       <div className="space-y-8">
-        <SectionTitle eyebrow="지표" title="아직 계산할 지표가 없습니다" />
+        <SectionTitle title="지표" />
         <EmptyAnalysisState
           body={hasFiles ? "추가된 파일을 분석하면 마진율, 처리 시간, 클레임률 같은 지표 후보를 확인할 수 있습니다." : "데이터 보관함에 파일을 추가하면 지표 후보를 추출할 수 있습니다."}
           buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
@@ -1288,7 +1295,7 @@ export function MetricsScreen() {
 
   return (
     <div className="space-y-8">
-      <SectionTitle eyebrow="지표" title="계산 기준과 관련 안건" />
+      <SectionTitle title="지표" />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {state.metricDefinitions.map((definition) => {
           const value = state.metricValues.find((item) => item.metricId === definition.id);

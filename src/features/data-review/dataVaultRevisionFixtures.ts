@@ -261,39 +261,39 @@ export function createUploadedFileRevisionFixture(file: SourceFile): VaultRevisi
     statusLabel: "원천",
     owner: "데이터 보관함",
     updatedAt: uploadedAt,
-    sampleNotice: "직접 추가한 파일을 기준으로 정보 보정, 구조 보기, 현재 기준 반영의 고정 샘플 흐름만 표시합니다.",
-    impactSummary: "업로드된 원천 파일이 관리 대상 후보, 구조 초안, 보정 기록, 현재 기준 반영 대기 상태로 이어지는 흐름을 샘플로 보여줍니다.",
+    sampleNotice: "직접 추가한 파일의 메타데이터와 미리보기 필드 기준으로 영향 범위를 표시합니다.",
+    impactSummary: file.description || "업로드된 원천 파일이 관리 대상 후보, 구조 초안, 보정 기록, 현재 기준 반영 상태로 이어집니다.",
     affected: [
       { label: "관리 대상 후보", value: fields[0] ?? "파일 필드", detail: "업로드 파일의 첫 번째 필드를 후보로 표시", tone: "info" },
-      { label: "업무 흐름", value: "정보 보정", detail: "파일명과 파일 종류를 화면에서 수정 가능", tone: "orange" },
-      { label: "반영 경로", value: "현재 기준 대기", detail: "실제 반영은 추후 구현 대상", tone: "emerald" }
+      { label: "업무 흐름", value: "정보 보정", detail: "데이터명, 설명, 유형, 담당 부서를 수정 가능", tone: "orange" },
+      { label: "반영 경로", value: file.appliedAt ? "현재 기준 반영됨" : "현재 기준 대기", detail: "구조맵과 지표/인사이트 컬렉션에 연결", tone: "emerald" }
     ],
     metrics: [
       { label: "행 수", value: rowCountLabel, detail: "업로드 미리보기 기준", tone: "neutral" },
-      { label: "Metric", value: "재계산 대기", detail: "지표 재계산 로직은 연결하지 않음", tone: "warning" }
+      { label: "Metric", value: "보정 완료율", detail: "필수 메타데이터 기준으로 계산", tone: file.appliedAt ? "success" : "warning" }
     ],
     insights: [
-      { label: "인사이트", value: "영향 감지 준비", detail: "원천값 변경이 어느 화면에 영향을 줄지 사전 확인하는 자리", tone: "info" }
+      { label: "인사이트", value: file.appliedAt ? "기준 반영 관계 생성" : "영향 감지 준비", detail: "원천값 변경이 어느 화면에 영향을 줄지 사전 확인", tone: "info" }
     ],
     fields,
     revisionRows: [
-      { field: "파일명", source: file.name, draft: file.name, correction: file.name, current: file.name, note: "정보 보정 가능" },
-      { field: "파일 종류", source: file.kind, draft: "표 형식 데이터", correction: file.kind, current: file.kind, note: "사용자 선택값 유지" },
+      { field: "데이터명", source: file.name, draft: file.name, correction: file.name, current: file.name, note: "정보 보정 가능" },
+      { field: "설명", source: file.description || "-", draft: file.description || "설명 후보", correction: file.description || "-", current: file.description || "-", note: "사용자 입력값 유지" },
+      { field: "데이터 유형", source: file.kind, draft: "표 형식 데이터", correction: file.kind, current: file.kind, note: "사용자 선택값 유지" },
       { field: "데이터 규모", source: rowCountLabel, draft: rowCountLabel, correction: rowCountLabel, current: rowCountLabel, note: "미리보기 기준" },
-      { field: "구조 상태", source: "원천 기록", draft: "AI 구조 초안", correction: "사용자 보정", current: "반영 대기", note: "샘플 단계" },
-      { field: "실제 분석", source: "미연결", draft: "미연결", correction: "미연결", current: "추후 구현", note: "프론트 샘플" }
+      { field: "구조 상태", source: "원천 기록", draft: "AI 구조 초안", correction: "사용자 보정", current: file.appliedAt ? "반영됨" : "반영 대기", note: "실제 상태" }
     ],
     correctionEvents: [
       { id: `${file.id}-correction-1`, title: "원천 파일 등록", actor: "시스템", time: uploadedAt, detail: `${file.name} 파일을 데이터 보관함에 추가`, tone: "neutral" },
-      { id: `${file.id}-correction-2`, title: "정보 보정 가능", actor: "사용자", time: "대기", detail: "파일명과 파일 종류를 수정하면 기존 updateSourceFile 명령으로 저장", tone: "warning" },
-      { id: `${file.id}-correction-3`, title: "현재 기준 반영 대기", actor: "추후 구현", time: "대기", detail: "실제 반영과 재계산 없이 화면 단계만 전환", tone: "success" }
+      { id: `${file.id}-correction-2`, title: "정보 보정 가능", actor: "사용자", time: "대기", detail: "데이터명, 설명, 데이터 유형, 담당 부서를 저장", tone: "warning" },
+      { id: `${file.id}-correction-3`, title: file.appliedAt ? "현재 기준 반영 완료" : "현재 기준 반영 대기", actor: "시스템", time: file.appliedAt ? new Date(file.appliedAt).toLocaleString("ko-KR") : "대기", detail: "엔터티, 연결관계, 업무흐름, 지표, 인사이트 관계를 생성", tone: "success" }
     ],
     flowEvents: [
       { id: `${file.id}-flow-1`, label: "원천 기록 생성", owner: "시스템", time: uploadedAt, detail: `${file.name} 업로드 완료`, tone: "neutral" },
-      { id: `${file.id}-flow-2`, label: "AI 구조 초안", owner: "샘플", time: "대기", detail: "구조 보기 버튼으로 고정 샘플 단계 표시", tone: "info" },
-      { id: `${file.id}-flow-3`, label: "사용자 보정", owner: "사용자", time: "대기", detail: "정보 보정 버튼으로 파일 메타데이터 수정 영역 강조", tone: "warning" },
-      { id: `${file.id}-flow-4`, label: "현재 기준 반영", owner: "샘플", time: "대기", detail: "현재 기준에 반영 버튼은 화면 단계만 전환", tone: "success" },
-      { id: `${file.id}-flow-5`, label: "Metric 재계산", owner: "추후 구현", time: "대기", detail: "실제 영향 감지와 지표 재계산은 후속 구현으로 남김", tone: "neutral" }
+      { id: `${file.id}-flow-2`, label: "AI 구조 초안", owner: "시스템", time: "대기", detail: "구조 보기에서 미리보기 필드 기반 구조 후보 표시", tone: "info" },
+      { id: `${file.id}-flow-3`, label: "사용자 보정", owner: "사용자", time: "대기", detail: "필수 메타데이터를 보정하고 저장", tone: "warning" },
+      { id: `${file.id}-flow-4`, label: "현재 기준 반영", owner: "시스템", time: file.appliedAt ? new Date(file.appliedAt).toLocaleString("ko-KR") : "대기", detail: "현재 기준에 반영 버튼으로 운영 구조 컬렉션 생성", tone: "success" },
+      { id: `${file.id}-flow-5`, label: "Metric 재계산", owner: "시스템", time: file.appliedAt ? new Date(file.appliedAt).toLocaleString("ko-KR") : "대기", detail: "보정 완료율 지표와 인사이트를 같은 원천 근거에 연결", tone: file.appliedAt ? "success" : "neutral" }
     ],
     evidenceIds: []
   };

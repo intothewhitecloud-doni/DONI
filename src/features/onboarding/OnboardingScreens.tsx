@@ -63,7 +63,7 @@ export function HomeScreen() {
   const { commands } = usePrototype();
 
   return (
-    <main className="min-h-screen bg-canvas px-5 py-6 text-body">
+    <main className="min-h-screen bg-canvas px-6 py-8 text-body sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col">
         <header className="flex items-center justify-between gap-4">
           <img src="/assets/logo.svg" alt="DONI" className="h-10 w-auto" />
@@ -145,7 +145,7 @@ function AuthLayout({
   title: string;
 }) {
   return (
-    <main className="min-h-screen bg-canvas px-5 py-8">
+    <main className="min-h-screen bg-canvas px-6 py-10 sm:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(380px,0.82fr)]">
         <section className="min-w-0 space-y-6">
           <Badge tone="info">{badge}</Badge>
@@ -186,8 +186,8 @@ function authInputClass(hasError = false) {
 
 export function LoginScreen() {
   const { commands, state } = usePrototype();
-  const [loginId, setLoginId] = useState("test");
-  const [password, setPassword] = useState("test");
+  const [loginId, setLoginId] = useState("owner01");
+  const [password, setPassword] = useState("owner01!");
   const loginFeedback = state.permissionDenied;
 
   function submit() {
@@ -225,7 +225,7 @@ export function LoginScreen() {
         </div>
       }
     >
-      <SectionTitle eyebrow="로그인" title="기업 콘솔 접속" description="승인 완료된 기업 사용자만 대시보드로 이동합니다." variant="section" />
+      <SectionTitle title="로그인" description="승인 완료된 기업 사용자만 대시보드로 이동합니다." variant="section" />
       {loginFeedback && (
         <div
           aria-live="assertive"
@@ -292,7 +292,7 @@ export function SignupScreen() {
         </div>
       }
     >
-      <SectionTitle eyebrow="회원가입" title="기업 사용자 신청" description="가입 완료 후 로그인 화면에서 승인 대기 안내가 표시됩니다." variant="section" />
+      <SectionTitle title="회원가입" description="가입 완료 후 로그인 화면에서 승인 대기 안내가 표시됩니다." variant="section" />
       {state.permissionDenied && <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">{state.permissionDenied}</div>}
       <AuthField label="이름">
         <input className={authInputClass()} value={name} onChange={(event) => setName(event.target.value)} />
@@ -329,8 +329,7 @@ export function AnalysisScreen() {
     return (
       <section className="space-y-6">
         <SectionTitle
-          eyebrow="데이터 보관함 > 인공지능 구조 분석"
-          title="분석할 소스 데이터가 없습니다"
+          title="데이터 보관함"
           description="업무 파일을 추가하면 관리 대상과 연결 관계, 지표 근거를 구성할 수 있습니다."
           variant="section"
         />
@@ -355,8 +354,7 @@ export function AnalysisScreen() {
   return (
     <section className="max-w-4xl space-y-6">
       <SectionTitle
-        eyebrow="데이터 보관함 > 인공지능 구조 분석"
-        title="업로드 파일에서 운영 구조를 구성하고 있습니다"
+        title="데이터 보관함"
         description="보관함의 파일을 바탕으로 관리 대상, 업무흐름, 연결관계, 지표, 인사이트를 구성합니다."
         variant="section"
       />
@@ -513,8 +511,7 @@ export function ReviewScreen() {
   return (
     <section className="space-y-6">
       <SectionTitle
-        eyebrow="데이터 보관함 > 구조 검토"
-        title="관리 대상 유형을 먼저 정하고 관련 후보를 확정합니다"
+        title="데이터 보관함"
         description="관리 대상 유형은 여러 개를 선택할 수 있고, 이후 선택한 유형에 속한 인스턴스와 관련 업무 흐름, 연결 관계, 지표를 단계적으로 확정합니다."
         variant="section"
       />
