@@ -10,11 +10,11 @@ import { getStructureMapItemDetail, getStructureMapView } from "./structureMapQu
 test("structure map builds the full active-company graph with editable and generated edge metadata", () => {
   const view = getStructureMapView(initialPrototypeState);
 
-  assert.equal(view.summary.totalNodes, 20);
-  assert.equal(view.summary.visibleNodes, 20);
+  assert.equal(view.summary.totalNodes, 22);
+  assert.equal(view.summary.visibleNodes, 22);
   assert.equal(view.summary.byNodeType.managed_object, 8);
   assert.equal(view.summary.byNodeType.workflow, 6);
-  assert.equal(view.summary.byNodeType.metric, 3);
+  assert.equal(view.summary.byNodeType.metric, 5);
   assert.equal(view.summary.byNodeType.insight, 3);
   assert.equal(view.summary.relationEdges, 6);
   assert.equal(view.summary.generatedEdges > view.summary.relationEdges, true);
@@ -44,7 +44,7 @@ test("structure map keeps display fields separate from editor domain fields", ()
   assert.equal(metric.caption, "36.8시간");
   assert.match(metric.body ?? "", /^계산식:/);
   assert.equal(metric.editorDraft.secondary, "시간");
-  assert.equal(metric.editorDraft.body, "P-42 주문의 출고 완료 시각 - 주문 접수 시각 평균");
+  assert.equal(metric.editorDraft.body, "P-42 주문의 출고대기시간 평균");
 });
 
 test("structure map keeps nodes visible when the company has no edges", () => {
@@ -68,30 +68,56 @@ test("structure map keeps nodes visible when the company has no edges", () => {
 test("structure map search highlights matched nodes by selected depth without filtering the graph", () => {
   const view = getStructureMapView(initialPrototypeState, {
     depth: 1,
-    searchQuery: "고객B"
+    searchQuery: "신규 고객군"
   });
+  const semantics = buildStructureMapFocusSemantics({
+    depth: 1,
+    edges: view.edges,
+    nodes: view.nodes,
+    searchFocus: view.searchFocus
+  });
+  const graph = buildStructureMapFlowModel(view.nodes, view.edges, semantics);
 
-  assert.equal(view.nodes.length, 20);
+  assert.equal(view.nodes.length, 22);
   assert.equal(view.nodes.some((node) => node.id === "entity-customer-b"), true);
   assert.deepEqual(view.searchFocus.matchNodeIds, ["entity-customer-b"]);
   assert.equal(view.searchFocus.nodeIds.includes("entity-customer-b"), true);
   assert.equal(view.searchFocus.nodeIds.includes("entity-product-precision"), true);
   assert.equal(view.searchFocus.nodeIds.includes("entity-supplier-b"), false);
   assert.equal(view.searchFocus.edgeIds.length > 0, true);
+
+  const matchedNode = graph.nodes.find((node) => node.id === "entity-customer-b");
+  const contextNode = graph.nodes.find((node) => node.id === "entity-product-precision");
+  const directSearchEdge = graph.edges.find((edge) => edge.id === "edge-relation-customer-b-precision");
+
+  assert.ok(matchedNode);
+  assert.ok(contextNode);
+  assert.ok(directSearchEdge);
+  assert.equal(matchedNode.data.searchMatch, true);
+  assert.equal(matchedNode.data.searchFocused, true);
+  assert.equal(matchedNode.data.searchQuery, "신규 고객군");
+  assert.equal(matchedNode.data.stroke, "#f59e0b");
+  assert.equal(matchedNode.zIndex, 140);
+  assert.equal(contextNode.data.searchMatch, false);
+  assert.equal(contextNode.data.searchFocused, true);
+  assert.equal(directSearchEdge.data.directFocus, true);
+  assert.equal(directSearchEdge.data.visualPriority, "direct");
+  assert.equal(directSearchEdge.animated, true);
 });
 
 test("structure map search focus expands when relationship depth increases", () => {
   const shallow = getStructureMapView(initialPrototypeState, {
     depth: 1,
-    searchQuery: "P-08"
+    searchQuery: "클레임률"
   });
   const expanded = getStructureMapView(initialPrototypeState, {
     depth: 2,
-    searchQuery: "P-08"
+    searchQuery: "클레임률"
   });
 
-  assert.equal(shallow.searchFocus.nodeIds.includes("entity-customer-core"), false);
-  assert.equal(expanded.searchFocus.nodeIds.includes("entity-customer-core"), true);
+  assert.equal(shallow.searchFocus.matchNodeIds.includes("metric-claim-rate"), true);
+  assert.equal(shallow.searchFocus.nodeIds.includes("entity-customer-b"), false);
+  assert.equal(expanded.searchFocus.nodeIds.includes("entity-customer-b"), true);
   assert.equal(expanded.searchFocus.nodeIds.length > shallow.searchFocus.nodeIds.length, true);
 });
 
@@ -116,8 +142,8 @@ test("structure map search with no matches keeps the graph visible with an empty
     searchQuery: "zzzzzz"
   });
 
-  assert.equal(view.nodes.length, 20);
-  assert.equal(view.edges.length, 39);
+  assert.equal(view.nodes.length, 22);
+  assert.equal(view.edges.length, 57);
   assert.equal(view.searchFocus.matchNodeIds.length, 0);
   assert.equal(view.searchFocus.nodeIds.length, 0);
   assert.equal(view.searchFocus.edgeIds.length, 0);
@@ -234,6 +260,26 @@ test("structure map semantics identifies the default P-42 entity to decision pat
 });
 
 test("structure map flow adapter projects semantics without owning graph traversal", () => {
+  const overview = getStructureMapView(initialPrototypeState, {
+    depth: "all"
+  });
+  const overviewSemantics = buildStructureMapFocusSemantics({
+    depth: "all",
+    edges: overview.edges,
+    nodes: overview.nodes,
+    searchFocus: overview.searchFocus
+  });
+  const overviewGraph = buildStructureMapFlowModel(overview.nodes, overview.edges, overviewSemantics);
+
+  assert.equal(overviewSemantics.dimmedIds.size, 0);
+  assert.equal(overviewGraph.nodes.some((node) => node.data.dimmed), false);
+  assert.equal(overviewGraph.edges.some((edge) => edge.data.dimmed), false);
+  assert.equal(overviewGraph.edges.some((edge) => edge.animated), false);
+  assert.equal(
+    overviewGraph.nodes.every((node) => (node.zIndex ?? 0) > Math.max(...overviewGraph.edges.map((edge) => edge.zIndex ?? 0))),
+    true
+  );
+
   const view = getStructureMapView(initialPrototypeState, {
     depth: "all",
     selectedItemId: "insight-product-margin"
@@ -264,7 +310,55 @@ test("structure map flow adapter projects semantics without owning graph travers
   const primaryEdge = graph.edges.find((edge) => edge.id === "edge-metric-insight-metric-margin-insight-product-margin");
   assert.ok(primaryEdge);
   assert.equal(primaryEdge.data.primaryPath, true);
-  assert.equal(primaryEdge.data.visualPriority, "primary");
+  assert.equal(primaryEdge.data.directFocus, true);
+  assert.equal(primaryEdge.data.visualPriority, "direct");
+  assert.equal(primaryEdge.animated, true);
+
+  const nodeSelectedView = getStructureMapView(initialPrototypeState, {
+    depth: "all",
+    selectedItemId: "entity-supplier-a"
+  });
+  const nodeSelectedSemantics = buildStructureMapFocusSemantics({
+    depth: "all",
+    edges: nodeSelectedView.edges,
+    nodes: nodeSelectedView.nodes,
+    searchFocus: nodeSelectedView.searchFocus,
+    selectedItemId: "entity-supplier-a"
+  });
+  const nodeSelectedGraph = buildStructureMapFlowModel(nodeSelectedView.nodes, nodeSelectedView.edges, nodeSelectedSemantics);
+  const selectedNode = nodeSelectedGraph.nodes.find((node) => node.id === "entity-supplier-a");
+  const directNodeEdge = nodeSelectedGraph.edges.find((edge) => edge.id === "edge-relation-supplier-product");
+
+  assert.ok(selectedNode);
+  assert.ok(directNodeEdge);
+  assert.equal(selectedNode.data.selected, true);
+  assert.equal(selectedNode.selected, true);
+  assert.equal(selectedNode.zIndex, 150);
+  assert.equal(directNodeEdge.data.directFocus, true);
+  assert.equal(directNodeEdge.data.visualPriority, "direct");
+  assert.equal(directNodeEdge.style?.stroke, "#2563eb");
+  assert.equal(directNodeEdge.zIndex, 40);
+
+  const edgeSelectedView = getStructureMapView(initialPrototypeState, {
+    depth: "all",
+    selectedItemId: "edge-relation-supplier-product"
+  });
+  const edgeSelectedSemantics = buildStructureMapFocusSemantics({
+    depth: "all",
+    edges: edgeSelectedView.edges,
+    nodes: edgeSelectedView.nodes,
+    searchFocus: edgeSelectedView.searchFocus,
+    selectedItemId: "edge-relation-supplier-product"
+  });
+  const edgeSelectedGraph = buildStructureMapFlowModel(edgeSelectedView.nodes, edgeSelectedView.edges, edgeSelectedSemantics);
+  const selectedEdge = edgeSelectedGraph.edges.find((edge) => edge.id === "edge-relation-supplier-product");
+
+  assert.ok(selectedEdge);
+  assert.equal(selectedEdge.data.selected, true);
+  assert.equal(selectedEdge.selected, true);
+  assert.equal(selectedEdge.data.visualPriority, "selected");
+  assert.equal(selectedEdge.style?.stroke, "#db2777");
+  assert.equal(selectedEdge.zIndex, 50);
 
   const syntheticNodeId = "entity-customer-b";
   const syntheticEdgeId = "edge-relation-customer-b-precision";
@@ -334,14 +428,14 @@ test("structure map flow adapter centralizes persisted-position scaling", () => 
   const flowPosition = toStructureMapFlowPosition(domainPosition);
   const restoredPosition = toStructureMapDomainPosition(flowPosition);
 
-  assert.deepEqual(flowPosition, { x: 432, y: 256 });
+  assert.deepEqual(flowPosition, { x: 456, y: 256 });
   assert.deepEqual(restoredPosition, domainPosition);
 });
 
 test("structure map reagraph adapter preserves graph ids and adds icon-first metadata", () => {
   const view = getStructureMapView(initialPrototypeState, {
     depth: 1,
-    searchQuery: "고객B",
+    searchQuery: "신규 고객군",
     selectedItemId: "entity-customer-b"
   });
   const graph = buildStructureMapReagraphModel(view.nodes, view.edges, {

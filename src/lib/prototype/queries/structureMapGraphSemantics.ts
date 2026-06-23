@@ -33,6 +33,7 @@ export type StructureMapFocusSemantics = {
   searchFocusEdgeIds: Set<string>;
   searchFocusNodeIds: Set<string>;
   searchMatchNodeIds: Set<string>;
+  searchQuery?: string;
   selectedItemId?: string;
 };
 
@@ -201,17 +202,6 @@ export function buildStructureMapFocusSemantics({
         dimmedIds.add(edge.id);
       }
     }
-  } else {
-    for (const node of nodes) {
-      if (!primaryPathIds.has(node.id)) {
-        dimmedIds.add(node.id);
-      }
-    }
-    for (const edge of edges) {
-      if (!primaryPathIds.has(edge.id)) {
-        dimmedIds.add(edge.id);
-      }
-    }
   }
 
   return {
@@ -225,6 +215,7 @@ export function buildStructureMapFocusSemantics({
     searchFocusEdgeIds,
     searchFocusNodeIds,
     searchMatchNodeIds,
+    searchQuery: searchFocus.query,
     selectedItemId
   };
 }

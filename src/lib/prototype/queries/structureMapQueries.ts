@@ -610,47 +610,48 @@ function sortNodesForLayout(
 function computedPosition(node: StructureMapGraphNode, index: number, layoutMode: StructureMapLayoutMode): StructureMapPoint {
   const offsets: Record<ManagedObjectGraphNodeType, Array<{ x: number; y: number }>> = {
     category: [
-      { x: -120, y: -80 },
-      { x: 20, y: -120 },
-      { x: 150, y: -58 }
+      { x: -130, y: -82 },
+      { x: 20, y: -124 },
+      { x: 166, y: -62 }
     ],
     insight: [
-      { x: -84, y: -78 },
-      { x: 62, y: -22 },
-      { x: -28, y: 92 },
-      { x: 118, y: 74 }
+      { x: -96, y: -88 },
+      { x: 82, y: -24 },
+      { x: -36, y: 102 },
+      { x: 134, y: 82 }
     ],
     managed_object: [
-      { x: -96, y: -184 },
-      { x: 46, y: -150 },
-      { x: -142, y: -74 },
-      { x: 96, y: -32 },
-      { x: -112, y: 48 },
-      { x: 38, y: 104 },
-      { x: -52, y: 174 },
-      { x: 128, y: 150 }
+      { x: -104, y: -196 },
+      { x: 58, y: -160 },
+      { x: -152, y: -78 },
+      { x: 108, y: -34 },
+      { x: -126, y: 58 },
+      { x: 48, y: 118 },
+      { x: -60, y: 196 },
+      { x: 138, y: 166 }
     ],
     metric: [
-      { x: -52, y: -116 },
-      { x: 76, y: -56 },
-      { x: -28, y: 76 },
-      { x: 104, y: 104 }
+      { x: -72, y: -128 },
+      { x: 98, y: -72 },
+      { x: -52, y: 82 },
+      { x: 122, y: 116 },
+      { x: 18, y: 8 }
     ],
     workflow: [
-      { x: -94, y: -138 },
-      { x: 72, y: -116 },
-      { x: -28, y: -30 },
-      { x: 108, y: 28 },
-      { x: -86, y: 96 },
-      { x: 42, y: 156 }
+      { x: -104, y: -150 },
+      { x: 88, y: -126 },
+      { x: -34, y: -34 },
+      { x: 124, y: 32 },
+      { x: -100, y: 108 },
+      { x: 64, y: 172 }
     ]
   };
   const centers: Record<ManagedObjectGraphNodeType, { x: number; y: number }> = {
-    category: { x: 438, y: 88 },
-    insight: { x: 710, y: 312 },
-    managed_object: { x: 128, y: 308 },
-    metric: { x: 540, y: 246 },
-    workflow: { x: 348, y: 300 }
+    category: { x: 482, y: 88 },
+    insight: { x: 800, y: 315 },
+    managed_object: { x: 120, y: 310 },
+    metric: { x: 590, y: 260 },
+    workflow: { x: 370, y: 300 }
   };
   const modeShift: Record<StructureMapLayoutMode, { x: number; y: number }> = {
     clustered: { x: 0, y: 0 },

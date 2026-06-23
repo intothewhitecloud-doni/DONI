@@ -3,7 +3,6 @@
 import {
   Background,
   BaseEdge,
-  Controls,
   Handle,
   MarkerType,
   MiniMap,
@@ -16,7 +15,7 @@ import {
   type NodeProps,
   type ReactFlowInstance
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge, type BadgeTone } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { SectionTitle } from "../../components/ui/Card";
@@ -72,14 +71,6 @@ const edgeLabels: Record<StructureMapEdgeType, string> = {
   metric_insight: "지표-인사이트",
   workflow_metric: "업무-지표",
   workflow_sequence: "업무 순서"
-};
-
-const edgeDescriptions: Record<StructureMapEdgeType, string> = {
-  managed_object_structural: "관리 대상 사이의 공급, 고객, 소유 관계",
-  managed_object_workflow: "관리 대상이 참여하거나 영향을 주는 업무 흐름",
-  metric_insight: "지표 변화가 만든 인사이트 근거",
-  workflow_metric: "업무 흐름을 측정하는 지표 연결",
-  workflow_sequence: "업무가 진행되는 순서"
 };
 
 const layoutLabels: Record<StructureMapLayoutMode, string> = {
@@ -221,6 +212,7 @@ export function StructureMapScreen() {
                   items={defaultStructureMapNodeTypes}
                   labels={nodeLabels}
                   selected={state.structureMapView.nodeTypes}
+                  symbolFor={(type) => <NodeLayerSymbol meta={structureMapNodeMeta[type]} />}
                   onToggle={(type) => commands.setStructureMapView({ nodeTypes: toggleValue(state.structureMapView.nodeTypes, type) })}
                 />
                 <FilterGroup
@@ -228,6 +220,7 @@ export function StructureMapScreen() {
                   items={defaultStructureMapEdgeTypes}
                   labels={edgeLabels}
                   selected={state.structureMapView.edgeTypes}
+                  symbolFor={(type) => <EdgeLayerSymbol color={structureMapEdgeMeta[type].color} />}
                   onToggle={(type) => commands.setStructureMapView({ edgeTypes: toggleValue(state.structureMapView.edgeTypes, type) })}
                 />
                 <DepthScopeChip summary={depthSummary} />
@@ -328,9 +321,12 @@ function StructureMapGraphCanvas({
   const graphInstanceKey = `${layoutMode}:${depth}:${graph.nodes.map((node) => node.id).join("|")}:${graph.edges.map((edge) => edge.id).join("|")}`;
   const activeCount = graph.nodes.filter((node) => !node.data.dimmed).length;
   const primaryCount = graph.nodes.filter((node) => node.data.primaryPath).length + graph.edges.filter((edge) => edge.data?.primaryPath).length;
+  const fitFullGraph = () => {
+    void flowInstance?.fitView({ duration: 260, padding: 0.1 });
+  };
   const fitPrimaryPath = () => {
     const primaryNodes = nodes.filter((node) => node.data.primaryPath);
-    flowInstance?.fitView({ duration: 260, nodes: primaryNodes.length > 0 ? primaryNodes : nodes, padding: 0.28 });
+    void flowInstance?.fitView({ duration: 260, nodes: primaryNodes.length > 0 ? primaryNodes : nodes, padding: 0.22 });
   };
 
   useEffect(() => {
@@ -344,7 +340,7 @@ function StructureMapGraphCanvas({
     }
 
     const timer = window.setTimeout(() => {
-      flowInstance.fitView({ duration: 260, padding: 0.18 });
+      void flowInstance.fitView({ duration: 260, padding: 0.1 });
     }, 120);
 
     return () => window.clearTimeout(timer);
@@ -366,7 +362,7 @@ function StructureMapGraphCanvas({
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.18 }}
+        fitViewOptions={{ padding: 0.1 }}
         minZoom={0.28}
         maxZoom={1.4}
         onInit={setFlowInstance}
@@ -375,6 +371,7 @@ function StructureMapGraphCanvas({
         nodesDraggable
         nodesConnectable={false}
         edgesReconnectable={false}
+        elevateEdgesOnSelect={false}
         elementsSelectable
         onEdgeClick={(event, edge) => {
           event.stopPropagation();
@@ -400,32 +397,15 @@ function StructureMapGraphCanvas({
           pannable
           zoomable
         />
-        <Controls
-          className="!bottom-4 !left-4 !rounded-md !border !border-hairline !bg-white/95 !shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
-          showFitView={false}
-          showInteractive={false}
-        />
       </ReactFlow>
 
-      <div className="absolute bottom-4 left-[3.65rem] z-20 flex h-[52px] items-stretch">
-        <div className="flex overflow-hidden rounded-md border border-hairline bg-white/95 shadow-[0_12px_28px_rgba(15,23,42,0.12)]">
-          <button
-            className="h-full w-[68px] border-r border-hairline px-2 text-[11px] font-black text-brand-accent hover:bg-brand-accent/5"
-            data-structure-map-fit-view="true"
-            type="button"
-            onClick={() => flowInstance?.fitView({ duration: 260, padding: 0.18 })}
-          >
-            맞춤
-          </button>
-          <button
-            className="h-full w-[68px] px-2 text-[11px] font-black text-muted hover:bg-surface-soft"
-            type="button"
-            onClick={fitPrimaryPath}
-          >
-            중앙
-          </button>
-        </div>
-      </div>
+      <StructureMapViewportToolbar
+        disabled={!flowInstance}
+        onCenter={fitPrimaryPath}
+        onFitView={fitFullGraph}
+        onZoomIn={() => void flowInstance?.zoomIn({ duration: 180 })}
+        onZoomOut={() => void flowInstance?.zoomOut({ duration: 180 })}
+      />
     </div>
   );
 }
@@ -440,9 +420,11 @@ function withFlowNodeHandles(node: StructureMapFlowNode): StructureMapFlowNode {
 
 function withFlowEdgeDisplay(edge: StructureMapFlowEdge): StructureMapFlowEdge {
   const color = typeof edge.style?.stroke === "string" ? edge.style.stroke : "#2563eb";
+  const visualPriority = edge.data?.visualPriority ?? "context";
+  const markerSize = edgeMarkerSize(visualPriority);
   return {
     ...edge,
-    interactionWidth: edge.data?.primaryPath ? 24 : 16,
+    interactionWidth: visualPriority === "selected" ? 34 : visualPriority === "direct" ? 30 : edge.data?.primaryPath ? 24 : 16,
     labelBgBorderRadius: 6,
     labelBgPadding: [6, 3],
     labelBgStyle: { fill: "#ffffff", fillOpacity: 0.94 },
@@ -454,9 +436,9 @@ function withFlowEdgeDisplay(edge: StructureMapFlowEdge): StructureMapFlowEdge {
     },
     markerEnd: {
       color,
-      height: edge.data?.primaryPath ? 16 : 12,
+      height: markerSize,
       type: MarkerType.ArrowClosed,
-      width: edge.data?.primaryPath ? 16 : 12
+      width: markerSize
     },
     selected: edge.data?.selected
   };
@@ -464,20 +446,30 @@ function withFlowEdgeDisplay(edge: StructureMapFlowEdge): StructureMapFlowEdge {
 
 function StructureMapNodeCard({ data, selected }: NodeProps<StructureMapFlowNode>) {
   const original = data.original;
-  const elevated = selected || data.selected || data.primaryPath || data.searchMatch;
-  const dimmed = data.dimmed && !elevated;
+  const focusTarget = selected || data.selected;
+  const searchMatched = data.searchMatch;
+  const focused = selected || data.selected || data.related || searchMatched;
+  const elevated = focused || (data.primaryPath && !data.dimmed);
+  const dimmed = data.dimmed && !focused;
+  const borderColor = focusTarget ? "#db2777" : searchMatched ? "#f59e0b" : elevated ? data.accent : data.stroke;
 
   return (
     <div
       className={`relative min-h-[70px] w-[176px] rounded-md border bg-white px-3 py-2 text-left shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition ${
-        elevated ? "ring-2 ring-brand-accent/20" : ""
+        elevated ? (focusTarget ? "ring-2 ring-pink-500/25" : searchMatched ? "ring-2 ring-amber-400/40" : "ring-2 ring-brand-accent/20") : ""
       }`}
       style={{
-        background: data.fill,
-        borderColor: elevated ? data.accent : data.stroke,
-        borderWidth: elevated ? 2 : 1,
-        boxShadow: elevated ? "0 16px 34px rgba(37, 99, 235, 0.18)" : "0 8px 18px rgba(15, 23, 42, 0.08)",
-        opacity: dimmed ? 0.58 : data.related || data.primaryPath || data.searchMatch ? 1 : 0.82
+        background: searchMatched ? "#fffbeb" : data.fill,
+        borderColor,
+        borderWidth: focusTarget || searchMatched ? 3 : elevated ? 2 : 1,
+        boxShadow: focusTarget
+          ? "0 0 0 4px rgba(219, 39, 119, 0.14), 0 18px 38px rgba(219, 39, 119, 0.18)"
+          : searchMatched
+            ? "0 0 0 4px rgba(245, 158, 11, 0.2), 0 18px 36px rgba(245, 158, 11, 0.18)"
+          : elevated
+            ? "0 16px 34px rgba(37, 99, 235, 0.18)"
+            : "0 8px 18px rgba(15, 23, 42, 0.08)",
+        opacity: dimmed ? 0.58 : 1
       }}
     >
       <Handle
@@ -499,8 +491,14 @@ function StructureMapNodeCard({ data, selected }: NodeProps<StructureMapFlowNode
             {original.tone === "danger" && <span className="size-1.5 shrink-0 rounded-full bg-error" title="위험 신호" />}
             {original.tone === "warning" && <span className="size-1.5 shrink-0 rounded-full bg-warning" title="주의 신호" />}
           </span>
-          <span className="mt-0.5 block truncate text-[12px] font-black leading-4 text-ink">{data.label}</span>
-          {(data.labelVisible || elevated) && <span className="mt-0.5 block truncate text-[10px] font-semibold leading-4 text-muted">{data.caption}</span>}
+          <span className="mt-0.5 block truncate text-[12px] font-black leading-4 text-ink">
+            <HighlightedText query={data.searchQuery} text={data.label} />
+          </span>
+          {(data.labelVisible || elevated) && (
+            <span className="mt-0.5 block truncate text-[10px] font-semibold leading-4 text-muted">
+              <HighlightedText query={data.searchQuery} text={data.caption} />
+            </span>
+          )}
         </span>
       </div>
       <Handle
@@ -510,6 +508,33 @@ function StructureMapNodeCard({ data, selected }: NodeProps<StructureMapFlowNode
         type="source"
       />
     </div>
+  );
+}
+
+function HighlightedText({ query, text }: { query: string; text: string }) {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) {
+    return <>{text}</>;
+  }
+
+  const textForSearch = text.toLocaleLowerCase("ko");
+  const queryForSearch = trimmedQuery.toLocaleLowerCase("ko");
+  const index = textForSearch.indexOf(queryForSearch);
+
+  if (index < 0) {
+    return <>{text}</>;
+  }
+
+  const before = text.slice(0, index);
+  const match = text.slice(index, index + trimmedQuery.length);
+  const after = text.slice(index + trimmedQuery.length);
+
+  return (
+    <>
+      {before}
+      <mark className="rounded-[3px] bg-amber-300 px-0.5 text-amber-950">{match}</mark>
+      {after}
+    </>
   );
 }
 
@@ -533,17 +558,22 @@ function StructureMapFlowEdgePath({
   targetX,
   targetY
 }: EdgeProps<StructureMapFlowEdge>) {
-  const routeOffset = edgeRouteOffset(id);
+  const route = edgeRouteStyle({
+    id,
+    routeCount: data?.routeCount ?? 1,
+    routeIndex: data?.routeIndex ?? 0,
+    visualPriority: data?.visualPriority ?? "context"
+  });
   const [path, labelX, labelY] = getSmoothStepPath({
-    borderRadius: data?.primaryPath ? 20 : 12,
-    offset: data?.primaryPath ? 44 : 32,
+    borderRadius: data?.primaryPath ? 22 : 14,
+    offset: route.offset,
     sourcePosition,
     sourceX,
-    sourceY: sourceY + routeOffset,
-    stepPosition: 0.5,
+    sourceY,
+    stepPosition: route.stepPosition,
     targetPosition,
     targetX,
-    targetY: targetY + routeOffset
+    targetY
   });
 
   return (
@@ -566,9 +596,136 @@ function StructureMapFlowEdgePath({
   );
 }
 
-function edgeRouteOffset(id: string): number {
+function StructureMapViewportToolbar({
+  disabled,
+  onCenter,
+  onFitView,
+  onZoomIn,
+  onZoomOut
+}: {
+  disabled: boolean;
+  onCenter: () => void;
+  onFitView: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
+  return (
+    <div className="absolute bottom-4 left-4 z-20 flex items-center overflow-hidden rounded-md border border-hairline bg-white/95 shadow-[0_12px_28px_rgba(15,23,42,0.12)]">
+      <ViewportToolButton disabled={disabled} label="확대" onClick={onZoomIn}>
+        <ZoomInIcon />
+      </ViewportToolButton>
+      <ViewportToolButton disabled={disabled} label="축소" onClick={onZoomOut}>
+        <ZoomOutIcon />
+      </ViewportToolButton>
+      <ViewportToolButton dataAttribute="true" disabled={disabled} label="전체 맞춤" onClick={onFitView}>
+        <FitViewIcon />
+      </ViewportToolButton>
+      <ViewportToolButton disabled={disabled} label="핵심 경로 중앙" onClick={onCenter}>
+        <CenterFocusIcon />
+      </ViewportToolButton>
+    </div>
+  );
+}
+
+function ViewportToolButton({
+  children,
+  dataAttribute,
+  disabled,
+  label,
+  onClick
+}: {
+  children: ReactNode;
+  dataAttribute?: string;
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-label={label}
+      className="grid size-10 place-items-center border-r border-hairline text-ink transition last:border-r-0 hover:bg-brand-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-45"
+      data-structure-map-fit-view={dataAttribute}
+      disabled={disabled}
+      title={label}
+      type="button"
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ZoomInIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <circle cx="10.5" cy="10.5" r="5.5" />
+      <path strokeLinecap="round" d="M10.5 7.5v6M7.5 10.5h6M15 15l5 5" />
+    </svg>
+  );
+}
+
+function ZoomOutIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <circle cx="10.5" cy="10.5" r="5.5" />
+      <path strokeLinecap="round" d="M7.5 10.5h6M15 15l5 5" />
+    </svg>
+  );
+}
+
+function FitViewIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
+      <path strokeLinecap="round" d="M9 12h6M12 9v6" />
+    </svg>
+  );
+}
+
+function CenterFocusIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="6" />
+      <path strokeLinecap="round" d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function edgeRouteStyle({
+  id,
+  routeCount,
+  routeIndex,
+  visualPriority
+}: {
+  id: string;
+  routeCount: number;
+  routeIndex: number;
+  visualPriority: StructureMapFlowEdge["data"]["visualPriority"];
+}) {
   const hash = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0);
-  return ((hash % 7) - 3) * 12;
+  const centeredIndex = routeIndex - (routeCount - 1) / 2;
+  const priorityOffset =
+    visualPriority === "selected" ? 76 :
+    visualPriority === "direct" ? 68 :
+    visualPriority === "primary" ? 62 :
+    visualPriority === "related" ? 52 :
+    visualPriority === "manual" ? 46 :
+    38;
+  const offset = priorityOffset + Math.min(Math.abs(centeredIndex), 5) * 8 + (hash % 3) * 4;
+  const stepPosition = Math.max(0.28, Math.min(0.72, 0.5 + centeredIndex * 0.055 + ((hash % 5) - 2) * 0.018));
+
+  return { offset, stepPosition };
+}
+
+function edgeMarkerSize(visualPriority: StructureMapFlowEdge["data"]["visualPriority"]): number {
+  if (visualPriority === "selected") {
+    return 18;
+  }
+  if (visualPriority === "direct" || visualPriority === "primary") {
+    return 16;
+  }
+  return 12;
 }
 
 function StatusChip({ label, tone, value }: { label: string; tone: BadgeTone; value: number }) {
@@ -611,13 +768,15 @@ function FilterGroup<T extends string>({
   label,
   labels,
   onToggle,
-  selected
+  selected,
+  symbolFor
 }: {
   items: T[];
   label: string;
   labels: Record<T, string>;
   selected: T[];
   onToggle: (value: T) => void;
+  symbolFor?: (value: T) => ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -627,17 +786,43 @@ function FilterGroup<T extends string>({
         return (
           <button
             key={item}
-            className={`h-7 rounded-full border px-2.5 text-[11px] font-bold transition ${
-              active ? "border-brand-accent bg-brand-accent/10 text-brand-accent" : "border-hairline bg-white text-muted hover:bg-surface-soft"
+            className={`inline-flex h-8 items-center gap-2 rounded-md border px-2.5 text-[11px] font-bold transition ${
+              active ? "border-brand-accent bg-brand-accent/10 text-ink" : "border-hairline bg-white text-muted hover:bg-surface-soft"
             }`}
+            title={`${label} 레이어: ${labels[item]}`}
             type="button"
             onClick={() => onToggle(item)}
           >
+            {symbolFor?.(item)}
             {labels[item]}
           </button>
         );
       })}
     </div>
+  );
+}
+
+function NodeLayerSymbol({ meta }: { meta: { accent: string; fill: string; icon: string; stroke: string } }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="grid size-5 shrink-0 place-items-center rounded-[5px] border text-[9px] font-black leading-none"
+      style={{ backgroundColor: meta.fill, borderColor: meta.stroke, color: meta.accent }}
+    >
+      {meta.icon}
+    </span>
+  );
+}
+
+function EdgeLayerSymbol({ color }: { color: string }) {
+  return (
+    <span aria-hidden="true" className="inline-flex h-5 w-8 shrink-0 items-center">
+      <span className="h-0 w-6 rounded-full border-t-2" style={{ borderColor: color }} />
+      <span
+        className="-ml-1 size-1.5 rotate-45 border-r-2 border-t-2"
+        style={{ borderColor: color }}
+      />
+    </span>
   );
 }
 
@@ -714,10 +899,7 @@ function GraphLegendStrip({ edges, primaryEdgeIds }: { edges: StructureMapGraphE
   const primaryEdgeCount = edges.filter((edge) => primaryEdgeIds.has(edge.id)).length;
   return (
     <div className="flex shrink-0 items-center gap-3 overflow-x-auto border-t border-hairline bg-white px-4 py-2 text-[11px] font-bold text-muted">
-      <span className="inline-flex shrink-0 flex-col leading-4">
-        <span className="text-ink">범례 · 읽는 방법</span>
-        <span className="font-semibold text-muted">노드=Entity/Event/Metric/Decision · 선=화살표 흐름</span>
-      </span>
+      <span className="shrink-0 text-ink">범례</span>
       {Object.entries(structureMapNodeMeta)
         .filter(([type]) => type !== "category")
         .map(([type, meta]) => (
@@ -725,9 +907,7 @@ function GraphLegendStrip({ edges, primaryEdgeIds }: { edges: StructureMapGraphE
             key={type}
             className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-soft px-2 py-1 text-ink"
           >
-            <span className="grid size-5 place-items-center rounded-md" style={{ backgroundColor: meta.fill, color: meta.accent }}>
-              {meta.icon}
-            </span>
+            <NodeLayerSymbol meta={meta} />
             {meta.label}
           </span>
         ))}
@@ -735,10 +915,9 @@ function GraphLegendStrip({ edges, primaryEdgeIds }: { edges: StructureMapGraphE
       <LegendLine label="수동 관계" value={manualCount} />
       <LegendLine dashed label="자동 생성" value={generatedCount} />
       {defaultStructureMapEdgeTypes.map((type) => (
-        <span key={type} className="inline-flex items-center gap-1.5 whitespace-nowrap" title={edgeDescriptions[type]}>
-          <span className="h-1.5 w-7 rounded-full" style={{ backgroundColor: structureMapEdgeMeta[type].color }} />
+        <span key={type} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <EdgeLayerSymbol color={structureMapEdgeMeta[type].color} />
           <span className="text-ink">{edgeLabels[type]}</span>
-          <span>{edgeDescriptions[type]}</span>
           <strong className="text-ink">{edgeCounts.get(type) ?? 0}</strong>
         </span>
       ))}
@@ -1048,7 +1227,7 @@ function Legend({ edges }: { edges: StructureMapGraphEdge[] }) {
         {defaultStructureMapEdgeTypes.map((type) => (
           <div key={type} className="flex items-center justify-between gap-3 rounded-md bg-surface-soft px-2.5 py-1.5">
             <span className="flex min-w-0 items-center gap-2">
-              <span className="h-1.5 w-8 shrink-0 rounded-full" style={{ backgroundColor: structureMapEdgeMeta[type].color }} />
+              <EdgeLayerSymbol color={structureMapEdgeMeta[type].color} />
               <span className="truncate text-caption font-semibold text-ink">{edgeLabels[type]}</span>
             </span>
             <Badge tone="neutral">{edgeCounts.get(type) ?? 0}</Badge>
