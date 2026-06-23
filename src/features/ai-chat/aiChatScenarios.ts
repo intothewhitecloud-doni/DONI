@@ -29,7 +29,7 @@ export const aiChatScenarios: AiChatScenario[] = [
         scenarioId: "supplier-a-impact",
         content: [
           "공급업체 A사는 현재 P-42 제품의 출고 지연과 생산 병목에 직접적인 영향을 주는 핵심 공급 리스크로 판단됩니다.",
-          "최근 데이터 기준으로 A사와 연결된 P-42의 납품 준수율은 70~72% 수준으로 낮고, 평균 주문 처리 시간은 36.8시간까지 증가했습니다.",
+          "최근 데이터 기준으로 A사와 연결된 P-42의 납품 준수율은 70~72% 수준으로 낮고, 평균 출고 대기시간은 36.8시간까지 증가했습니다.",
           "이 영향은 출고 일정 지연, 긴급 대응 비용 증가, 고객 납기 불안정, 내부 운영관리 부담 증가로 이어질 가능성이 있습니다.",
           "따라서 A사는 현재 '관리 필요 공급업체'로 분류하는 것이 적절합니다.",
           [
@@ -37,7 +37,7 @@ export const aiChatScenarios: AiChatScenario[] = [
             "",
             "1. A사 납품 조건 재확인",
             "2. P-42 대체 공급 가능성 검토",
-            "3. 2주간 납품 준수율과 주문 처리 시간 모니터링",
+            "3. 2주간 납품 준수율과 출고 대기시간 모니터링",
             "4. 개선이 없을 경우 공급 조건 재협의 또는 대체 공급사 병행 검토"
           ].join("\n")
         ].join("\n\n"),
@@ -59,7 +59,7 @@ export const aiChatScenarios: AiChatScenario[] = [
           {
             id: "visual-supplier-a-delay-time",
             type: "metric_chart",
-            title: "평균 주문 처리 시간",
+            title: "평균 출고 대기시간",
             description: "이전 26시간에서 현재 36.8시간으로 늘어난 처리 시간 증가를 강조합니다.",
             chartType: "bar",
             points: previousCurrentPoints(delay, "이전", "현재"),
@@ -84,8 +84,8 @@ export const aiChatScenarios: AiChatScenario[] = [
         content: [
           "현재 데이터 기준 가장 큰 신호는 P-42에 집중된 수익성 하락과 고객 영향입니다.",
           `${margin} ${delay} ${claim}`,
-          "세 지표가 같은 상품군과 고객 흐름에 겹쳐 있고, 인사이트도 P-42 마진 하락과 고객A 클레임 반복을 높은 영향으로 보고 있습니다.",
-          "우선순위는 P-42 마진 구조 점검, 고객A 선제 안내, 공급업체 A사 납품 조건 재협의 순서가 적절합니다."
+          "세 지표가 같은 상품군과 고객 흐름에 겹쳐 있고, 인사이트도 P-42 마진 하락과 핵심 고객군 클레임 반복을 높은 영향으로 보고 있습니다.",
+          "우선순위는 P-42 마진 구조 점검, 핵심 고객군 선제 안내, 공급업체 A사 납품 조건 재협의 순서가 적절합니다."
         ].join("\n\n"),
         citationEvidenceIds: ["evidence-margin", "evidence-claims", "evidence-supplier"],
         actionItems: [
@@ -103,7 +103,7 @@ export const aiChatScenarios: AiChatScenario[] = [
             },
             {
               label: "2순위",
-              value: "고객A 클레임",
+              value: "핵심 고객군 클레임",
               detail: metricDeltaDetail(state, "metric-claim-rate"),
               tone: "danger"
             },
@@ -174,32 +174,32 @@ export const aiChatScenarios: AiChatScenario[] = [
   },
   {
     id: "customer-a-claims",
-    prompt: "고객A 클레임 원인은?",
-    shortLabel: "고객A 클레임",
-    aliases: ["고객a", "고객 A", "클레임 원인", "보상 요청", "이탈 위험", "고객 클레임"],
+    prompt: "핵심 고객군 클레임 원인은?",
+    shortLabel: "핵심 고객군 클레임",
+    aliases: ["핵심 고객군", "고객a", "고객 A", "클레임 원인", "보상 요청", "이탈 위험", "고객 클레임"],
     buildResponse: ({ state }) => {
       const insight = state.insights.find((item) => item.id === "insight-customer-claims");
       return {
         scenarioId: "customer-a-claims",
         content: [
-          "고객A 클레임은 P-42 배송 지연 이후 반복된 보상 요청과 연결됩니다.",
-          `현재 클레임률은 ${formatMetricValue(state, "metric-claim-rate")}이고 주문 처리 시간도 ${formatMetricValue(state, "metric-delay-time")}까지 늘어난 상태입니다.`,
+          "핵심 고객군 클레임은 P-42 배송 지연 이후 반복된 보상 요청과 연결됩니다.",
+          `현재 클레임률은 ${formatMetricValue(state, "metric-claim-rate")}이고 평균 출고 대기시간도 ${formatMetricValue(state, "metric-delay-time")}까지 늘어난 상태입니다.`,
           insight?.reason ?? "반복 구매 고객군에서 배송 지연과 보상 요청이 같이 나타나 이탈 위험과 대응 비용이 커집니다.",
-          "우선 고객A에는 선제 안내를 발송하고, 보상 기준을 고객군 영향도에 맞춰 조정하는 답변이 인사이트의 추천 조치와 맞습니다."
+          "우선 핵심 고객군에는 선제 안내를 발송하고, 보상 기준을 고객군 영향도에 맞춰 조정하는 답변이 인사이트의 추천 조치와 맞습니다."
         ].join("\n\n"),
         citationEvidenceIds: ["evidence-claims", "evidence-orders-delay"],
         actionItems: [
-          insightAction("고객A 인사이트 보기", "insight-customer-claims"),
+          insightAction("핵심 고객군 인사이트 보기", "insight-customer-claims"),
           metricAction("클레임률 보기", "metric-claim-rate"),
-          objectAction("고객A 관리 대상 보기", "entity-customer-core")
+          objectAction("핵심 고객군 관리 대상 보기", "entity-customer-core")
         ],
         visualBlocks: [
           metricVisualBlock(state, "metric-claim-rate", {
-            description: "고객A 관련 클레임률이 기간별로 누적 상승한 흐름입니다.",
+            description: "핵심 고객군 관련 클레임률이 기간별로 누적 상승한 흐름입니다.",
             id: "visual-customer-a-claim-trend",
-            title: "고객A 클레임 추세"
+            title: "핵심 고객군 클레임 추세"
           }),
-          comparisonVisualBlock("visual-customer-a-impact", "고객A 영향 요약", [
+          comparisonVisualBlock("visual-customer-a-impact", "핵심 고객군 영향 요약", [
             {
               label: "클레임률",
               value: formatMetricValue(state, "metric-claim-rate"),
@@ -207,7 +207,7 @@ export const aiChatScenarios: AiChatScenario[] = [
               tone: "danger"
             },
             {
-              label: "주문 처리 시간",
+              label: "평균 출고 대기시간",
               value: formatMetricValue(state, "metric-delay-time"),
               detail: metricDeltaDetail(state, "metric-delay-time"),
               tone: "warning"
@@ -252,7 +252,7 @@ export const aiChatScenarios: AiChatScenario[] = [
         content: [
           "현재 데이터 기준 다음 조치는 고객 영향, 공급 지연, 상품 마진을 나눠 처리하는 것이 좋습니다.",
           numbered(actions),
-          "안건으로 전환할 때는 P-42 마진 구조 조정안 또는 고객A 선제 안내안을 먼저 검토하는 흐름이 자연스럽습니다."
+          "안건으로 전환할 때는 P-42 마진 구조 조정안 또는 핵심 고객군 선제 안내안을 먼저 검토하는 흐름이 자연스럽습니다."
         ].join("\n\n"),
         citationEvidenceIds: ["evidence-claims", "evidence-supplier", "evidence-margin"],
         actionItems: [
@@ -267,13 +267,13 @@ export const aiChatScenarios: AiChatScenario[] = [
     id: "normal-comparison",
     prompt: "P-42와 비교할 정상 사례는?",
     shortLabel: "비교 사례",
-    aliases: ["비교", "정상 사례", "p-17", "p-08", "고객b", "공급업체 b", "대조군"],
+    aliases: ["비교", "정상 사례", "p-17", "p-08", "신규 고객군", "고객b", "공급업체 b", "대조군"],
     buildResponse: () => ({
       scenarioId: "normal-comparison",
       content: [
-        "P-42와 비교할 정상/보조 사례는 P-17, P-08, 고객B, 공급업체 B사입니다.",
+        "P-42와 비교할 정상/보조 사례는 P-17, P-08, 신규 고객군, 공급업체 B사입니다.",
         "P-17 표준 제어 모듈은 평균 마진율 21.2%와 안정적인 납품 흐름을 가진 비교 상품군입니다.",
-        "P-08 정밀 부품 세트는 공급업체 A사가 함께 공급하지만 고객B 주문에서는 정상 배송과 무클레임 흐름이 확인됩니다.",
+        "P-08 정밀 부품 세트는 공급업체 A사가 함께 공급하지만 신규 고객군 주문에서는 정상 배송과 무클레임 흐름이 확인됩니다.",
         "이 비교는 공급사 리스크가 전체 공급업체 A사 문제인지, P-42에 집중된 상품군 문제인지 분리하는 데 유용합니다."
       ].join("\n\n"),
       citationEvidenceIds: ["evidence-customer-b-p08", "evidence-supplier", "evidence-margin"],
@@ -313,12 +313,12 @@ export function findAiChatScenario(question: string): AiChatScenario | undefined
 function buildFallbackResponse({ attachments }: AiChatScenarioContext): AiChatScenarioResponse {
   const attachedText = attachments.length > 0
     ? `첨부한 파일 ${attachments.map((file) => file.name).join(", ")}을 함께 둔 상태로 답변합니다. 현재 화면은 파일 원문을 새로 분석하지 않고 문맥 포함 상태만 표시합니다.`
-    : "질문을 P-42, 고객A, 공급업체 A사, 마진, 클레임, 출처 파일 중 하나와 연결하면 더 구체적으로 답변할 수 있습니다.";
+    : "질문을 P-42, 핵심 고객군, 공급업체 A사, 마진, 클레임, 출처 파일 중 하나와 연결하면 더 구체적으로 답변할 수 있습니다.";
 
   return {
     content: [
       attachedText,
-      "현재 가장 잘 답변할 수 있는 범위는 P-42 마진 하락, 고객A 클레임, 공급업체 A사 지연, 근거 파일, 다음 조치, 정상 비교 사례입니다."
+      "현재 가장 잘 답변할 수 있는 범위는 P-42 마진 하락, 핵심 고객군 클레임, 공급업체 A사 지연, 근거 파일, 다음 조치, 정상 비교 사례입니다."
     ].join("\n\n"),
     citationEvidenceIds: ["evidence-margin", "evidence-claims", "evidence-supplier"],
     actionItems: [

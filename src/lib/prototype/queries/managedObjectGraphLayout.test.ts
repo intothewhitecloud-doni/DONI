@@ -8,12 +8,12 @@ import {
 import { managedObjectGraphLegend, type ManagedObjectGraphEdge, type ManagedObjectGraphNode } from "./managedObjectQueries";
 
 const graphNodes: ManagedObjectGraphNode[] = [
-  { id: "entity-customer-core", label: "고객A", caption: "고객군", type: "managed_object", tone: "primary" },
+  { id: "entity-customer-core", label: "핵심 고객군", caption: "고객군", type: "managed_object", tone: "primary" },
   { id: "entity-supplier-a", label: "공급업체 A사", caption: "공급사", type: "managed_object", tone: "neutral" },
   { id: "entity-low-margin", label: "P-42 산업용 센서 패키지", caption: "상품군", type: "managed_object", tone: "neutral" },
   { id: "event-order", label: "주문 접수", caption: "접수", type: "workflow", tone: "info" },
   { id: "event-delivery", label: "배송 상태 확인", caption: "지연", type: "workflow", tone: "warning" },
-  { id: "metric-delay-time", label: "주문 처리 시간", caption: "36.8시간", type: "metric", tone: "warning" },
+  { id: "metric-delay-time", label: "평균 출고 대기시간", caption: "36.8시간", type: "metric", tone: "warning" },
   { id: "insight-delay-risk", label: "공급 지연 리스크", caption: "고위험 인사이트", type: "insight", tone: "danger" }
 ];
 

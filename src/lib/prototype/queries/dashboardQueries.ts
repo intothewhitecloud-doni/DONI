@@ -445,7 +445,7 @@ function buildWorkflowSignals(orders: OrderClaimRecord[], fallbackEvents: Protot
       value: `${formatOne(average(orders.map((order) => order.waitHours)) ?? 0)}시간`,
       detail: `P-42 ${formatOne(average(p42Orders.map((order) => order.waitHours)) ?? 0)}시간`,
       tone: "warning",
-      target: { screen: "metrics", focusId: "metric-delay-time", label: "주문 처리 시간 보기" }
+      target: { screen: "metrics", focusId: "metric-delay-time", label: "평균 출고 대기시간 보기" }
     },
     {
       id: "orders-customer",
@@ -453,7 +453,7 @@ function buildWorkflowSignals(orders: OrderClaimRecord[], fallbackEvents: Protot
       value: `${coreCustomerOrders.length}건`,
       detail: `클레임 ${coreCustomerOrders.filter(hasClaim).length}건 집중`,
       tone: "warning",
-      target: { screen: "objects", focusId: "entity-customer-core", label: "고객A 관리 대상 보기" }
+      target: { screen: "objects", focusId: "entity-customer-core", label: "핵심 고객군 관리 대상 보기" }
     },
     {
       id: "orders-region",

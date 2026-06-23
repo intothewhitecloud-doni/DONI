@@ -149,43 +149,43 @@ export const dataVaultRevisionFixtures: Record<string, VaultRevisionFixture> = {
     owner: "영업 1팀",
     updatedAt: "2026-05-12 14:30",
     impactNotice: "고객, 상품, 공급사, 클레임 흐름의 영향을 기준 데이터와 연결해 보여줍니다.",
-    impactSummary: "주문/배송 원천값이 고객A 클레임률과 P-42 주문 처리 시간 흐름에 연결됩니다.",
+    impactSummary: "주문/배송 원천값이 핵심 고객군 클레임률과 P-42 평균 출고 대기시간 흐름에 연결됩니다.",
     affected: [
-      { label: "관리 대상", value: "고객A", detail: "반복 클레임 고객군", tone: "info" },
+      { label: "관리 대상", value: "핵심 고객군", detail: "반복 클레임 고객군", tone: "info" },
       { label: "관리 대상", value: "P-42", detail: "지연 주문 상품군", tone: "violet" },
       { label: "관계", value: "공급업체 A사", detail: "P-42 공급 연결", tone: "emerald" }
     ],
     metrics: [
-      { label: "지표", value: "클레임률", detail: "고객A/P-42 표본 100%", tone: "danger" },
-      { label: "지표", value: "주문 처리 시간", detail: "평균 36.8시간 신호", tone: "warning" }
+      { label: "지표", value: "클레임률", detail: "핵심 고객군/P-42 표본 100%", tone: "danger" },
+      { label: "지표", value: "평균 출고 대기시간", detail: "평균 36.8시간 신호", tone: "warning" }
     ],
     insights: [
       {
         label: "인사이트",
-        value: customerScenario?.title ?? "고객A 클레임 반복과 보상 비용 증가",
-        detail: customerScenario?.detected ?? "고객A 클레임 반복 신호",
+        value: customerScenario?.title ?? "핵심 고객군 클레임 반복과 보상 비용 증가",
+        detail: customerScenario?.detected ?? "핵심 고객군 클레임 반복 신호",
         tone: "danger"
       }
     ],
     fields: ["고객군", "상품군", "공급사", "배송상태", "출고대기시간", "클레임유형"],
     revisionRows: [
-      { field: "고객군", source: "고객A", draft: "고객 A", correction: "고객A", current: "고객A", note: "표기 통일" },
+      { field: "고객군", source: "고객A", draft: "고객 A", correction: "핵심 고객군", current: "핵심 고객군", note: "기준명 정규화" },
       { field: "상품군", source: "P-42", draft: "P-42 상품군", correction: "P-42", current: "P-42", note: "상품군 코드 유지" },
       { field: "배송상태", source: "지연", draft: "배송 지연", correction: "지연", current: "지연", note: "원천 상태값 보존" },
       { field: "출고대기시간", source: "42시간", draft: "36.8시간 평균", correction: "36.8시간", current: "36.8시간", note: "평균값 반영 예정" },
       { field: "클레임유형", source: "배송 지연", draft: "지연 클레임", correction: "배송 지연", current: "배송 지연", note: "클레임 분류 보정" }
     ],
     correctionEvents: [
-      { id: "orders-correction-1", title: "고객명 표기 보정", actor: "박민재", time: "2026-05-12 14:36", detail: "고객 A를 고객A로 통일", tone: "warning" },
+      { id: "orders-correction-1", title: "고객군 명칭 보정", actor: "박민재", time: "2026-05-12 14:36", detail: "고객 A를 핵심 고객군으로 정규화", tone: "warning" },
       { id: "orders-correction-2", title: "배송상태 원천값 유지", actor: "시스템", time: "2026-05-12 14:41", detail: "배송 지연 초안을 원천 상태값 지연으로 되돌림", tone: "info" },
-      { id: "orders-correction-3", title: "현재 기준 반영 예정", actor: "박민재", time: "2026-05-12 14:50", detail: "클레임률과 주문 처리 시간 재계산 대기", tone: "success" }
+      { id: "orders-correction-3", title: "현재 기준 반영 예정", actor: "박민재", time: "2026-05-12 14:50", detail: "클레임률과 평균 출고 대기시간 재계산 대기", tone: "success" }
     ],
     flowEvents: [
       { id: "orders-flow-1", label: "원천 기록 생성", owner: "시스템", time: "2026-05-12 14:30", detail: "주문_배송_클레임.xlsx 파일 등록", tone: "neutral" },
-      { id: "orders-flow-2", label: "AI 구조 초안 생성", owner: "AI 초안", time: "2026-05-12 14:33", detail: "고객A/P-42/공급업체 A사 연결 후보 생성", tone: "info" },
+      { id: "orders-flow-2", label: "AI 구조 초안 생성", owner: "AI 초안", time: "2026-05-12 14:33", detail: "핵심 고객군/P-42/공급업체 A사 연결 후보 생성", tone: "info" },
       { id: "orders-flow-3", label: "사용자 보정", owner: "박민재", time: "2026-05-12 14:36", detail: "고객군 표기와 배송상태 분류 보정", tone: "warning" },
       { id: "orders-flow-4", label: "현재 기준 반영", owner: "시스템", time: "2026-05-12 14:50", detail: "현재 기준 반영 완료 후 영향 화면 갱신", tone: "success" },
-      { id: "orders-flow-5", label: "Metric 재계산 예정", owner: "시스템", time: "대기", detail: "클레임률, 주문 처리 시간 재계산 결과를 지표에 연결", tone: "neutral" }
+      { id: "orders-flow-5", label: "Metric 재계산 예정", owner: "시스템", time: "대기", detail: "클레임률, 평균 출고 대기시간 재계산 결과를 지표에 연결", tone: "neutral" }
     ],
     evidenceIds: orderEvidenceIds
   },
@@ -324,27 +324,27 @@ export const vaultDraftItems: VaultDraftItem[] = [
     statusTone: "warning",
     owner: "AI 초안",
     updatedAt: "2026-05-12 14:33",
-    summary: "주문/배송 원천값에서 고객A, P-42, 배송 지연 클레임 흐름을 추정한 구조입니다.",
+    summary: "주문/배송 원천값에서 핵심 고객군, P-42, 배송 지연 클레임 흐름을 추정한 구조입니다.",
     sourceFiles: ["주문_배송_클레임.xlsx"],
     fields: ["고객군", "상품군", "배송상태", "출고대기시간", "클레임유형"],
     entityCount: 7,
     eventCount: 4,
     relationCount: 6,
     structureRows: [
-      { kind: "Entity", name: "고객A", source: "고객군", status: "표기 검토" },
+      { kind: "Entity", name: "핵심 고객군", source: "고객군", status: "표기 검토" },
       { kind: "Entity", name: "P-42", source: "상품군", status: "후보 확정" },
       { kind: "Event", name: "배송 지연", source: "배송상태", status: "보정 대기" },
-      { kind: "Relation", name: "고객A -> 배송 지연", source: "클레임유형", status: "검토 필요" }
+      { kind: "Relation", name: "핵심 고객군 -> 배송 지연", source: "클레임유형", status: "검토 필요" }
     ],
     impactItems: [
-      { label: "관리 대상 후보", value: "고객A", detail: "반복 클레임 고객군 후보", tone: "info" },
+      { label: "관리 대상 후보", value: "핵심 고객군", detail: "반복 클레임 고객군 후보", tone: "info" },
       { label: "업무 흐름 후보", value: "배송 지연", detail: "출고대기시간 36.8시간 평균 후보", tone: "orange" },
       { label: "지표 후보", value: "클레임률", detail: "현재 기준 반영 전 검토 필요", tone: "warning" },
-      { label: "인사이트 후보", value: "보상 비용 증가", detail: "고객A 클레임 반복 신호", tone: "danger" }
+      { label: "인사이트 후보", value: "보상 비용 증가", detail: "핵심 고객군 클레임 반복 신호", tone: "danger" }
     ],
     reviewEvents: [
       { id: "draft-customer-review-1", label: "필드 매핑 확인", owner: "박민재", time: "대기", detail: "고객군과 고객명 표기 차이 확인 필요", tone: "warning" },
-      { id: "draft-customer-review-2", label: "관계 검토", owner: "AI 초안", time: "2026-05-12 14:33", detail: "고객A -> 배송 지연 관계 후보 생성", tone: "info" }
+      { id: "draft-customer-review-2", label: "관계 검토", owner: "AI 초안", time: "2026-05-12 14:33", detail: "핵심 고객군 -> 배송 지연 관계 후보 생성", tone: "info" }
     ],
     flowEvents: dataVaultRevisionFixtures["source-orders"].flowEvents,
     evidenceIds: orderEvidenceIds
@@ -387,20 +387,20 @@ export const vaultDraftItems: VaultDraftItem[] = [
 export const vaultCorrectionItems: VaultCorrectionItem[] = [
   {
     id: "correction-customer-name",
-    title: "고객명 표기 보정",
-    subtitle: "고객 A -> 고객A",
+    title: "고객군 명칭 보정",
+    subtitle: "고객A -> 핵심 고객군",
     statusLabel: "보정됨",
     statusTone: "success",
     actor: "박민재",
     updatedAt: "2026-05-12 14:36",
-    summary: "AI 초안의 고객 A 표기를 현재 기준 데이터와 맞추기 위해 고객A로 통일한 보정입니다.",
+    summary: "AI 초안의 고객 A 표기를 현재 기준 데이터와 맞추기 위해 핵심 고객군으로 정규화한 보정입니다.",
     sourceName: "주문_배송_클레임.xlsx",
     revisionRows: [
-      { field: "고객군", source: "고객A", draft: "고객 A", correction: "고객A", current: "고객A", note: "표기 통일" },
+      { field: "고객군", source: "고객A", draft: "고객 A", correction: "핵심 고객군", current: "핵심 고객군", note: "기준명 정규화" },
       { field: "클레임유형", source: "배송 지연", draft: "지연 클레임", correction: "배송 지연", current: "배송 지연", note: "분류명 보존" }
     ],
     impactItems: [
-      { label: "관리 대상", value: "고객A", detail: "동일 고객군으로 병합", tone: "info" },
+      { label: "관리 대상", value: "핵심 고객군", detail: "동일 고객군으로 병합", tone: "info" },
       { label: "지표", value: "클레임률", detail: "재계산 예정", tone: "warning" },
       { label: "인사이트", value: "보상 비용 증가", detail: "반복 클레임 신호 유지", tone: "danger" },
       { label: "반영 상태", value: "현재 기준 대기", detail: "현재 기준 반영 대기", tone: "emerald" }
@@ -438,21 +438,21 @@ export const vaultCorrectionItems: VaultCorrectionItem[] = [
 export const vaultCurrentDataItems: VaultCurrentDataItem[] = [
   {
     id: "current-customer-a",
-    title: "고객A 기준 데이터",
+    title: "핵심 고객군 기준 데이터",
     subtitle: "관리 대상 · 고객",
     statusLabel: "반영 예정",
     statusTone: "info",
     owner: "영업 1팀",
     updatedAt: "2026-05-12 14:50",
-    summary: "고객A 클레임 흐름을 현재 기준 데이터에 반영하기 전 상태입니다.",
+    summary: "핵심 고객군 클레임 흐름을 현재 기준 데이터에 반영하기 전 상태입니다.",
     domain: "관리 대상",
     records: [
-      { field: "기준명", value: "고객A", status: "보정 반영", note: "고객 A 표기 통일" },
+      { field: "기준명", value: "핵심 고객군", status: "보정 반영", note: "고객군 명칭 정규화" },
       { field: "연결 상품", value: "P-42", status: "연결 예정", note: "지연 주문 상품군" },
       { field: "대표 지표", value: "클레임률", status: "재계산 대기", note: "재계산 기준 확인 예정" }
     ],
     impactItems: [
-      { label: "관리 대상", value: "고객A", detail: "현재 기준명 유지", tone: "info" },
+      { label: "관리 대상", value: "핵심 고객군", detail: "현재 기준명 유지", tone: "info" },
       { label: "업무 흐름", value: "클레임 접수", detail: "반복 클레임 흐름 연결", tone: "orange" },
       { label: "지표", value: "클레임률", detail: "재계산 예정", tone: "warning" },
       { label: "인사이트", value: "보상 비용 증가", detail: "의사결정 후보", tone: "danger" }

@@ -166,7 +166,7 @@ test("structure map node save uses raw editor fields, not rendered captions", ()
   }), true);
   const savedMetric = state.metricDefinitions.find((definition) => definition.id === metric.id);
   assert.equal(savedMetric?.unit, "시간");
-  assert.equal(savedMetric?.formula, "P-42 주문의 출고 완료 시각 - 주문 접수 시각 평균");
+  assert.equal(savedMetric?.formula, "P-42 주문의 출고대기시간 평균");
 
   assert.ok(workflow);
   assert.equal(updateStructureMapNode(state, dispatch, workflow.id, {

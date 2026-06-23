@@ -837,8 +837,8 @@ function knownObjectKind(objectId: string): string {
 
 function knownNodeLabel(nodeId: string): string {
   const labels: Record<string, string> = {
-    "entity-customer-core": "고객A",
-    "entity-customer-b": "고객B",
+    "entity-customer-core": "핵심 고객군",
+    "entity-customer-b": "신규 고객군",
     "entity-customer-c": "고객C",
     "entity-low-margin": "P-42 산업용 센서 패키지",
     "entity-product-control": "P-17 표준 제어 모듈",

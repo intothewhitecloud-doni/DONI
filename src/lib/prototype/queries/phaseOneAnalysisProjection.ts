@@ -287,7 +287,7 @@ function buildPrimarySignals(data: ProjectionData): PhaseOneSignal[] {
       value: waitHours === undefined ? "36.8시간" : `${formatOne(waitHours)}시간`,
       detail: "주문_배송_클레임.xlsx P-42 기준",
       tone: "warning",
-      target: { screen: "metrics", focusId: "metric-delay-time", label: "주문 처리 시간 보기" }
+      target: { screen: "metrics", focusId: "metric-delay-time", label: "평균 출고 대기시간 보기" }
     }
   ];
 }

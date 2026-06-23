@@ -36,7 +36,7 @@ test("ai canvas exposes exactly four fixed badge scenarios", () => {
     "공급업체 A사",
     "위험 신호",
     "P-42 마진",
-    "고객A 클레임"
+    "핵심 고객군 클레임"
   ]);
 });
 
@@ -64,7 +64,7 @@ test("ai canvas falls back to default analysis data when operating data is not l
 
   assert.equal(supplierScenario?.shortLabel, "공급업체 A사");
   assert.equal(supplierScenario?.sampleDataLabel, "기본 데이터");
-  assert.equal(supplierScenario?.metricSummaries[0]?.label, "주문 처리 시간");
+  assert.equal(supplierScenario?.metricSummaries[0]?.label, "평균 출고 대기시간");
   assert.equal(supplierScenario?.metricSummaries[0]?.value, "36.8시간");
   assert.ok(supplierScenario?.visualBlocks.some((block) => block.id === "visual-canvas-supplier-margin"));
   assert.match(supplierScenario?.detailTable.rows[1]?.cells[1] ?? "", /36\.8시간/);
@@ -85,6 +85,7 @@ test("ai canvas prompt matcher is limited to the four fixed canvas scenarios", (
   assert.equal(findAiCanvasPromptScenario("공급업체 A 영향 알려줘", initialPrototypeState)?.id, "supplier-a-impact");
   assert.equal(findAiCanvasPromptScenario("현재 가장 위험한 운영 신호는?", initialPrototypeState)?.id, "highest-risk-signal");
   assert.equal(findAiCanvasPromptScenario("P42 마진 낮아진 이유", initialPrototypeState)?.id, "p42-margin-cause");
+  assert.equal(findAiCanvasPromptScenario("핵심 고객군 클레임 원인", initialPrototypeState)?.id, "customer-a-claims");
   assert.equal(findAiCanvasPromptScenario("고객A 클레임 분석", initialPrototypeState)?.id, "customer-a-claims");
 
   assert.equal(findAiCanvasPromptScenario("어떤 근거 파일을 봐야 해?", initialPrototypeState), undefined);
@@ -307,7 +308,7 @@ test("ai chat analysis scenarios expose visual explanation payloads", () => {
   });
   const claimsResponse = buildAiChatResponse({
     attachments: [],
-    question: "고객A 클레임 원인은?",
+    question: "핵심 고객군 클레임 원인은?",
     state: initialPrototypeState
   });
 
@@ -316,5 +317,5 @@ test("ai chat analysis scenarios expose visual explanation payloads", () => {
   assert.ok(marginResponse.visualBlocks?.some((block) => block.type === "metric_chart" && block.chartType === "bar"));
   assert.ok(marginResponse.visualBlocks?.some((block) => block.type === "comparison" && block.rows.some((row) => row.label === "반품비용")));
   assert.ok(claimsResponse.visualBlocks?.some((block) => block.type === "metric_chart" && block.chartType === "time_series"));
-  assert.ok(claimsResponse.visualBlocks?.some((block) => block.type === "comparison" && block.rows.some((row) => row.label === "주문 처리 시간")));
+  assert.ok(claimsResponse.visualBlocks?.some((block) => block.type === "comparison" && block.rows.some((row) => row.label === "평균 출고 대기시간")));
 });

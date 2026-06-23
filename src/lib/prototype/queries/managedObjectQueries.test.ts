@@ -16,13 +16,13 @@ test("KnowledgeGraph preserves managed-object detail selection after renderer ex
   const rootNode = getManagedObjectGraphItemDetail(detail, "entity-customer-core");
   assert.ok(rootNode);
   assert.equal(rootNode.kind, "node");
-  assert.equal(rootNode.title, "고객A");
+  assert.equal(rootNode.title, "핵심 고객군");
   assert.match(rootNode.body ?? "", /클레임률/);
 
   const relationEdge = getManagedObjectGraphItemDetail(detail, "edge-relation-customer-claim");
   assert.ok(relationEdge);
   assert.equal(relationEdge.kind, "edge");
   assert.match(relationEdge.title, /클레임 접수/);
-  assert.match(relationEdge.title, /고객A/);
+  assert.match(relationEdge.title, /핵심 고객군/);
   assert.equal(relationEdge.metricIds.includes("metric-claim-rate"), true);
 });

@@ -31,5 +31,5 @@ test("candidate review derives downstream candidates from the selected managed o
   assert.deepEqual(selectedSupplier.managed_object, ["candidate-supplier"]);
   assert.deepEqual(selectedSupplier.workflow_event, ["candidate-flow"]);
   assert.deepEqual(selectedSupplier.relation, ["candidate-relation"]);
-  assert.deepEqual(selectedSupplier.metric, ["candidate-metric-margin", "candidate-metric-delay"]);
+  assert.deepEqual(selectedSupplier.metric, ["candidate-metric-margin", "candidate-metric-delay", "candidate-metric-delay-rate", "candidate-metric-compliance"]);
 });
