@@ -5,8 +5,6 @@ export const screenRoutes: Record<Screen, string> = {
   login: "/login",
   signup: "/signup",
   upload: "/upload",
-  analysis: "/analysis",
-  review: "/review",
   dashboard: "/dashboard",
   vault: "/vault",
   structureMap: "/structure-map",

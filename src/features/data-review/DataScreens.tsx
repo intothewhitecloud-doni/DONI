@@ -214,6 +214,7 @@ export function DataVaultScreen() {
           selectedOrganizationCategoryId={selectedOrganizationCategoryId}
           sourceFileKindOptions={sourceFileKindOptions}
           sourceFiles={visibleSourceFiles}
+          onApplySourceFile={commands.applySourceFileToCurrentStandard}
           onChangeEditingFile={setEditingFile}
           onDownloadFile={downloadSourceFile}
           onRemoveFile={handleRemoveFile}
@@ -690,10 +691,10 @@ export function ManagedObjectsScreen() {
       <div className="space-y-8">
         <SectionTitle title="관리 대상" />
         <EmptyAnalysisState
-          body={hasFiles ? "추가된 파일을 분석하면 관리 대상 후보를 검토하고 확정할 수 있습니다." : "데이터 보관함에 업무 파일을 추가하면 관리 대상 후보를 추출할 수 있습니다."}
-          buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
-          onClick={canPrepareAnalysis ? hasFiles ? commands.uploadSampleFiles : () => commands.navigate("vault") : undefined}
-          title={hasFiles ? "파일 분석이 필요합니다" : "등록된 파일이 없습니다"}
+          body={hasFiles ? "데이터 보관함에서 파일을 분석에 반영하면 관리 대상 후보와 연결 구조가 표시됩니다." : "데이터 보관함에 업무 파일을 추가하면 관리 대상 후보를 추출할 수 있습니다."}
+          buttonLabel={canPrepareAnalysis ? hasFiles ? "데이터 보관함에서 분석에 반영" : "데이터 보관함에서 파일 추가" : undefined}
+          onClick={canPrepareAnalysis ? () => commands.navigate("vault") : undefined}
+          title={hasFiles ? "파일 반영이 필요합니다" : "등록된 파일이 없습니다"}
         />
       </div>
     );
@@ -1152,10 +1153,10 @@ export function WorkflowScreen() {
       <div className="space-y-8">
         <SectionTitle title="업무 흐름" />
         <EmptyAnalysisState
-          body={hasFiles ? "추가된 파일을 분석하면 업무 이벤트와 병목 후보가 표시됩니다." : "업무 파일을 먼저 추가하면 주문, 출고, 클레임 흐름을 추출할 수 있습니다."}
-          buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
-          onClick={canPrepareAnalysis ? hasFiles ? commands.uploadSampleFiles : () => commands.navigate("vault") : undefined}
-          title={hasFiles ? "파일 분석이 필요합니다" : "등록된 파일이 없습니다"}
+          body={hasFiles ? "데이터 보관함에서 파일을 분석에 반영하면 업무 이벤트와 병목 후보가 표시됩니다." : "업무 파일을 먼저 추가하면 주문, 출고, 클레임 흐름을 추출할 수 있습니다."}
+          buttonLabel={canPrepareAnalysis ? hasFiles ? "데이터 보관함에서 분석에 반영" : "데이터 보관함에서 파일 추가" : undefined}
+          onClick={canPrepareAnalysis ? () => commands.navigate("vault") : undefined}
+          title={hasFiles ? "파일 반영이 필요합니다" : "등록된 파일이 없습니다"}
         />
       </div>
     );
@@ -1284,10 +1285,10 @@ export function MetricsScreen() {
       <div className="space-y-8">
         <SectionTitle title="지표" />
         <EmptyAnalysisState
-          body={hasFiles ? "추가된 파일을 분석하면 마진율, 처리 시간, 클레임률 같은 지표 후보를 확인할 수 있습니다." : "데이터 보관함에 파일을 추가하면 지표 후보를 추출할 수 있습니다."}
-          buttonLabel={canPrepareAnalysis ? hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가" : undefined}
-          onClick={canPrepareAnalysis ? hasFiles ? commands.uploadSampleFiles : () => commands.navigate("vault") : undefined}
-          title={hasFiles ? "파일 분석이 필요합니다" : "등록된 파일이 없습니다"}
+          body={hasFiles ? "데이터 보관함에서 파일을 분석에 반영하면 마진율, 처리 시간, 클레임률 같은 지표 후보를 확인할 수 있습니다." : "데이터 보관함에 파일을 추가하면 지표 후보를 추출할 수 있습니다."}
+          buttonLabel={canPrepareAnalysis ? hasFiles ? "데이터 보관함에서 분석에 반영" : "데이터 보관함에서 파일 추가" : undefined}
+          onClick={canPrepareAnalysis ? () => commands.navigate("vault") : undefined}
+          title={hasFiles ? "파일 반영이 필요합니다" : "등록된 파일이 없습니다"}
         />
       </div>
     );

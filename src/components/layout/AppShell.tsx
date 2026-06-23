@@ -9,7 +9,7 @@ import { DataVaultScreen, ManagedObjectsScreen, MetricsScreen, WorkflowScreen } 
 import { StructureMapScreen } from "../../features/data-review/StructureMapScreen";
 import { DecisionConfirmScreen, ProposalVoteScreen } from "../../features/decisions/DecisionScreens";
 import { InsightDetailScreen, InsightsScreen, ProposalCreateScreen } from "../../features/insights/InsightScreens";
-import { AnalysisScreen, HomeScreen, LoginScreen, ReviewScreen, SignupScreen } from "../../features/onboarding/OnboardingScreens";
+import { HomeScreen, LoginScreen, SignupScreen } from "../../features/onboarding/OnboardingScreens";
 import { OutcomeScreen, VerificationDetailScreen, VerificationListScreen } from "../../features/verification/VerificationScreens";
 import type { Screen } from "../../lib/domain/types";
 import { accessibleScreenForSession, activeSidebarScreen, sidebarItemsForRole } from "../../lib/prototype/navigation";
@@ -167,10 +167,6 @@ function renderScreen(screen: Screen) {
       return <HomeScreen />;
     case "upload":
       return <DataVaultScreen />;
-    case "analysis":
-      return <AnalysisScreen />;
-    case "review":
-      return <ReviewScreen />;
     case "dashboard":
       return <DashboardScreen />;
     case "vault":

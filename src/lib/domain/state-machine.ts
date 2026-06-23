@@ -1643,7 +1643,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       return withAudit(
         {
           ...state,
-          screen: "analysis",
+          screen: "vault",
           sourceFiles: sourceFiles.map((file) => ({ ...normalizeSourceFile(file), status: "uploaded", uploadedAt })),
           notifications: [
             { id: action.notificationId ?? "notice-upload", level: "success", message: "소스 데이터가 업로드되었습니다." },
@@ -1668,7 +1668,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
       return withAudit(
         {
           ...state,
-          screen: "analysis",
+          screen: "vault",
           analysisJobs: [job],
           evidence: preparedData.evidence,
           candidates: preparedData.candidates,
@@ -1695,7 +1695,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
         completedAt: nextStep.status === "reviewing_ready" ? at(action) : item.completedAt
       }));
 
-      return nextStep.status === "reviewing_ready" ? { ...next, screen: "review" } : next;
+      return nextStep.status === "reviewing_ready" ? { ...next, screen: "vault" } : next;
     }
 
     case "EDIT_CANDIDATE":

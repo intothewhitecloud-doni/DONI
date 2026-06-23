@@ -30,8 +30,6 @@ const sidebarScreensByRole: Record<Role, Screen[]> = {
 
 const protectedScreens = [
   "upload",
-  "analysis",
-  "review",
   "dashboard",
   "vault",
   "structureMap",
@@ -57,12 +55,10 @@ const protectedScreensByRole: Record<Role, Screen[]> = {
 };
 
 const sidebarParents: Partial<Record<Screen, Screen>> = {
-  analysis: "vault",
   decisionConfirm: "proposalVote",
   insightDetail: "insights",
   outcome: "verification",
   proposalCreate: "insights",
-  review: "vault",
   upload: "vault",
   verificationDetail: "verification"
 };

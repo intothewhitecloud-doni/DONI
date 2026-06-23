@@ -13,21 +13,21 @@ test("service screens have stable company URL routes", () => {
   assert.equal(pathForScreen("structureMap"), "/structure-map");
   assert.equal(pathForScreen("ai"), "/ai");
   assert.equal(pathForScreen("proposalVote"), "/proposal-vote");
-  assert.equal(screenFromPathname("/analysis"), "analysis");
   assert.equal(screenFromPathname("/upload"), "upload");
   assert.equal(screenFromPathname("/company"), "company");
   assert.equal(screenFromPathname("/structure-map"), "structureMap");
   assert.equal(screenFromPathname("/ai"), "ai");
-  assert.equal(screenFromPathname("/review/"), "review");
+  assert.equal(screenFromPathname("/analysis"), "home");
+  assert.equal(screenFromPathname("/review/"), "home");
   assert.equal(routeSegments().includes("company"), true);
   assert.equal(routeSegments().includes("signup"), true);
   assert.equal(routeSegments().includes("verification-detail"), true);
+  assert.equal(routeSegments().includes("analysis"), false);
+  assert.equal(routeSegments().includes("review"), false);
   assert.equal(routeSegments().includes(["work", "space"].join("")), false);
 });
 
 test("nested service screens keep their parent sidebar highlight", () => {
-  assert.equal(activeSidebarScreen("analysis"), "vault");
-  assert.equal(activeSidebarScreen("review"), "vault");
   assert.equal(activeSidebarScreen("insightDetail"), "insights");
   assert.equal(activeSidebarScreen("decisionConfirm"), "proposalVote");
   assert.equal(activeSidebarScreen("verificationDetail"), "verification");

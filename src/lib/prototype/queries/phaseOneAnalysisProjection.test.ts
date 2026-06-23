@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
 import { initialPrototypeState } from "../../domain/mock-data";
 import { getPhaseOneAnalysisProjection } from "./phaseOneAnalysisProjection";
 
@@ -41,9 +40,3 @@ test("phase one decision candidates use manager-facing copy", () => {
   assert.match(customerDecision.evidenceStrengthLabel, /근거 신뢰도/);
 });
 
-test("data vault phase one apply stays screen-scoped", () => {
-  const source = readFileSync("src/features/data-review/DataVaultRevisionWorkbench.tsx", "utf8");
-
-  assert.equal(source.includes("applySourceFileToCurrentStandard"), false);
-  assert.equal(source.includes("APPLY_SOURCE_FILE_TO_CURRENT_STANDARD"), false);
-});

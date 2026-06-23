@@ -182,26 +182,13 @@ export function PrototypeProvider({ children }: PropsWithChildren) {
       hideStructureMapItem: (itemId, kind) => hideStructureMapItem(dispatch, itemId, kind),
       unhideStructureMapItem: (itemId, kind) => unhideStructureMapItem(dispatch, itemId, kind),
       uploadSampleFiles: () => {
-        const uploaded = uploadSampleFiles(state, dispatch);
-        if (uploaded) {
-          router.push(pathForScreen("analysis"));
-        }
-        return uploaded;
+        return uploadSampleFiles(state, dispatch);
       },
       startAnalysisJob: () => {
-        const started = startAnalysisJob(state, dispatch);
-        if (started) {
-          router.push(pathForScreen("analysis"));
-        }
-        return started;
+        return startAnalysisJob(state, dispatch);
       },
       advanceAnalysisJob: () => {
-        const job = state.analysisJobs[0];
-        const willComplete = job?.progress === 78;
         advanceAnalysisJob(dispatch);
-        if (willComplete) {
-          router.push(pathForScreen("review"));
-        }
       },
       setCandidateType: (candidateType) => setCandidateType(dispatch, candidateType),
       editCandidate: (candidateId, title, note, description) => editCandidate(state, dispatch, candidateId, title, note, description),

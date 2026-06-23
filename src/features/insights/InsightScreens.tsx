@@ -24,10 +24,10 @@ export function InsightsScreen() {
         <Card className="space-y-4 border-dashed bg-slate-50">
           <Badge tone="neutral">준비 필요</Badge>
           <div>
-            <h2 className="text-xl font-bold text-slate-950">{hasFiles ? "파일 분석이 필요합니다" : "등록된 파일이 없습니다"}</h2>
+            <h2 className="text-xl font-bold text-slate-950">{hasFiles ? "파일 반영이 필요합니다" : "등록된 파일이 없습니다"}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               {hasFiles
-                ? "추가된 파일을 분석하고 후보를 확정하면 검토가 필요한 운영 신호가 표시됩니다."
+                ? "데이터 보관함에서 파일을 분석에 반영하면 검토가 필요한 운영 신호가 표시됩니다."
                 : "데이터 보관함에 업무 파일을 추가하면 운영 신호를 분석할 수 있습니다."}
             </p>
           </div>
@@ -40,8 +40,8 @@ export function InsightsScreen() {
             ))}
           </div>
           {canPrepareAnalysis && (
-            <Button onClick={hasFiles ? commands.uploadSampleFiles : () => commands.navigate("vault")}>
-              {hasFiles ? "업로드 및 분석 시작" : "데이터 보관함에서 파일 추가"}
+            <Button onClick={() => commands.navigate("vault")}>
+              {hasFiles ? "데이터 보관함에서 분석에 반영" : "데이터 보관함에서 파일 추가"}
             </Button>
           )}
         </Card>

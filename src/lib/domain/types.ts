@@ -3,8 +3,6 @@ export type Screen =
   | "login"
   | "signup"
   | "upload"
-  | "analysis"
-  | "review"
   | "dashboard"
   | "vault"
   | "structureMap"

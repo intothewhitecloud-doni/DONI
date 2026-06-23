@@ -7,7 +7,6 @@ import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../../lib/domain/types";
 import {
   findPhaseOneFileProjection,
   type PhaseOneAnalysisProjection,
-  type PhaseOneApplyStatus,
   type PhaseOneFileProjection,
   type PhaseOneSignal,
   type PhaseOneStructureGroup,
@@ -36,6 +35,14 @@ import {
   sourceFileListSummary,
   SourceFilePreviewPanel
 } from "./SourceFilePreviewPanel";
+import {
+  canCompleteDeferredDataVaultApply,
+  completeDeferredDataVaultApply,
+  dataVaultApplyStatusForFile,
+  markDeferredDataVaultApplyAnalyzing,
+  startDeferredDataVaultApply,
+  type DataVaultLocalApplyStatus
+} from "../../lib/prototype/dataVaultApplyStatus";
 
 type EditingFileDraft = {
   description: string;
@@ -44,7 +51,7 @@ type EditingFileDraft = {
   organizationCategoryId: string;
 };
 
-type LocalApplyStatus = "idle" | PhaseOneApplyStatus;
+type LocalApplyStatus = DataVaultLocalApplyStatus;
 
 type DataVaultRevisionWorkbenchProps = {
   activeFile?: SourceFile;
@@ -60,6 +67,7 @@ type DataVaultRevisionWorkbenchProps = {
   selectedOrganizationCategoryId: string;
   sourceFiles: SourceFile[];
   sourceFileKindOptions: string[];
+  onApplySourceFile: (fileId: string) => boolean;
   onChangeEditingFile: (draft: EditingFileDraft) => void;
   onDownloadFile: (file: SourceFile) => void;
   onRemoveFile: (fileId: string) => void;
@@ -90,6 +98,7 @@ export function DataVaultRevisionWorkbench({
   selectedOrganizationCategoryId,
   sourceFiles,
   sourceFileKindOptions,
+  onApplySourceFile,
   onChangeEditingFile,
   onDownloadFile,
   onRemoveFile,
@@ -103,6 +112,7 @@ export function DataVaultRevisionWorkbench({
   const [activeCorrectionId, setActiveCorrectionId] = useState(vaultCorrectionItems[0]?.id ?? "");
   const [activeCurrentDataId, setActiveCurrentDataId] = useState(vaultCurrentDataItems[0]?.id ?? "");
   const [localApplyStatusByFileId, setLocalApplyStatusByFileId] = useState<Record<string, LocalApplyStatus>>({});
+  const localApplyStatusByFileIdRef = useRef<Record<string, LocalApplyStatus>>({});
   const localApplyTimers = useRef<number[]>([]);
   const fixture = useMemo(
     () => activeFile ? getDataVaultRevisionFixture(activeFile.id) ?? createUploadedFileRevisionFixture(activeFile) : undefined,
@@ -110,7 +120,7 @@ export function DataVaultRevisionWorkbench({
   );
   const fileProjection = findPhaseOneFileProjection(phaseOneProjection, activeFile?.id);
   const localApplyStatus = activeFile ? localApplyStatusByFileId[activeFile.id] : undefined;
-  const effectiveApplyStatus = applyStatusForFile(activeFile, localApplyStatus);
+  const effectiveApplyStatus = dataVaultApplyStatusForFile(activeFile, localApplyStatus);
   const activeDraft = getVaultDraftItem(activeDraftId) ?? vaultDraftItems[0];
   const activeCorrection = getVaultCorrectionItem(activeCorrectionId) ?? vaultCorrectionItems[0];
   const activeCurrentData = getVaultCurrentDataItem(activeCurrentDataId) ?? vaultCurrentDataItems[0];
@@ -133,24 +143,41 @@ export function DataVaultRevisionWorkbench({
     localApplyTimers.current = [];
   }, []);
 
+  useEffect(() => {
+    localApplyStatusByFileIdRef.current = localApplyStatusByFileId;
+  }, [localApplyStatusByFileId]);
+
   function handleStartLocalApplyStatus() {
     if (!activeFile) {
       return;
     }
 
     const fileId = activeFile.id;
-    const currentStatus = applyStatusForFile(activeFile, localApplyStatusByFileId[fileId]);
+    const currentStatus = dataVaultApplyStatusForFile(activeFile, localApplyStatusByFileIdRef.current[fileId]);
 
     if (currentStatus !== "idle") {
       return;
     }
 
-    setLocalApplyStatusByFileId((current) => ({ ...current, [fileId]: "pending" }));
+    const pendingStatus = startDeferredDataVaultApply(localApplyStatusByFileIdRef.current, fileId);
+    localApplyStatusByFileIdRef.current = pendingStatus;
+    setLocalApplyStatusByFileId(pendingStatus);
+
     const analyzingTimer = window.setTimeout(() => {
-      setLocalApplyStatusByFileId((current) => ({ ...current, [fileId]: current[fileId] === "pending" ? "analyzing" : current[fileId] }));
+      const analyzingStatus = markDeferredDataVaultApplyAnalyzing(localApplyStatusByFileIdRef.current, fileId);
+      localApplyStatusByFileIdRef.current = analyzingStatus;
+      setLocalApplyStatusByFileId(analyzingStatus);
     }, 1000);
+
     const appliedTimer = window.setTimeout(() => {
-      setLocalApplyStatusByFileId((current) => ({ ...current, [fileId]: current[fileId] === "analyzing" ? "applied" : current[fileId] }));
+      if (!canCompleteDeferredDataVaultApply(localApplyStatusByFileIdRef.current, fileId)) {
+        return;
+      }
+
+      const applied = onApplySourceFile(fileId);
+      const completedStatus = completeDeferredDataVaultApply(localApplyStatusByFileIdRef.current, fileId, applied);
+      localApplyStatusByFileIdRef.current = completedStatus;
+      setLocalApplyStatusByFileId(completedStatus);
     }, 3000);
 
     localApplyTimers.current = [...localApplyTimers.current, analyzingTimer, appliedTimer];
@@ -1196,14 +1223,6 @@ function formatDateTime(value: string): string {
   return new Date(value).toLocaleString("ko-KR");
 }
 
-function applyStatusForFile(file: SourceFile | undefined, localStatus: LocalApplyStatus | undefined): LocalApplyStatus {
-  if (file?.appliedAt) {
-    return "applied";
-  }
-
-  return localStatus ?? "idle";
-}
-
 function applyStatusLabel(status: LocalApplyStatus): string {
   if (status === "applied") {
     return "반영 완료";
@@ -1382,7 +1401,7 @@ function StageCell({
 }
 
 function fileStatusLabel(file: SourceFile, localStatus: LocalApplyStatus | undefined): string {
-  const status = applyStatusForFile(file, localStatus);
+  const status = dataVaultApplyStatusForFile(file, localStatus);
 
   if (status === "applied") {
     return "반영됨";
@@ -1400,7 +1419,7 @@ function fileStatusLabel(file: SourceFile, localStatus: LocalApplyStatus | undef
 }
 
 function sourceStatusTone(file: SourceFile, localStatus: LocalApplyStatus | undefined): BadgeTone {
-  const status = applyStatusForFile(file, localStatus);
+  const status = dataVaultApplyStatusForFile(file, localStatus);
 
   if (status === "applied") {
     return "success";
