@@ -11,6 +11,7 @@ import { UNASSIGNED_ORGANIZATION_CATEGORY_ID } from "../../lib/domain/types";
 import {
   displayTypeLabel,
   domainTypeColorHex,
+  isSystemDomainType,
   normalizeHexColor,
   normalizeTypeColor
 } from "../../lib/domain/type-catalog";
@@ -749,7 +750,7 @@ export function ManagedObjectsScreen() {
               <input
                 aria-label="관리 대상명 검색"
                 className="w-full rounded-md border border-hairline bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                placeholder="예: 고객A, 공급업체 A사"
+                placeholder="예: 핵심 고객군, 공급업체 A사"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
@@ -895,6 +896,10 @@ function DomainTypeManager({
   }
 
   function startEdit(typeDefinition: DomainTypeDefinition) {
+    if (isSystemDomainType(typeDefinition)) {
+      return;
+    }
+
     setEditingId(typeDefinition.id);
     setEditingLabel(typeDefinition.label);
     setEditingColor(normalizeTypeColor(typeDefinition.color));
@@ -925,42 +930,48 @@ function DomainTypeManager({
         </div>
       )}
       <div className="space-y-2">
-        {types.map((type) => (
-          <div key={type.id} className="rounded-md border border-slate-200 bg-white p-2">
-            {editingId === type.id ? (
-              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_148px_auto]">
-                <input
-                  className="h-9 min-w-0 flex-1 rounded-md border border-hairline bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                  value={editingLabel}
-                  onChange={(event) => setEditingLabel(event.target.value)}
-                />
-                <TypeColorPicker value={editingColor} onChange={setEditingColor} />
-                <div className="flex flex-wrap gap-2">
-                  <IconButton disabled={!editingLabel.trim()} label="유형 저장" variant="primary" onClick={() => submitEdit(type.id)}>
-                    <CheckIcon />
-                  </IconButton>
-                  <IconButton label="수정 취소" variant="secondary" onClick={() => setEditingId(undefined)}>
-                    <CloseIcon />
-                  </IconButton>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-2">
-                <TypeBadge color={type.color} label={type.label} />
-                {canManage && (
-                  <div className="flex shrink-0 gap-2">
-                    <IconButton label={`${type.label} 수정`} variant="secondary" onClick={() => startEdit(type)}>
-                      <PencilIcon />
+        {types.map((type) => {
+          const locked = isSystemDomainType(type);
+          return (
+            <div key={type.id} className="rounded-md border border-slate-200 bg-white p-2">
+              {editingId === type.id && !locked ? (
+                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_148px_auto]">
+                  <input
+                    className="h-9 min-w-0 flex-1 rounded-md border border-hairline bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    value={editingLabel}
+                    onChange={(event) => setEditingLabel(event.target.value)}
+                  />
+                  <TypeColorPicker value={editingColor} onChange={setEditingColor} />
+                  <div className="flex flex-wrap gap-2">
+                    <IconButton disabled={!editingLabel.trim()} label="유형 저장" variant="primary" onClick={() => submitEdit(type.id)}>
+                      <CheckIcon />
                     </IconButton>
-                    <IconButton label={`${type.label} 삭제`} variant="danger" onClick={() => onDelete(type.id)}>
-                      <TrashIcon />
+                    <IconButton label="수정 취소" variant="secondary" onClick={() => setEditingId(undefined)}>
+                      <CloseIcon />
                     </IconButton>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <TypeBadge color={type.color} label={type.label} />
+                    {locked && <Badge tone="neutral">시스템</Badge>}
+                  </div>
+                  {canManage && (
+                    <div className="flex shrink-0 gap-2">
+                      <IconButton disabled={locked} label={`${type.label} 수정`} variant="secondary" onClick={() => startEdit(type)}>
+                        <PencilIcon />
+                      </IconButton>
+                      <IconButton disabled={locked} label={`${type.label} 삭제`} variant="danger" onClick={() => onDelete(type.id)}>
+                        <TrashIcon />
+                      </IconButton>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
         {types.length === 0 && (
           <div className="rounded-md border border-dashed border-hairline bg-white p-3 text-sm text-slate-600">
             등록된 유형이 없습니다. 관리자가 유형을 추가하면 필터와 표기에 반영됩니다.
@@ -1219,7 +1230,7 @@ export function WorkflowScreen() {
             <Popup eyebrow="유형 관리" size="md" title="업무흐름 유형" tone="info" onClose={() => setShowTypeManager(false)}>
               <DomainTypeManager
                 canManage={canManageTypes}
-                description="업무흐름 유형은 이벤트를 묶는 관리용 범주 정보입니다. 삭제된 유형은 이벤트를 유지한 채 미지정으로 표시됩니다."
+                description="업무흐름 유형은 이벤트를 묶는 관리용 범주 정보입니다. 시스템 유형은 데이터 반영 경로에 사용되므로 수정하거나 삭제할 수 없습니다."
                 onAdd={(label, color) => commands.addDomainType("workflow", label, color)}
                 onDelete={(typeId) => commands.deleteDomainType("workflow", typeId)}
                 onUpdate={(typeId, label, color) => commands.updateDomainType("workflow", typeId, label, color)}

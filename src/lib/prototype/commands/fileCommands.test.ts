@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { sampleSourceFiles } from "../../domain/sample-analysis";
 import { reducer, type PrototypeAction } from "../../domain/state-machine";
 import { createInitialState } from "../store";
 import { loginWithCredentials } from "./authCommands";
-import { addSourceFiles, applySourceFileToCurrentStandard, updateSourceFile } from "./fileCommands";
+import { addSourceFiles, applySourceFileToCurrentStandard, removeSourceFile, updateSourceFile } from "./fileCommands";
 
 function loggedInState(): ReturnType<typeof createInitialState> {
   let state = createInitialState();
@@ -170,9 +171,147 @@ test("applySourceFileToCurrentStandard creates linked operational records for up
   assert.ok(harness.state.entities.some((entity) => entity.id === `entity-${fileId}` && entity.owner === "운영"));
   assert.ok(harness.state.relations.some((relation) => relation.id === `relation-${fileId}-current-standard`));
   assert.ok(harness.state.events.some((event) => event.id === `event-${fileId}-apply`));
+  assert.deepEqual(
+    harness.state.workflowTypes
+      .filter((type) => ["원천 기록", "정보 보정", "현재 기준 반영"].includes(type.label))
+      .map((type) => ({ label: type.label, color: type.color })),
+    [
+      { label: "원천 기록", color: "slate" },
+      { label: "정보 보정", color: "orange" },
+      { label: "현재 기준 반영", color: "emerald" }
+    ]
+  );
   assert.ok(harness.state.metricDefinitions.some((metric) => metric.id === `metric-${fileId}-readiness`));
   assert.ok(harness.state.insights.some((insight) => insight.id === `insight-${fileId}-lineage`));
   assert.equal(harness.state.structureMapView.selectedItemId, `entity-${fileId}`);
+});
+
+test("applySourceFileToCurrentStandard maps canonical sample files to decision metrics", () => {
+  const harness = statefulDispatch();
+  const marginSource = sampleSourceFiles.find((file) => file.id === "source-margin");
+  assert.ok(marginSource);
+
+  assert.equal(
+    addSourceFiles(
+      harness.state,
+      harness.dispatch,
+      [
+        {
+          name: marginSource.name,
+          previewColumns: marginSource.previewColumns,
+          previewRows: marginSource.previewRows,
+          rowCount: marginSource.rowCount,
+          size: 256
+        }
+      ],
+      "org-operations"
+    ),
+    true
+  );
+
+  const uploadedFile = harness.state.sourceFiles.find((file) => file.name === marginSource.name);
+  assert.ok(uploadedFile);
+  assert.equal(applySourceFileToCurrentStandard(harness.state, harness.dispatch, uploadedFile.id), true);
+
+  assert.deepEqual(
+    harness.state.sourceFiles.map((file) => file.id).sort(),
+    ["source-margin", "source-orders"]
+  );
+  assert.deepEqual(
+    harness.state.metricDefinitions.map((metric) => metric.name),
+    ["평균 마진율", "납품준수율", "P-42 지연률", "평균 출고 대기시간", "클레임률"]
+  );
+  assert.equal(harness.state.metricDefinitions.some((metric) => metric.name.includes("보정 완료율")), false);
+  assert.equal(harness.state.metricValues.some((value) => value.metricId === "metric-delivery-compliance"), true);
+  assert.equal(harness.state.workflowMetricBindings.some((binding) => binding.metricId === "metric-delay-rate"), true);
+  assert.equal(harness.state.insights.some((insight) => insight.id === "insight-product-margin"), true);
+  assert.equal(harness.state.structureMapView.selectedItemId, "entity-low-margin");
+});
+
+test("applySourceFileToCurrentStandard requires sample columns before using canonical metrics", () => {
+  const harness = statefulDispatch();
+
+  assert.equal(
+    addSourceFiles(harness.state, harness.dispatch, [{ name: "상품별_마진_공급사.csv", rowCount: 1, size: 128 }], "org-operations"),
+    true
+  );
+
+  const uploadedFile = harness.state.sourceFiles.find((file) => file.name === "상품별_마진_공급사.csv");
+  assert.ok(uploadedFile);
+  assert.equal(applySourceFileToCurrentStandard(harness.state, harness.dispatch, uploadedFile.id), true);
+
+  assert.equal(harness.state.sourceFiles.some((file) => file.id === "source-orders"), false);
+  assert.deepEqual(harness.state.metricDefinitions.map((metric) => metric.name), ["상품별_마진_공급사 보정 완료율"]);
+  assert.equal(harness.state.metricValues.some((value) => value.metricId === "metric-delivery-compliance"), false);
+});
+
+test("applySourceFileToCurrentStandard requires the margin compliance column for canonical metrics", () => {
+  const harness = statefulDispatch();
+  const marginSource = sampleSourceFiles.find((file) => file.id === "source-margin");
+  assert.ok(marginSource);
+  const previewColumns = marginSource.previewColumns?.filter((column) => column !== "납품준수율");
+
+  assert.equal(
+    addSourceFiles(
+      harness.state,
+      harness.dispatch,
+      [
+        {
+          name: marginSource.name,
+          previewColumns,
+          rowCount: marginSource.rowCount,
+          size: 128
+        }
+      ],
+      "org-operations"
+    ),
+    true
+  );
+
+  const uploadedFile = harness.state.sourceFiles.find((file) => file.name === marginSource.name);
+  assert.ok(uploadedFile);
+  assert.equal(applySourceFileToCurrentStandard(harness.state, harness.dispatch, uploadedFile.id), true);
+
+  assert.equal(harness.state.sourceFiles.some((file) => file.id === "source-orders"), false);
+  assert.deepEqual(harness.state.metricDefinitions.map((metric) => metric.name), ["상품별_마진_공급사 보정 완료율"]);
+  assert.equal(harness.state.metricDefinitions.some((metric) => metric.id === "metric-delivery-compliance"), false);
+});
+
+test("removeSourceFile clears canonical sample metrics when one sample file is removed", () => {
+  const harness = statefulDispatch();
+  const marginSource = sampleSourceFiles.find((file) => file.id === "source-margin");
+  assert.ok(marginSource);
+
+  assert.equal(
+    addSourceFiles(
+      harness.state,
+      harness.dispatch,
+      [
+        {
+          name: marginSource.name,
+          previewColumns: marginSource.previewColumns,
+          previewRows: marginSource.previewRows,
+          rowCount: marginSource.rowCount,
+          size: 256
+        }
+      ],
+      "org-operations"
+    ),
+    true
+  );
+  const uploadedFile = harness.state.sourceFiles.find((file) => file.name === marginSource.name);
+  assert.ok(uploadedFile);
+  assert.equal(applySourceFileToCurrentStandard(harness.state, harness.dispatch, uploadedFile.id), true);
+  assert.equal(harness.state.metricDefinitions.some((metric) => metric.id === "metric-delay-rate"), true);
+
+  assert.equal(removeSourceFile(harness.state, harness.dispatch, "source-orders"), true);
+
+  assert.deepEqual(harness.state.sourceFiles.map((file) => file.id), ["source-margin"]);
+  assert.equal(harness.state.sourceFiles[0].status, "ready");
+  assert.equal(harness.state.sourceFiles[0].appliedAt, undefined);
+  assert.equal(harness.state.metricDefinitions.some((metric) => metric.id === "metric-delay-rate"), false);
+  assert.equal(harness.state.insights.some((insight) => insight.id === "insight-product-margin"), false);
+  assert.equal(harness.state.entities.some((entity) => entity.id === "entity-low-margin"), false);
 });
 
 test("updateSourceFile clears generated operational records until the file is applied again", () => {

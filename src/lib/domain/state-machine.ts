@@ -12,9 +12,11 @@ import { initialPrototypeState as preparedData } from "./mock-data";
 import { buildCompanyResultBundle, buildProposalDraftFromInsight, decisionIdForProposal, workflowsHaveSelectedMetrics } from "./result-scenarios";
 import { sampleCandidateOperationalMap } from "./sample-analysis";
 import {
-  defaultTypeColor,
+  defaultDomainTypeColor,
   displayTypeLabel,
   domainTypeId,
+  isSystemDomainType,
+  isSystemWorkflowTypeLabel,
   normalizeDomainTypeCatalog,
   normalizeTypeColor,
   normalizeTypeLabel
@@ -254,7 +256,7 @@ function inferDomainTypes(scope: DomainTypeScope, labels: string[]): DomainTypeD
       id: domainTypeId(scope, label, allLabels.slice(0, index).map((priorLabel) => domainTypeId(scope, priorLabel))),
       scope,
       label,
-      color: defaultTypeColor(index)
+      color: defaultDomainTypeColor(scope, label, index)
     }));
 }
 
@@ -488,6 +490,9 @@ function addDomainType(state: PrototypeState, scope: DomainTypeScope, label: str
   if (!normalizedLabel) {
     return { ...state, permissionDenied: "추가할 유형 이름을 입력해 주세요." };
   }
+  if (isSystemWorkflowTypeLabel(scope, normalizedLabel)) {
+    return { ...state, permissionDenied: "시스템 업무흐름 유형은 추가/수정/삭제할 수 없습니다." };
+  }
 
   const catalog = typeCatalogForScope(state, scope);
   if (catalog.some((item) => normalizeTypeLabel(item.label) === normalizedLabel)) {
@@ -500,7 +505,7 @@ function addDomainType(state: PrototypeState, scope: DomainTypeScope, label: str
       id: domainTypeId(scope, normalizedLabel, catalog.map((item) => item.id)),
       scope,
       label: normalizedLabel,
-      color: normalizeTypeColor(color ?? defaultTypeColor(catalog.length))
+      color: normalizeTypeColor(color ?? defaultDomainTypeColor(scope, normalizedLabel, catalog.length))
     }
   ]);
 }
@@ -515,6 +520,9 @@ function updateDomainType(state: PrototypeState, scope: DomainTypeScope, typeId:
   const current = catalog.find((item) => item.id === typeId);
   if (!current) {
     return { ...state, permissionDenied: "수정할 유형을 찾지 못했습니다." };
+  }
+  if (isSystemDomainType(current) || isSystemWorkflowTypeLabel(scope, normalizedLabel)) {
+    return { ...state, permissionDenied: "시스템 업무흐름 유형은 추가/수정/삭제할 수 없습니다." };
   }
 
   if (catalog.some((item) => item.id !== typeId && normalizeTypeLabel(item.label) === normalizedLabel)) {
@@ -548,6 +556,9 @@ function deleteDomainType(state: PrototypeState, scope: DomainTypeScope, typeId:
   const current = catalog.find((item) => item.id === typeId);
   if (!current) {
     return { ...state, permissionDenied: "삭제할 유형을 찾지 못했습니다." };
+  }
+  if (isSystemDomainType(current)) {
+    return { ...state, permissionDenied: "시스템 업무흐름 유형은 추가/수정/삭제할 수 없습니다." };
   }
 
   const updatedState = withTypeCatalog(state, scope, catalog.filter((item) => item.id !== typeId));
@@ -689,8 +700,167 @@ function removeSourceFileOperationalData(state: PrototypeState, ids: SourceFileO
   };
 }
 
+function sameSourceFileName(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+const canonicalSampleRequiredColumns: Record<string, string[]> = {
+  "source-margin": ["상품군", "상품명", "공급사", "매출", "원가", "할인율", "반품비용", "평균마진율", "납품준수율"],
+  "source-orders": ["주문번호", "주문일자", "고객군", "상품군", "공급사", "주문상태", "출고대기시간", "클레임유형"]
+};
+
+function hasCanonicalSampleColumns(file: SourceFile, canonicalFile: SourceFile): boolean {
+  const columns = file.previewColumns?.map((column) => column.trim()).filter(Boolean) ?? [];
+  if (columns.length === 0) {
+    return file.id === canonicalFile.id;
+  }
+
+  const columnSet = new Set(columns);
+  const requiredColumns = canonicalSampleRequiredColumns[canonicalFile.id] ?? canonicalFile.previewColumns?.slice(0, columns.length) ?? [];
+  return requiredColumns.every((column) => columnSet.has(column));
+}
+
+function canonicalSampleSourceFileFor(file: SourceFile): SourceFile | undefined {
+  const normalizedFile = normalizeSourceFile(file);
+  return preparedData.sourceFiles.find(
+    (canonicalFile) =>
+      (normalizedFile.id === canonicalFile.id || sameSourceFileName(normalizedFile.name, canonicalFile.name)) &&
+      hasCanonicalSampleColumns(normalizedFile, canonicalFile)
+  );
+}
+
+function removePreparedItems<T extends { id: string }>(items: T[], preparedItems: T[]): T[] {
+  const preparedIds = new Set(preparedItems.map((item) => item.id));
+  return items.filter((item) => !preparedIds.has(item.id));
+}
+
+function removeCanonicalSampleOperationalCollections(state: PrototypeState): PrototypeState {
+  return {
+    ...state,
+    candidates: removePreparedItems(state.candidates, preparedData.candidates),
+    entities: removePreparedItems(state.entities, preparedData.entities),
+    events: removePreparedItems(state.events, preparedData.events),
+    evidence: removePreparedItems(state.evidence, preparedData.evidence),
+    insights: removePreparedItems(state.insights, preparedData.insights),
+    metricDefinitions: removePreparedItems(state.metricDefinitions, preparedData.metricDefinitions),
+    metricValues: removePreparedItems(state.metricValues, preparedData.metricValues),
+    relations: removePreparedItems(state.relations, preparedData.relations),
+    workflowMetricBindings: removePreparedItems(state.workflowMetricBindings, preparedData.workflowMetricBindings)
+  };
+}
+
+function resetCanonicalSampleSourceFileApplication(state: PrototypeState): PrototypeState {
+  return {
+    ...state,
+    sourceFiles: state.sourceFiles.map((file) =>
+      canonicalSampleSourceFileFor(file)
+        ? { ...normalizeSourceFile(file), status: "ready" as const, appliedAt: undefined }
+        : normalizeSourceFile(file)
+    )
+  };
+}
+
+function removeSourceFileOperationalDataForFile(state: PrototypeState, fileId: string): PrototypeState {
+  const file = state.sourceFiles.find((item) => item.id === fileId);
+  if (!file || !canonicalSampleSourceFileFor(file)) {
+    return removeSourceFileOperationalData(state, sourceFileOperationalIds(fileId));
+  }
+
+  const sampleFileIds = new Set(
+    state.sourceFiles
+      .map((item) => canonicalSampleSourceFileFor(item) ? item.id : "")
+      .filter(Boolean)
+  );
+  preparedData.sourceFiles.forEach((sampleFile) => sampleFileIds.add(sampleFile.id));
+
+  let cleared = resetCanonicalSampleSourceFileApplication(removeCanonicalSampleOperationalCollections(state));
+  sampleFileIds.forEach((sampleFileId) => {
+    cleared = removeSourceFileOperationalData(cleared, sourceFileOperationalIds(sampleFileId));
+  });
+  return cleared;
+}
+
+function mergeCanonicalSampleSourceFile(canonicalFile: SourceFile, existingFile: SourceFile | undefined, appliedAt: string): SourceFile {
+  const normalizedCanonical = normalizeSourceFile(canonicalFile);
+  const normalizedExisting = existingFile ? normalizeSourceFile(existingFile) : undefined;
+
+  return {
+    ...normalizedCanonical,
+    description: normalizedExisting?.description ?? normalizedCanonical.description,
+    kind: normalizedExisting?.kind ?? normalizedCanonical.kind,
+    organizationCategoryId: normalizedExisting?.organizationCategoryId ?? normalizedCanonical.organizationCategoryId,
+    size: normalizedExisting?.size ?? normalizedCanonical.size,
+    mimeType: normalizedExisting?.mimeType ?? normalizedCanonical.mimeType,
+    dataUrl: normalizedExisting?.dataUrl ?? normalizedCanonical.dataUrl,
+    textContent: normalizedExisting?.textContent ?? normalizedCanonical.textContent,
+    status: "parsed",
+    uploadedAt: normalizedExisting?.uploadedAt ?? appliedAt,
+    appliedAt,
+    rowCount: normalizedCanonical.rowCount,
+    previewColumns: normalizedCanonical.previewColumns,
+    previewRows: normalizedCanonical.previewRows
+  };
+}
+
+function applyCanonicalSampleOperationalData(state: PrototypeState, appliedAt: string): PrototypeState {
+  // The two public sample files are one decision-analysis bundle; applying either
+  // file refreshes the pair so source evidence, metrics, and insights stay aligned.
+  const existingSampleFiles = new Map<string, SourceFile>();
+  state.sourceFiles.forEach((file) => {
+    const canonicalFile = canonicalSampleSourceFileFor(file);
+    if (canonicalFile) {
+      existingSampleFiles.set(canonicalFile.id, file);
+    }
+  });
+
+  let cleared = removeCanonicalSampleOperationalCollections(state);
+  state.sourceFiles.forEach((file) => {
+    if (canonicalSampleSourceFileFor(file)) {
+      cleared = removeSourceFileOperationalData(cleared, sourceFileOperationalIds(file.id));
+    }
+  });
+  preparedData.sourceFiles.forEach((file) => {
+    cleared = removeSourceFileOperationalData(cleared, sourceFileOperationalIds(file.id));
+  });
+
+  const sampleSourceFiles = preparedData.sourceFiles.map((file) => mergeCanonicalSampleSourceFile(file, existingSampleFiles.get(file.id), appliedAt));
+  const otherSourceFiles = cleared.sourceFiles
+    .filter((file) => !canonicalSampleSourceFileFor(file))
+    .map((file) => normalizeSourceFile(file));
+
+  return {
+    ...cleared,
+    activeCandidateType: "managed_object",
+    activeInsightId: preparedData.activeInsightId,
+    company: { ...cleared.company, dataReadiness: "ready" },
+    candidates: [...preparedData.candidates, ...cleared.candidates],
+    entities: [...preparedData.entities, ...cleared.entities],
+    events: [...preparedData.events, ...cleared.events],
+    evidence: [...preparedData.evidence, ...cleared.evidence],
+    insights: [...preparedData.insights, ...cleared.insights],
+    managedObjectTypes: mergeDomainTypes("managed_object", cleared.managedObjectTypes, preparedData.managedObjectTypes),
+    metricDefinitions: [...preparedData.metricDefinitions, ...cleared.metricDefinitions],
+    metricValues: [...preparedData.metricValues, ...cleared.metricValues],
+    relations: [...preparedData.relations, ...cleared.relations],
+    sourceFiles: [...sampleSourceFiles, ...otherSourceFiles],
+    structureMapView: normalizeStructureMapViewState({
+      ...cleared.structureMapView,
+      hiddenEdgeIds: [],
+      hiddenNodeIds: [],
+      searchQuery: "",
+      selectedItemId: "entity-low-margin"
+    }),
+    workflowMetricBindings: [...preparedData.workflowMetricBindings, ...cleared.workflowMetricBindings],
+    workflowTypes: mergeDomainTypes("workflow", cleared.workflowTypes, preparedData.workflowTypes)
+  };
+}
+
 function applySourceFileOperationalData(state: PrototypeState, file: SourceFile, appliedAt: string): PrototypeState {
   const normalizedFile = normalizeSourceFile(file);
+  if (canonicalSampleSourceFileFor(normalizedFile)) {
+    return applyCanonicalSampleOperationalData(state, appliedAt);
+  }
+
   const ids = sourceFileOperationalIds(normalizedFile.id);
   const cleared = removeSourceFileOperationalData(state, ids);
   const dataName = sourceFileDataName(normalizedFile);
@@ -1484,7 +1654,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
     }
 
     case "UPDATE_SOURCE_FILE": {
-      const cleared = removeSourceFileOperationalData(state, sourceFileOperationalIds(action.fileId));
+      const cleared = removeSourceFileOperationalDataForFile(state, action.fileId);
       return withAudit(
         {
           ...cleared,
@@ -1530,7 +1700,7 @@ export function reducer(state: PrototypeState, action: PrototypeAction): Prototy
     }
 
     case "REMOVE_SOURCE_FILE": {
-      const cleared = removeSourceFileOperationalData(state, sourceFileOperationalIds(action.fileId));
+      const cleared = removeSourceFileOperationalDataForFile(state, action.fileId);
       return withAudit(
         {
           ...cleared,

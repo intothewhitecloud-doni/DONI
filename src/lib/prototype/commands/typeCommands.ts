@@ -1,6 +1,6 @@
 import type { Dispatch } from "react";
 import type { DomainTypeScope, PrototypeState } from "../../domain/types";
-import { normalizeTypeColor, normalizeTypeLabel } from "../../domain/type-catalog";
+import { isSystemDomainType, isSystemWorkflowTypeLabel, normalizeTypeColor, normalizeTypeLabel } from "../../domain/type-catalog";
 import { commandMeta } from "../events";
 import { canCurrentUser } from "../permissions";
 import type { PrototypeAction } from "../store";
@@ -28,6 +28,10 @@ export function addDomainType(
   const normalizedLabel = normalizeTypeLabel(label);
   if (!normalizedLabel) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "추가할 유형 이름을 입력해 주세요." });
+    return false;
+  }
+  if (isSystemWorkflowTypeLabel(scope, normalizedLabel)) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "시스템 업무흐름 유형은 추가/수정/삭제할 수 없습니다." });
     return false;
   }
 
@@ -66,8 +70,13 @@ export function updateDomainType(
     return false;
   }
 
-  if (!catalogForScope(state, scope).some((item) => item.id === typeId)) {
+  const current = catalogForScope(state, scope).find((item) => item.id === typeId);
+  if (!current) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "수정할 유형을 찾지 못했습니다." });
+    return false;
+  }
+  if (isSystemDomainType(current) || isSystemWorkflowTypeLabel(scope, normalizedLabel)) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "시스템 업무흐름 유형은 추가/수정/삭제할 수 없습니다." });
     return false;
   }
 
@@ -102,6 +111,10 @@ export function deleteDomainType(
   const current = catalogForScope(state, scope).find((item) => item.id === typeId);
   if (!current) {
     dispatch({ type: "SET_PERMISSION_DENIED", message: "삭제할 유형을 찾지 못했습니다." });
+    return false;
+  }
+  if (isSystemDomainType(current)) {
+    dispatch({ type: "SET_PERMISSION_DENIED", message: "시스템 업무흐름 유형은 추가/수정/삭제할 수 없습니다." });
     return false;
   }
 

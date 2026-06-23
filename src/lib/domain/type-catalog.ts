@@ -22,6 +22,17 @@ export const domainTypeColorHexValues: Record<DomainTypePresetColor, string> = {
   slate: "#64748b"
 };
 
+const semanticWorkflowTypeColors: Record<string, DomainTypeColor> = {
+  "원천 기록": "slate",
+  "정보 보정": "orange",
+  "현재 기준 반영": "emerald"
+};
+
+const legacySemanticWorkflowTypeColors: Partial<Record<string, DomainTypeColor>> = {
+  "원천 기록": "blue",
+  "현재 기준 반영": "pink"
+};
+
 export function normalizeTypeLabel(label: string): string {
   return label.trim().replace(/\s+/g, " ");
 }
@@ -91,6 +102,19 @@ export function defaultTypeColor(indexOrLabel: number | string): DomainTypeColor
   return colors[index % colors.length] ?? DEFAULT_TYPE_COLOR;
 }
 
+export function defaultDomainTypeColor(scope: DomainTypeScope, label: string, index: number): DomainTypeColor {
+  const semanticColor = scope === "workflow" ? semanticWorkflowTypeColors[normalizeTypeLabel(label)] : undefined;
+  return semanticColor ?? defaultTypeColor(index);
+}
+
+export function isSystemWorkflowTypeLabel(scope: DomainTypeScope, label: string): boolean {
+  return scope === "workflow" && normalizeTypeLabel(label) in semanticWorkflowTypeColors;
+}
+
+export function isSystemDomainType(type: Pick<DomainTypeDefinition, "label" | "scope">): boolean {
+  return isSystemWorkflowTypeLabel(type.scope, type.label);
+}
+
 export function domainTypeColorHex(color?: string): string {
   const normalized = normalizeTypeColor(color);
   if (isPresetTypeColor(normalized)) {
@@ -105,15 +129,27 @@ export function domainTypeColorDisplayLabel(color?: string): string {
   return isPresetTypeColor(normalized) ? domainTypeColorLabels[normalized] : normalized.toUpperCase();
 }
 
-function normalizeCatalogColor(color: string | undefined, index: number): DomainTypeColor {
-  return color ? normalizeTypeColor(color) : defaultTypeColor(index);
+function normalizeCatalogColor(scope: DomainTypeScope, label: string, color: string | undefined, index: number): DomainTypeColor {
+  const normalizedLabel = normalizeTypeLabel(label);
+  const semanticColor = scope === "workflow" ? semanticWorkflowTypeColors[normalizedLabel] : undefined;
+  if (!semanticColor) {
+    return color ? normalizeTypeColor(color) : defaultTypeColor(index);
+  }
+
+  if (!color) {
+    return semanticColor;
+  }
+
+  const normalizedColor = normalizeTypeColor(color);
+  return normalizedColor === legacySemanticWorkflowTypeColors[normalizedLabel] ? semanticColor : normalizedColor;
 }
 
 export function normalizeDomainTypeDefinition(type: DomainTypeDefinition, index = 0): DomainTypeDefinition {
+  const label = normalizeTypeLabel(type.label);
   return {
     ...type,
-    label: normalizeTypeLabel(type.label),
-    color: normalizeCatalogColor(type.color, index)
+    label,
+    color: normalizeCatalogColor(type.scope, label, type.color, index)
   };
 }
 
@@ -136,7 +172,7 @@ export function normalizeDomainTypeCatalog(types: DomainTypeDefinition[], scope:
           id,
           scope,
           label,
-          color: normalizeCatalogColor(type.color, index)
+          color: normalizeCatalogColor(scope, label, type.color, index)
         },
         index
       )
